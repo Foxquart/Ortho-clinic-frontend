@@ -1,0 +1,780 @@
+/* =============================================================================
+   OrthoClinic — token layer
+   -----------------------------------------------------------------------------
+   The single source of truth for colour, type, radius, elevation, motion and
+   density. Nothing here styles an element; it only names values.
+   `src/index.css` imports this file and applies the tokens to the document.
+
+   THEME CONTRACT (matches index.html's pre-paint script and ThemeProvider):
+     explicit light  ->  <html data-theme="light">
+     explicit dark   ->  <html data-theme="dark">
+     "system"        ->  no data-theme attribute at all
+   Every dark value is therefore written twice: once under the attribute, once
+   under `prefers-color-scheme: dark` guarded by `:not([data-theme="light"])`,
+   so an explicit choice wins in both directions. The two dark blocks MUST stay
+   identical. No colour is ever defined only inside a media query.
+
+   WHY THE `--c-*` INDIRECTION
+   ---------------------------
+   Tailwind v4 resolves theme values at BUILD time. If `--color-danger` held a
+   literal hex, then `border-danger/25` would compile to a baked light-mode
+   `color-mix(... #c02626 ...)` and `shadow-md` would bake the light shadow —
+   both would silently fail to flip in dark mode. Pointing each theme key at a
+   runtime variable (`--color-danger: var(--c-danger)`) makes Tailwind emit
+   `color-mix(in oklab, var(--color-danger) 25%, ...)` instead, which resolves
+   per theme in the browser. So:
+
+     `--c-*`     raw values, redefined per theme.  Never referenced in components.
+     `--color-*` the public API.  Use these, and the utilities they generate.
+   ========================================================================== */
+
+@import 'tailwindcss';
+
+/* Make Tailwind's `dark:` variant obey the same contract. Tokens already flip
+   on their own, so `dark:` should be rare — reach for it only when a whole
+   treatment changes, never to restate a colour. */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
+
+/* ============================================================================
+   PALETTE — LIGHT
+   A warm-neutral ground with white paper on top. The ground is never white:
+   a card has to be able to sit on something.
+   ========================================================================= */
+:root {
+  color-scheme: light;
+  accent-color: var(--color-accent); /* native checkbox/range/scrollbar */
+
+  /* -- Ground and surfaces ------------------------------------------------ */
+  --c-bg: #f4f5f7; /* app ground, behind everything */
+  --c-bg-sunken: #e8eaee; /* wells, table headers, inset areas */
+  --c-surface: #ffffff; /* cards, panels, the sheet of paper */
+  --c-surface-raised: #ffffff; /* menus, popovers, dialogs (+ elevation) */
+  --c-surface-hover: #f0f1f5; /* row / list-item hover */
+  --c-surface-active: #e4e6ec; /* row pressed or selected */
+  --c-overlay: rgb(14 16 21 / 0.42); /* scrim behind dialogs and sheets */
+
+  /* -- Lines -------------------------------------------------------------- *
+     Three weights, and the middle one is not decoration. A text input on a
+     white card is identified ONLY by its boundary, so that boundary owes the
+     user 3:1 (WCAG 1.4.11). `--c-border` is the decorative hairline between
+     rows and around cards, where the fill already does the separating.       */
+  --c-border: #e1e3e9; /* hairline: card edges, table rules       1.3:1 */
+  --c-border-field: #868c97; /* control boundary at rest                3.4:1 */
+  --c-border-strong: #7f8593; /* hovered control, divider that must read 3.7:1 */
+
+  /* -- Ink ----------------------------------------------------------------- *
+     Three tiers, and every one of them clears 7:1 on a card. The hierarchy is
+     carried by SIZE and WEIGHT, not by fading text towards the background —
+     a clinic monitor at the wrong gamma eats the bottom tier first.          */
+  --c-text: #0e1015; /* primary content            19.0:1 on surface */
+  --c-text-muted: #3e414a; /* labels, secondary content  10.2:1 on surface */
+  --c-text-subtle: #4e515a; /* timestamps, hints, TH       7.9:1 on surface */
+
+  /* -- Accent (primary action) --------------------------------------------- *
+     Indigo ink, not the generic UI blue. Two reasons, both practical:
+     it is the colour of the pen a prescription gets signed with, and it is the
+     one cool hue NOT already spoken for — `info` and `heard` own azure,
+     `success` owns green. A button can therefore never be mistaken for a
+     status, and the "heard" rail can never be mistaken for a link.           */
+  --c-accent: #3a41b5;
+  --c-accent-hover: #2f3596;
+  --c-accent-fg: #ffffff; /* ink ON a solid accent fill  8.1:1 */
+  --c-accent-muted: #ecedfc; /* accent tint background */
+  --c-accent-muted-fg: #2f3596; /* ink ON the accent tint     10.1:1 */
+
+  /* The ring. `index.css` draws it at `outline-offset: 2px`, so the colour it
+     must separate from is the GROUND either side of the gap, not the control
+     it surrounds — 5.4:1 there. The 2px gap is the light half of the ring. */
+  --c-focus: #3a41b5;
+
+  /* -- Status ------------------------------------------------------------- *
+     Four tokens per role, no more, no guessing:
+       --color-X            solid fill, or strong ink on a plain surface
+       --color-X-fg         ink ON the solid fill
+       --color-X-muted      tinted background
+       --color-X-muted-fg   ink ON the tinted background
+     A hairline on a tint is `border-danger/25` — safe now, see the note above.
+
+     WHY THESE FOUR HUES SIT WHERE THEY DO
+     -------------------------------------
+     Roughly 8% of men cannot separate red from amber by hue. Under simulated
+     deuteranopia the old palette put `danger` and `warning` 8 ΔE apart and
+     `allergy` and `warning` 5 ΔE apart — which is to say, identical. Hue could
+     not fix that, because deuteranopia collapses red and amber onto the same
+     axis; only LUMINANCE survives. So the four roles are now stacked as a
+     brightness ladder on white, darkest = most severe:
+
+       allergy  8.4:1   danger 7.5:1   info 6.1:1   success 5.4:1   warning 4.7:1
+
+     which yields, in pure greyscale (also: the B&W laser this pad prints on)
+       danger  vs warning  1.59:1     danger vs success  1.39:1
+       allergy vs warning  1.68:1     success vs warning 1.14:1
+     Every ratio that separates "stop" from "caution" is now a visible step.
+     `success` vs `warning` stays weak in greyscale and is carried by hue
+     (ΔE 38 deutan / 26 protan) plus the mandatory icon — see DESIGN.md.
+     None of this licenses hue-only meaning: every status still ships an icon
+     or a shape as well. Colour is the second channel, never the first.      */
+
+  --c-success: #0d7a4a; /* 5.4:1 on white */
+  --c-success-fg: #ffffff;
+  --c-success-muted: #e2f4ea;
+  --c-success-muted-fg: #0a5f3b;
+
+  --c-warning: #a86307; /* 4.7:1 — deliberately the LIGHTEST of the four */
+  --c-warning-fg: #ffffff;
+  --c-warning-muted: #fbf0da;
+  --c-warning-muted-fg: #7c4704;
+
+  --c-danger: #a8161f; /* 7.5:1 — deliberately DARK, so it outranks amber */
+  /* ADDED. A designed hover, because `bg-danger/90` composites toward the page
+     and LIGHTENS a solid button on a light ground — the fill gets weaker on
+     hover, and the white label loses contrast at the exact moment the pointer
+     is on it. Solid fills hover to a token, never to an alpha. */
+  --c-danger-hover: #8e1119;
+  --c-danger-fg: #ffffff;
+  --c-danger-muted: #fce9ea;
+  --c-danger-muted-fg: #8e1119;
+
+  --c-info: #0c63b1; /* azure. Shared with `heard` on purpose. */
+  --c-info-fg: #ffffff;
+  --c-info-muted: #e6f0fb;
+  --c-info-muted-fg: #094c88;
+
+  /* -- CLINICAL SAFETY: allergy / contraindication ------------------------ *
+     Deliberately separate from `danger`. `danger` is UI danger — delete this,
+     discard that, the request failed — and it MAY be rendered as a tint.
+     `allergy` is patient danger. It is ALWAYS a solid fill with an icon and a
+     text label: never a tint, never dismissible, never behind a disclosure,
+     never truncated. This practice prescribes NSAIDs constantly and an allergy
+     missed once is a real injury. The `-muted` pair exists only for the inline
+     chip on a medicine row that already sits inside a solid banner.            */
+  --c-allergy: #9c0f18; /* 8.4:1 — the darkest thing in the palette */
+  --c-allergy-fg: #ffffff;
+  --c-allergy-muted: #fce4e5;
+  --c-allergy-muted-fg: #820c14;
+
+  /* -- CLINICAL SAFETY: field provenance ---------------------------------- *
+     Where did the value in this prescription field come from?
+       heard      the doctor said it, we transcribed it        -> confident
+       defaulted  filled from a clinic default or template     -> verify me
+       blank      nothing yet, and the script cannot be signed -> blocking
+     THE SHAPE IS THE SIGNAL, THE HUE IS THE ECHO. Three different geometries,
+     so the triad survives any colour-vision deficiency and any bad monitor:
+       heard     = 3px SOLID  left rail            (azure)
+       defaulted = 3px DOTTED left rail            (ochre)
+       blank     = full DASHED box + diagonal hatch (graphite)
+     Note the third is a box where the other two are rails — that alone tells
+     it apart across the room, before any colour is read.
+
+     These hues intentionally echo `info` and `warning`: "the system heard you"
+     IS informational and "the system guessed" IS a soft caution. Reusing the
+     family keeps the palette small and calm. What stops them reading as
+     decoration is the rail geometry plus the always-present ProvenanceTag.
+
+     `blank` is deliberately NOT red and deliberately NOT dimmed. Nothing is
+     wrong yet — the doctor simply has not said it. But it is not an inert
+     empty box either: it is full-strength graphite at 8.0:1, it is hatched so
+     it reads as reserved-and-waiting rather than switched-off, and it blocks
+     the sign action. It must never be confused with a disabled field, which in
+     this system is the only thing allowed to drop below full opacity. Do not
+     soften it, do not tint it, and never promote it to `danger`.              */
+  --c-prov-heard: #0a5896; /* 6.9:1 — a structural mark, not a link */
+  --c-prov-heard-muted: #e6f0fb;
+  --c-prov-defaulted: #8f5205; /* 6.2:1 */
+  --c-prov-defaulted-muted: #fbf0da;
+  --c-prov-blank: #4f5461; /* 8.0:1 — louder than body-secondary, on purpose */
+  --c-prov-blank-muted: #eef0f3;
+
+  /* -- Elevation — light --------------------------------------------------- *
+     Tinted with the ground's hue, never pure black, and always paired with a
+     1px colour ring so an edge exists even at zero blur.
+
+     The 1px ring alphas are heavier than a shadow system would normally want,
+     because `surface-raised` is the same white as `surface`: on a menu floating
+     over a card the ring is the ONLY edge, and a washed-out clinic panel eats a
+     5% line before it eats anything else.                                     */
+  --elev-xs: 0 0 0 1px rgb(16 17 20 / 0.08);
+  --elev-sm: 0 0 0 1px rgb(16 17 20 / 0.08), 0 1px 2px -1px rgb(16 17 20 / 0.1);
+  --elev-md: 0 0 0 1px rgb(16 17 20 / 0.1), 0 2px 4px -2px rgb(16 17 20 / 0.1),
+    0 6px 14px -6px rgb(16 17 20 / 0.12);
+  --elev-lg: 0 0 0 1px rgb(16 17 20 / 0.12), 0 4px 8px -4px rgb(16 17 20 / 0.12),
+    0 16px 32px -12px rgb(16 17 20 / 0.18);
+  --elev-overlay: 0 0 0 1px rgb(16 17 20 / 0.14), 0 8px 16px -8px rgb(16 17 20 / 0.16),
+    0 32px 64px -24px rgb(16 17 20 / 0.28);
+}
+
+/* ============================================================================
+   PALETTE — DARK (explicit choice).  KEEP IDENTICAL TO THE MEDIA BLOCK BELOW.
+   ----------------------------------------------------------------------------
+   Not an inversion. The ground is a cool near-black that is never #000 —
+   halation and OLED smear punish a ten-hour day. Surfaces step UP in luminance
+   instead of down. Ink stops short of pure white. Every accent is re-picked for
+   a dark ground rather than reused. Elevation stops being a drop shadow and
+   becomes border luminance: on a dark ground an object separates by catching
+   light on its top edge, not by casting a shadow nobody can see.
+   ========================================================================= */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --c-bg: #0e1013;
+  --c-bg-sunken: #090a0c;
+  --c-surface: #17191d;
+  --c-surface-raised: #1e2127;
+  --c-surface-hover: #1f2229;
+  --c-surface-active: #272b33;
+  --c-overlay: rgb(0 0 0 / 0.66);
+
+  --c-border: #2b2f36;
+  --c-border-field: #6e7584; /* 3.8:1 on surface — same job, re-picked for dark */
+  --c-border-strong: #7d8494; /* 4.7:1 on surface */
+
+  --c-text: #edeff4; /* 15.3:1 on surface */
+  --c-text-muted: #b9bfcb; /*  9.5:1 on surface */
+  --c-text-subtle: #a9afbd; /*  8.0:1 on surface */
+
+  /* Indigo has to come up a long way to survive a dark ground; at this
+     lightness it reads periwinkle, which is correct — the accent is meant to
+     be the brightest chromatic thing in the chrome. */
+  --c-accent: #9ba1ff; /* 7.5:1 on surface */
+  --c-accent-hover: #b4b8ff;
+  --c-accent-fg: #131538; /* dark ink on a light fill — the fill is the light */
+  --c-accent-muted: #1c1f3f;
+  --c-accent-muted-fg: #b9bdff;
+
+  --c-focus: #9ba1ff;
+
+  /* Same luminance-ladder discipline as light, inverted: `warning` is the
+     brightest, `danger` sits well below it. Greyscale separations here are
+     danger/warning 2.05:1, danger/success 1.42:1, success/warning 1.44:1 —
+     all better than the light theme manages, because a dark ground gives the
+     ladder more room to spread. */
+  --c-success: #2fbe86; /* 7.4:1 */
+  --c-success-fg: #04160e;
+  --c-success-muted: #0b2119;
+  --c-success-muted-fg: #4fd3a1;
+
+  --c-warning: #f7c245; /* 10.7:1 — the brightest of the four */
+  --c-warning-fg: #1c1200;
+  --c-warning-muted: #2a1c06;
+  --c-warning-muted-fg: #f8ce68;
+
+  --c-danger: #f2555a; /* 5.2:1 */
+  --c-danger-hover: #ff6f74;
+  --c-danger-fg: #200506;
+  --c-danger-muted: #2c1315;
+  --c-danger-muted-fg: #ff9095;
+
+  --c-info: #4bc5e0; /* 8.7:1 */
+  --c-info-fg: #04191f;
+  --c-info-muted: #0c2129;
+  --c-info-muted-fg: #63d2e8;
+
+  /* Everything else goes pastel on a dark ground. Allergy does not: it keeps a
+     saturated fill and WHITE ink, because it is the one red in this app that
+     still has to look like a warning light.
+
+     CONSEQUENCE, and it is not optional: on a dark ground no single red can be
+     both light enough to pass as ink on `surface` (needs lum >= 0.229) and dark
+     enough to carry white ink (needs lum <= 0.183). `--c-allergy` is therefore
+     the FILL — white on it is 4.9:1 — and allergy *text* on a plain surface
+     must use `--c-allergy-muted-fg` (8.9:1). Since the allergy rule is already
+     "always a solid fill, never a tint", the fill is the common case and the
+     ink token is the exception. */
+  --c-allergy: #de1f28;
+  --c-allergy-fg: #ffffff;
+  --c-allergy-muted: #351215;
+  --c-allergy-muted-fg: #ff9ea1;
+
+  --c-prov-heard: #63b8f2;
+  --c-prov-heard-muted: #0e2434;
+  --c-prov-defaulted: #e6ae3d;
+  --c-prov-defaulted-muted: #281e07;
+  --c-prov-blank: #a9afbd; /* 8.0:1 — full strength, never dimmed */
+  --c-prov-blank-muted: #1a1d23;
+
+  /* On a dark ground a drop shadow is invisible — there is nothing darker to
+     cast onto. Elevation is therefore carried almost entirely by the top-edge
+     inset highlight and the ring, both of which get BRIGHTER as the surface
+     rises. The blurs stay only to anchor the object to the ground. */
+  --elev-xs: 0 0 0 1px rgb(255 255 255 / 0.07);
+  --elev-sm: 0 0 0 1px rgb(255 255 255 / 0.09), 0 1px 2px rgb(0 0 0 / 0.5);
+  --elev-md: 0 0 0 1px rgb(255 255 255 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.07),
+    0 6px 16px -6px rgb(0 0 0 / 0.65);
+  --elev-lg: 0 0 0 1px rgb(255 255 255 / 0.15), inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 16px 32px -12px rgb(0 0 0 / 0.75);
+  --elev-overlay: 0 0 0 1px rgb(255 255 255 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.11),
+    0 32px 64px -24px rgb(0 0 0 / 0.85);
+}
+
+/* PALETTE — DARK (system preference, only when light was not chosen).
+   KEEP IDENTICAL TO THE BLOCK ABOVE. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --c-bg: #0e1013;
+    --c-bg-sunken: #090a0c;
+    --c-surface: #17191d;
+    --c-surface-raised: #1e2127;
+    --c-surface-hover: #1f2229;
+    --c-surface-active: #272b33;
+    --c-overlay: rgb(0 0 0 / 0.66);
+
+    --c-border: #2b2f36;
+    --c-border-field: #6e7584; /* 3.8:1 on surface — same job, re-picked for dark */
+    --c-border-strong: #7d8494; /* 4.7:1 on surface */
+
+    --c-text: #edeff4; /* 15.3:1 on surface */
+    --c-text-muted: #b9bfcb; /*  9.5:1 on surface */
+    --c-text-subtle: #a9afbd; /*  8.0:1 on surface */
+
+    /* Indigo has to come up a long way to survive a dark ground; at this
+       lightness it reads periwinkle, which is correct — the accent is meant to
+       be the brightest chromatic thing in the chrome. */
+    --c-accent: #9ba1ff; /* 7.5:1 on surface */
+    --c-accent-hover: #b4b8ff;
+    --c-accent-fg: #131538; /* dark ink on a light fill — the fill is the light */
+    --c-accent-muted: #1c1f3f;
+    --c-accent-muted-fg: #b9bdff;
+
+    --c-focus: #9ba1ff;
+
+    /* Same luminance-ladder discipline as light, inverted: `warning` is the
+       brightest, `danger` sits well below it. Greyscale separations here are
+       danger/warning 2.05:1, danger/success 1.42:1, success/warning 1.44:1 —
+       all better than the light theme manages, because a dark ground gives the
+       ladder more room to spread. */
+    --c-success: #2fbe86; /* 7.4:1 */
+    --c-success-fg: #04160e;
+    --c-success-muted: #0b2119;
+    --c-success-muted-fg: #4fd3a1;
+
+    --c-warning: #f7c245; /* 10.7:1 — the brightest of the four */
+    --c-warning-fg: #1c1200;
+    --c-warning-muted: #2a1c06;
+    --c-warning-muted-fg: #f8ce68;
+
+    --c-danger: #f2555a; /* 5.2:1 */
+    --c-danger-hover: #ff6f74;
+    --c-danger-fg: #200506;
+    --c-danger-muted: #2c1315;
+    --c-danger-muted-fg: #ff9095;
+
+    --c-info: #4bc5e0; /* 8.7:1 */
+    --c-info-fg: #04191f;
+    --c-info-muted: #0c2129;
+    --c-info-muted-fg: #63d2e8;
+
+    /* Everything else goes pastel on a dark ground. Allergy does not: it keeps a
+       saturated fill and WHITE ink, because it is the one red in this app that
+       still has to look like a warning light.
+
+       CONSEQUENCE, and it is not optional: on a dark ground no single red can be
+       both light enough to pass as ink on `surface` (needs lum >= 0.229) and dark
+       enough to carry white ink (needs lum <= 0.183). `--c-allergy` is therefore
+       the FILL — white on it is 4.9:1 — and allergy *text* on a plain surface
+       must use `--c-allergy-muted-fg` (8.9:1). Since the allergy rule is already
+       "always a solid fill, never a tint", the fill is the common case and the
+       ink token is the exception. */
+    --c-allergy: #de1f28;
+    --c-allergy-fg: #ffffff;
+    --c-allergy-muted: #351215;
+    --c-allergy-muted-fg: #ff9ea1;
+
+    --c-prov-heard: #63b8f2;
+    --c-prov-heard-muted: #0e2434;
+    --c-prov-defaulted: #e6ae3d;
+    --c-prov-defaulted-muted: #281e07;
+    --c-prov-blank: #a9afbd; /* 8.0:1 — full strength, never dimmed */
+    --c-prov-blank-muted: #1a1d23;
+
+    /* On a dark ground a drop shadow is invisible — there is nothing darker to
+       cast onto. Elevation is therefore carried almost entirely by the top-edge
+       inset highlight and the ring, both of which get BRIGHTER as the surface
+       rises. The blurs stay only to anchor the object to the ground. */
+    --elev-xs: 0 0 0 1px rgb(255 255 255 / 0.07);
+    --elev-sm: 0 0 0 1px rgb(255 255 255 / 0.09), 0 1px 2px rgb(0 0 0 / 0.5);
+    --elev-md: 0 0 0 1px rgb(255 255 255 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.07),
+      0 6px 16px -6px rgb(0 0 0 / 0.65);
+    --elev-lg: 0 0 0 1px rgb(255 255 255 / 0.15), inset 0 1px 0 rgb(255 255 255 / 0.09),
+      0 16px 32px -12px rgb(0 0 0 / 0.75);
+    --elev-overlay: 0 0 0 1px rgb(255 255 255 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.11),
+      0 32px 64px -24px rgb(0 0 0 / 0.85);
+  }
+}
+
+/* ============================================================================
+   THEME — the public API. Everything below generates Tailwind utilities.
+   ========================================================================= */
+@theme {
+  /* -- 1. COLOUR ---------------------------------------------------------- */
+  --color-bg: var(--c-bg);
+  --color-bg-sunken: var(--c-bg-sunken);
+  --color-surface: var(--c-surface);
+  --color-surface-raised: var(--c-surface-raised);
+  --color-surface-hover: var(--c-surface-hover);
+  --color-surface-active: var(--c-surface-active);
+  --color-overlay: var(--c-overlay);
+
+  --color-border: var(--c-border);
+  /* ADDED. The 3:1 boundary a form control owes the user. `border-border` is a
+     hairline and always was — it was never legal on an <input>. */
+  --color-border-field: var(--c-border-field);
+  --color-border-strong: var(--c-border-strong);
+
+  --color-text: var(--c-text);
+  --color-text-muted: var(--c-text-muted);
+  --color-text-subtle: var(--c-text-subtle);
+  /* Ergonomic aliases so ink reads as `text-muted` / `text-subtle` rather than
+     `text-text-muted`. Same values. The `--color-text-*` names stay canonical
+     because plain CSS (index.css, print styles) reads them directly. */
+  --color-muted: var(--c-text-muted);
+  --color-subtle: var(--c-text-subtle);
+
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-fg: var(--c-accent-fg);
+  --color-accent-muted: var(--c-accent-muted);
+  --color-accent-muted-fg: var(--c-accent-muted-fg);
+
+  --color-focus: var(--c-focus);
+
+  --color-success: var(--c-success);
+  --color-success-fg: var(--c-success-fg);
+  --color-success-muted: var(--c-success-muted);
+  --color-success-muted-fg: var(--c-success-muted-fg);
+
+  --color-warning: var(--c-warning);
+  --color-warning-fg: var(--c-warning-fg);
+  --color-warning-muted: var(--c-warning-muted);
+  --color-warning-muted-fg: var(--c-warning-muted-fg);
+
+  --color-danger: var(--c-danger);
+  --color-danger-hover: var(--c-danger-hover); /* ADDED */
+  --color-danger-fg: var(--c-danger-fg);
+  --color-danger-muted: var(--c-danger-muted);
+  --color-danger-muted-fg: var(--c-danger-muted-fg);
+
+  --color-info: var(--c-info);
+  --color-info-fg: var(--c-info-fg);
+  --color-info-muted: var(--c-info-muted);
+  --color-info-muted-fg: var(--c-info-muted-fg);
+
+  --color-allergy: var(--c-allergy);
+  --color-allergy-fg: var(--c-allergy-fg);
+  --color-allergy-muted: var(--c-allergy-muted);
+  --color-allergy-muted-fg: var(--c-allergy-muted-fg);
+
+  --color-provenance-heard: var(--c-prov-heard);
+  --color-provenance-heard-muted: var(--c-prov-heard-muted);
+  --color-provenance-defaulted: var(--c-prov-defaulted);
+  --color-provenance-defaulted-muted: var(--c-prov-defaulted-muted);
+  --color-provenance-blank: var(--c-prov-blank);
+  --color-provenance-blank-muted: var(--c-prov-blank-muted);
+
+  /* -- 2. TYPOGRAPHY ------------------------------------------------------ *
+     No webfonts, no CDN. The clinic's line drops and the app must not change
+     shape when it does. System UI first; Inter is picked up only if the machine
+     already has it. Devanagari is listed because patient names arrive in Hindi
+     and Marathi and must never render as tofu.                                 */
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', Inter,
+    'Inter Variable', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Devanagari',
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+
+  /* Large type only. SF Pro Display / Segoe UI Variable Display are optically
+     sized for headlines: tighter apertures, less internal spacing. */
+  --font-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI',
+    Inter, 'Inter Variable', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* IDs, doses, MRNs, correlation ids — anything you might read out digit by
+     digit or compare down a column. */
+  --font-mono:
+    ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  /* Optical scale. Tracking tightens as size grows and opens as size shrinks —
+     the one typographic rule that is never a matter of taste. Sizes are
+     deliberately small: a doctor scans a table, they do not read an article.
+
+     Leading moves the other way. Large type gets tight leading because the line
+     is short and the eye does not need help finding the next one; small dense
+     type gets MORE leading, because 12px rows stacked at 1.35 turn into a grey
+     block that has to be read twice. Everything below 15px was loosened.       */
+
+  --text-display: 2rem; /* 32px — at most one per screen */
+  --text-display--line-height: 1.14;
+  --text-display--letter-spacing: -0.022em;
+  --text-display--font-weight: 640;
+
+  --text-title: 1.5rem; /* 24px — page title */
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.018em;
+  --text-title--font-weight: 620;
+
+  --text-heading: 1.125rem; /* 18px — card / section heading */
+  --text-heading--line-height: 1.32;
+  --text-heading--letter-spacing: -0.011em;
+  --text-heading--font-weight: 600;
+
+  --text-body: 0.9375rem; /* 15px — the default; set once on body */
+  --text-body--line-height: 1.53; /* was 1.47 — forms are read, not scanned */
+  --text-body--letter-spacing: -0.002em;
+  --text-body--font-weight: 400;
+
+  --text-label: 0.8125rem; /* 13px — form labels, table cells, buttons */
+  --text-label--line-height: 1.42; /* was 1.35 */
+  --text-label--letter-spacing: 0.002em;
+  --text-label--font-weight: 500;
+
+  --text-caption: 0.75rem; /* 12px — helper text, timestamps, chips */
+  --text-caption--line-height: 1.42; /* was 1.35 */
+  --text-caption--letter-spacing: 0.01em; /* was 0.006 — 12px needs the air */
+  --text-caption--font-weight: 500;
+
+  --text-micro: 0.6875rem; /* 11px — UPPERCASE eyebrows and column headers */
+  --text-micro--line-height: 1.36;
+  --text-micro--letter-spacing: 0.07em; /* was 0.06 — caps at 11px need more */
+  --text-micro--font-weight: 600;
+
+  --tracking-tighter: -0.022em;
+  --tracking-tight: -0.012em;
+  --tracking-caps: 0.06em;
+
+  /* -- 3. SHAPE ----------------------------------------------------------- *
+     Odd radii read as physical rather than as a CSS default.
+     Nesting rule: outer radius = inner radius + padding.                      */
+  --radius-xs: 3px; /* checkbox, tag, inline code */
+  --radius-sm: 5px; /* button, input, row hover, focus-ring rounding */
+  --radius-md: 7px; /* card, menu item, popover */
+  --radius-lg: 10px; /* panel, dialog */
+  --radius-xl: 14px; /* sheet, hero card */
+
+  /* -- 4. ELEVATION ------------------------------------------------------- *
+     `shadow-xs|sm|md|lg|overlay` are the utilities. They resolve through
+     `--elev-*` at runtime, so they flip with the theme.                       */
+  --shadow-xs: var(--elev-xs); /* input, inline chip */
+  --shadow-sm: var(--elev-sm); /* card at rest */
+  --shadow-md: var(--elev-md); /* dropdown, popover, hover-lifted card */
+  --shadow-lg: var(--elev-lg); /* side sheet, command palette */
+  --shadow-overlay: var(--elev-overlay); /* modal dialog only */
+
+  /* -- 5. MOTION ---------------------------------------------------------- *
+     Every duration is short. This app opens at 9am and closes at 8pm; an
+     animation seen four hundred times must never cost more than it returns.   */
+
+  --duration-instant: 60ms; /* colour/opacity on hover, checkbox tick */
+  --duration-fast: 120ms; /* press feedback, tooltip, focus ring */
+  --duration-base: 180ms; /* dropdown, popover, toast, tab indicator */
+  --duration-slow: 260ms; /* dialog, sheet, side panel */
+
+  /* Aliases so `duration-fast` etc. resolve to the same numbers. */
+  --transition-duration-instant: var(--duration-instant);
+  --transition-duration-fast: var(--duration-fast);
+  --transition-duration-base: var(--duration-base);
+  --transition-duration-slow: var(--duration-slow);
+
+  --default-transition-duration: var(--duration-base);
+  --default-transition-timing-function: var(--ease-out-quint);
+
+  /* Entering, exiting, or anything the user just triggered. Starts fast, so
+     the interface has already begun moving by the time the eye arrives. */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Something already on screen moving from A to B. */
+  --ease-standard: cubic-bezier(0.45, 0, 0.15, 1);
+  /* Sheets and drawers — the iOS curve. Long tail, no bounce. */
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  /* A real damped spring, sampled. For anything that should have weight.
+     Overshoots ~5%. Never on text, never on anything holding a number. */
+  --ease-spring: linear(
+    0, 0.1152, 0.3513, 0.5968, 0.7963, 0.9331, 1.0119, 1.047, 1.0541, 1.0464, 1.0332, 1.0201,
+    1.0098, 1.0028, 0.999, 0.9973, 0.9971, 0.9976, 0.9983, 0.999, 0.9995, 0.9999, 1
+  );
+  /* The same spring, critically damped — settles with no overshoot. */
+  --ease-spring-snap: linear(
+    0, 0.1298, 0.3642, 0.5819, 0.7462, 0.8566, 0.9249, 0.9641, 0.985, 0.9953, 0.9997, 1.0013,
+    1.0015, 1.0013, 1.0009, 1.0006, 1.0003, 1.0002, 1
+  );
+
+  /* Motion magnitudes. CSS animations must read their distances from these so
+     the reduced-motion block can zero them without killing the fade. */
+  --motion-rise: 6px; /* enter offset for menus, toasts, list items */
+  --motion-scale-from: 0.97; /* never scale in from 0 — nothing appears from nothing */
+  --motion-press: 0.97; /* :active scale on any pressable */
+
+  /* -- 6. DENSITY --------------------------------------------------------- *
+     A professional tool. Rows are compact by default; comfortable is a user
+     preference, not our starting point.                                       */
+
+  --spacing: 0.25rem; /* 4px grid base — every gap is a multiple of this */
+
+  --row-height-compact: 1.75rem; /* 28px — formulary, audit log, dense picker */
+  --row-height-base: 2rem; /* 32px — DEFAULT table row */
+  --row-height-comfortable: 2.5rem; /* 40px — user opt-in */
+
+  --control-height-sm: 1.625rem; /* 26px — toolbar, inline table control */
+  --control-height-base: 2rem; /* 32px — DEFAULT button and input */
+  --control-height-lg: 2.5rem; /* 40px — primary form submit, login */
+
+  /* Named spacing keys, so `h-row`, `h-control`, `min-h-tap`, `w-sidebar` and
+     `p-row` all exist alongside the numeric 4px scale. */
+  --spacing-row-compact: var(--row-height-compact);
+  --spacing-row: var(--row-height-base);
+  --spacing-row-roomy: var(--row-height-comfortable);
+  --spacing-control-sm: var(--control-height-sm);
+  --spacing-control: var(--control-height-base);
+  --spacing-control-lg: var(--control-height-lg);
+  --spacing-topbar: 3rem; /* 48px */
+  --spacing-sidebar: 14rem; /* 224px */
+  --spacing-sidebar-collapsed: 3.25rem; /* 52px */
+  --spacing-tap: 2.75rem; /* 44px — minimum touch target */
+
+  /* Content widths. `max-w-content` on a page shell, `max-w-form` on a form
+     column, `max-w-prose` on anything read in sentences. */
+  --container-form: 40rem; /* 640px */
+  --container-content: 72rem; /* 1152px */
+  /* Measure. 68ch was past the point where the eye reliably finds the start of
+     the next line; 64 sits inside the 45–75 band with room for the wide
+     Devanagari glyphs patient names arrive in. `max-w-prose` on anything read
+     in sentences — advice, notes, instructions, error bodies. */
+  --container-prose: 64ch;
+  /* ADDED. A tighter measure for the free-text fields the doctor actually
+     writes into (advice, instructions), where lines are short and re-read. */
+  --container-note: 52ch;
+
+  /* Z-index ladder. Nothing invents its own number. */
+  --z-index-sticky: 10;
+  --z-index-dropdown: 30;
+  --z-index-overlay: 40;
+  --z-index-dialog: 50;
+  --z-index-toast: 60;
+  --z-index-tooltip: 70;
+}
+
+/* ============================================================================
+   REDUCED MOTION
+   Not "no feedback". Opacity and colour transitions survive because they carry
+   meaning; distance, scale and spin do not. Durations collapse to 1ms rather
+   than to 0 so `transitionend` still fires and no state machine hangs.
+
+   These `:root` declarations are unlayered and therefore beat the `@theme`
+   output, which lives in `@layer theme`. That is deliberate — do not move this
+   block into a layer.
+
+   Opt out on the rare element whose animation IS the information — an
+   indeterminate progress bar, the live audio level meter — with
+   `data-motion-keep`.
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 1ms;
+    --duration-fast: 1ms;
+    --duration-base: 1ms;
+    --duration-slow: 1ms;
+    --transition-duration-instant: 1ms;
+    --transition-duration-fast: 1ms;
+    --transition-duration-base: 1ms;
+    --transition-duration-slow: 1ms;
+    --default-transition-duration: 1ms;
+
+    --ease-out-quint: linear;
+    --ease-out-expo: linear;
+    --ease-standard: linear;
+    --ease-sheet: linear;
+    --ease-spring: linear;
+    --ease-spring-snap: linear;
+
+    --motion-rise: 0px;
+    --motion-scale-from: 1;
+    --motion-press: 1;
+  }
+
+  *:not([data-motion-keep], [data-motion-keep] *),
+  *:not([data-motion-keep], [data-motion-keep] *)::before,
+  *:not([data-motion-keep], [data-motion-keep] *)::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  html {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+   PROVENANCE TREATMENTS
+   The only compositions that live in the token layer, because a prescription
+   field that misreports where its value came from is a clinical defect. Do not
+   hand-roll these and do not vary them per screen. Apply to the field wrapper,
+   alongside `data-provenance="heard|defaulted|blank"` for tests and for the
+   sign-guard, which stays disabled while any `blank` field remains.
+   ========================================================================= */
+
+/* Two rails and a box. The rails are 3px, not 2px: at 2px a dotted border
+   renders as a near-solid line on a 1x display, which collapsed `defaulted`
+   into `heard` — the exact failure the shape channel exists to prevent. Both
+   rails keep the same 11px total left inset so the field text does not shift
+   when provenance changes under it. */
+
+@utility prov-heard {
+  border-left: 3px solid var(--color-provenance-heard);
+  padding-left: calc(var(--spacing) * 2);
+}
+
+@utility prov-defaulted {
+  border-left: 3px dotted var(--color-provenance-defaulted);
+  padding-left: calc(var(--spacing) * 2);
+}
+
+/* `blank` is a BOX where the other two are rails, so it is identifiable by
+   silhouette alone. The hatch is what stops it reading as a disabled input:
+   a switched-off control is flat and dimmed, whereas this is full-contrast and
+   visibly striped — the visual language of "reserved, awaiting entry". It is
+   drawn at very low alpha so it never competes with the value that will
+   eventually land on top of it, and it is a `background-image`, so anything
+   setting `background-color` on the field still composites correctly. */
+@utility prov-blank {
+  border: 1px dashed var(--color-provenance-blank);
+  border-radius: var(--radius-sm);
+  padding-left: calc(var(--spacing) * 2 - 1px);
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in oklab, var(--color-provenance-blank) 14%, transparent) 0 1px,
+    transparent 1px 6px
+  );
+  color: var(--color-provenance-blank);
+}
+
+/* Any element that carries a number the user will compare, read out digit by
+   digit, or check against a box of tablets. Tabular so columns align, slashed
+   zero so 0 is never O, and a touch of tracking so the hyphens in `1-0-1` and
+   the point in `0.5` survive at 12px on a tired 1366x768 clinic panel. */
+@utility numeric {
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: 0.01em;
+}
+
+/* Doses specifically: same, but monospaced, because `1-0-1` is a glyph
+   sequence rather than a word and the fixed advance is what makes the three
+   slots readable as three slots. Never render a dose below `text-caption`. */
+@utility dose {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: 0.02em;
+}
