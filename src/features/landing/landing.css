@@ -1,90 +1,185 @@
 /* =============================================================================
-   OrthoClinic — landing page (public front door) styles
+   OrthoClinic — landing page (public front door)
    -----------------------------------------------------------------------------
-   Landing-only CSS. Tokens come from theme.css; nothing here redefines a
-   colour. Only keyframes, the hero backdrop canvas frame, a couple of composed
-   utilities, and the safe motion baselines live here.
+   Bespoke, page-scoped design language for the clinic's marketing page. It does
+   NOT touch the app's token layer (theme.css); instead it defines its own
+   `--lp-*` variables under `.landing-root`, theme-aware, so the landing can
+   commit to a clinical petrol accent and an editorial type treatment without
+   changing the indigo the product UI uses.
 
-   MOTION CONTRACT
-   No element is ever given `opacity: 0` in this file. Reveal states are set by
-   GSAP at runtime and only inside the `(prefers-reduced-motion: no-preference)`
-   branch, so with JavaScript unavailable — or with reduced motion — every
-   section is painted in its final, legible state.
+   PALETTE  petrol/teal accent (clinical, precise) locked across the whole page.
+            Neutrals come from the app tokens so light/dark stay coherent.
+
+   MOTION CONTRACT  No element is ever given `opacity: 0` here. Reveal states are
+   set by GSAP at runtime and ONLY inside `(prefers-reduced-motion: no-preference)`,
+   so with reduced motion — or no JavaScript — every section paints in its final,
+   legible state.
    ========================================================================== */
 
 .landing-root {
-  /* A comfortable vertical rhythm token the sections share. */
-  --section-pad: clamp(4.5rem, 9vw, 8rem);
-  /* Height the sticky nav reserves; anchor offsets read from here. */
-  --nav-h: 4rem;
+  /* Clinical petrol accent — the one accent, used identically page-wide. */
+  --lp-accent: #0c6b64;
+  --lp-accent-strong: #0a5751;
+  --lp-accent-fg: #ffffff;
+  --lp-accent-tint: color-mix(in oklab, var(--lp-accent) 10%, transparent);
+  --lp-accent-line: color-mix(in oklab, var(--lp-accent) 40%, transparent);
+  /* Bone: a barely-there warm neutral for section grounds. */
+  --lp-bone: color-mix(in oklab, var(--color-bg) 92%, #a8895f 8%);
+
+  --lp-ink: var(--color-text);
+  --lp-ink-soft: var(--color-text-muted);
+  --lp-ink-faint: var(--color-text-subtle);
+  --lp-line: var(--color-border);
+  --lp-line-strong: var(--color-border-strong);
+  --lp-surface: var(--color-surface);
+
+  --section-pad: clamp(5rem, 10vw, 9rem);
+  --nav-h: 4.25rem;
+
   background-color: var(--color-bg);
-  color: var(--color-text);
+  color: var(--lp-ink);
   overflow-x: clip;
+  /* Editorial: tighten the whole page's tracking a touch, enable good defaults. */
+  font-feature-settings: 'ss01', 'cv01', 'cv03';
+  text-rendering: optimizeLegibility;
 }
 
-/* The page owns its own smooth-scroll engine (Lenis). Turn the native one off
-   so the two never fight; Lenis also no-ops itself under reduced motion. */
+:root[data-theme='dark'] .landing-root,
+:root:not([data-theme='light']) .landing-root {
+  --lp-accent: #2fb3a6;
+  --lp-accent-strong: #45c4b7;
+  --lp-accent-fg: #04211f;
+  --lp-accent-tint: color-mix(in oklab, var(--lp-accent) 14%, transparent);
+  --lp-accent-line: color-mix(in oklab, var(--lp-accent) 34%, transparent);
+  --lp-bone: color-mix(in oklab, var(--color-bg) 90%, #d8c4a0 10%);
+}
+
+/* Accent utilities the landing uses instead of the app's indigo tokens. */
+.lp-accent {
+  color: var(--lp-accent);
+}
+.lp-on-accent {
+  background-color: var(--lp-accent);
+  color: var(--lp-accent-fg);
+}
+.lp-on-accent:hover {
+  background-color: var(--lp-accent-strong);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Editorial type                                                            */
+/*  System stack (offline, no webfonts) pushed with weight + tracking + optical */
+/*  scale rather than raw size, so it reads crafted rather than shouted.       */
+/* -------------------------------------------------------------------------- */
+
+.lp-display {
+  font-size: clamp(2.9rem, 7.2vw, 6rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.lp-h2 {
+  font-size: clamp(1.9rem, 3.4vw, 3rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.lp-lead {
+  font-size: clamp(1.125rem, 1.7vw, 1.4rem);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  color: var(--lp-ink-soft);
+  text-wrap: pretty;
+}
+/* Small caps label — used SPARINGLY (max ~1 per 3 sections). */
+.lp-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lp-accent);
+}
+/* Big index numerals for the "how movement is restored" steps. */
+.lp-numeral {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  letter-spacing: -0.04em;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
 html.lenis,
 html.lenis body {
   height: auto;
 }
-.lenis.lenis-smooth {
-  scroll-behavior: auto !important;
-}
 
 /* -------------------------------------------------------------------------- */
-/*  Hero backdrop                                                             */
+/*  Hero — anatomical motif ground                                            */
 /* -------------------------------------------------------------------------- */
 
 .hero-backdrop {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  /* A soft, static wash anchored to the top-right, built from tokens so it
-     flips with the theme. Not an animated gradient blob — it never moves. */
+  /* A soft clinical wash, anchored where the anatomy sits. Never animates. */
   background:
     radial-gradient(
-      60% 55% at 78% 18%,
-      color-mix(in oklab, var(--color-accent) 16%, transparent) 0%,
-      transparent 70%
-    ),
-    radial-gradient(
-      50% 50% at 12% 92%,
-      color-mix(in oklab, var(--color-accent) 9%, transparent) 0%,
-      transparent 72%
+      52% 55% at 72% 34%,
+      var(--lp-accent-tint) 0%,
+      transparent 68%
     );
 }
 
-.hero-backdrop canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-/* A faint measured grid under the canvas — precision, not decoration. */
+/* A precise measured grid — reads as anatomy diagram, not sci-fi radar. */
 .hero-grid {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--color-border) 60%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--color-border) 60%, transparent) 1px, transparent 1px);
-  background-size: clamp(48px, 6vw, 76px) clamp(48px, 6vw, 76px);
-  mask-image: radial-gradient(120% 100% at 50% 0%, #000 0%, transparent 78%);
-  opacity: 0.5;
+    linear-gradient(to right, color-mix(in oklab, var(--lp-line) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--lp-line) 70%, transparent) 1px, transparent 1px);
+  background-size: clamp(38px, 4.4vw, 60px) clamp(38px, 4.4vw, 60px);
+  mask-image: radial-gradient(130% 120% at 72% 30%, #000 0%, transparent 70%);
+  opacity: 0.45;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Hero headline word split                                                  */
-/*  Words are wrapped in a clip so the reveal slides from a real edge. The     */
-/*  accessible text is the full heading; the wrappers are presentational.      */
-/* -------------------------------------------------------------------------- */
+/* SVG anatomy strokes: drawn in via dashoffset. Baselines are the DRAWN state
+   so reduced-motion / no-JS shows the full figure. GSAP only sets the
+   pre-draw dashoffset inside the no-preference branch. */
+.anat-stroke {
+  fill: none;
+  stroke: var(--lp-accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.anat-bone {
+  fill: color-mix(in oklab, var(--lp-accent) 8%, transparent);
+  stroke: color-mix(in oklab, var(--lp-accent) 65%, var(--lp-ink) 10%);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.anat-arc {
+  fill: none;
+  stroke: var(--lp-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 7;
+  stroke-linecap: round;
+  opacity: 0.75;
+  vector-effect: non-scaling-stroke;
+}
+.anat-pivot {
+  fill: var(--lp-accent);
+}
 
+/* Hero headline word clips for the slide-up reveal. */
 .hero-line {
   display: block;
   overflow: hidden;
-  padding-block: 0.06em; /* room for descenders inside the clip */
+  padding-block: 0.08em;
 }
 .hero-word {
   display: inline-block;
@@ -92,44 +187,37 @@ html.lenis body {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Gallery placeholder composition (used when the clinic has no photos yet)   */
+/*  Composed placeholder plate (doctor portrait / gallery with no photo yet)   */
 /* -------------------------------------------------------------------------- */
 
-.gallery-plate {
+.lp-plate {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(135deg, var(--color-surface) 0%, var(--color-bg-sunken) 100%);
+    linear-gradient(150deg, var(--lp-surface) 0%, var(--color-bg-sunken) 100%);
 }
-.gallery-plate::after {
+.lp-plate::after {
   content: '';
   position: absolute;
   inset: 0;
-  background-image:
-    repeating-linear-gradient(
-      -45deg,
-      color-mix(in oklab, var(--color-border) 55%, transparent) 0 1px,
-      transparent 1px 12px
-    );
-  opacity: 0.6;
+  background-image: repeating-linear-gradient(
+    -50deg,
+    color-mix(in oklab, var(--lp-line) 60%, transparent) 0 1px,
+    transparent 1px 14px
+  );
+  opacity: 0.5;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Marquee-free trust rule + misc                                            */
-/* -------------------------------------------------------------------------- */
-
-.rule-tick {
+/* Hairline tick rule used to separate the stat figures. */
+.lp-ticks {
   background-image: linear-gradient(
     to right,
-    var(--color-border-strong) 0 2px,
-    transparent 2px 100%
+    var(--lp-line-strong) 0 1px,
+    transparent 1px 100%
   );
-  background-size: clamp(28px, 4vw, 44px) 100%;
+  background-size: clamp(26px, 4vw, 40px) 100%;
 }
 
-/* Reduced motion: belt-and-braces. The JS branch already leaves everything
-   in its final state, but if any authored transition slipped through, collapse
-   it. Distance and scale die; opacity/colour survive (they carry meaning). */
 @media (prefers-reduced-motion: reduce) {
   .hero-word {
     will-change: auto;

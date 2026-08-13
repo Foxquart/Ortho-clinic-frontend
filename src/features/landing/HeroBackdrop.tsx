@@ -1,196 +1,138 @@
 /**
- * The hero's animated backdrop: a field of concentric "range-of-motion" arcs
- * with a goniometer tick ring — a quiet nod to orthopaedic measurement rather
- * than a decorative gradient blob. Inline canvas, no assets.
+ * Hero motif — a stylised knee joint through its range of motion.
  *
- * Safe by construction:
- *  - Colours are read from the theme tokens (`--c-accent`, `--c-text`,
- *    `--c-border`) and re-read when the theme flips, so it works in light/dark.
- *  - Device pixel ratio is capped; the loop pauses when the tab is hidden.
- *  - Under `prefers-reduced-motion` it paints a single static frame and never
- *    starts a rAF loop.
- *  - The `<canvas>` is decorative (`aria-hidden`); if it never runs, the CSS
- *    wash and grid behind it still make the hero complete.
+ * This is the one hand-authored illustration on the page, and it is deliberate:
+ * an orthopaedic clinic's hero should be anatomy, not a stock gradient. The
+ * femur is fixed; the tibia hinges at the joint through a dotted range-of-motion
+ * arc — the literal "move without limits" idea.
+ *
+ * MOTION CONTRACT: the SVG's painted state IS the finished drawing. GSAP only
+ * runs inside the reduced-motion "no-preference" branch — it draws the strokes
+ * in, then eases the tibia through a slow flexion. With reduced motion or no JS,
+ * the figure simply sits at a natural mid-flexion pose, fully drawn.
  */
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
+import { useGSAP } from '@gsap/react'
+import gsap from 'gsap'
 
-interface Palette {
-  accent: string
-  text: string
-  border: string
-}
-
-function readPalette(): Palette {
-  const s = getComputedStyle(document.documentElement)
-  const get = (name: string, fallback: string) =>
-    s.getPropertyValue(name).trim() || fallback
-  return {
-    accent: get('--c-accent', '#3a41b5'),
-    text: get('--c-text', '#0e1015'),
-    border: get('--c-border', '#e1e3e9'),
-  }
-}
+/** Knee pivot in SVG user units — the tibia rotates about this point. */
+const PIVOT_X = 190
+const PIVOT_Y = 250
 
 export function HeroBackdrop() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const ref = useRef<SVGSVGElement>(null)
+  const tibia = useRef<SVGGElement>(null)
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia()
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        const strokes = gsap.utils.toArray<SVGPathElement>('[data-draw]')
 
-    let width = 0
-    let height = 0
-    let dpr = 1
-    let raf = 0
-    let running = true
-    let palette = readPalette()
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)')
+        // Draw the anatomy in, longest bones first.
+        gsap.set(strokes, { strokeDasharray: 1, strokeDashoffset: 1 })
+        gsap.set('[data-fade]', { autoAlpha: 0 })
+        gsap.set(tibia.current, { svgOrigin: `${PIVOT_X} ${PIVOT_Y}`, rotation: 0 })
 
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect()
-      dpr = Math.min(window.devicePixelRatio || 1, 2)
-      width = rect.width
-      height = rect.height
-      canvas.width = Math.max(1, Math.round(width * dpr))
-      canvas.height = Math.max(1, Math.round(height * dpr))
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    }
+        const tl = gsap.timeline({ defaults: { ease: 'power2.out' } })
+        tl.to(strokes, { strokeDashoffset: 0, duration: 1.3, stagger: 0.12 }, 0)
+          .to('[data-fade]', { autoAlpha: 1, duration: 0.8, stagger: 0.1 }, 0.5)
+          // Then breathe through a natural flexion range, forever, slowly.
+          .to(
+            tibia.current,
+            {
+              rotation: -34,
+              duration: 3.4,
+              ease: 'sine.inOut',
+              repeat: -1,
+              yoyo: true,
+            },
+            1.1,
+          )
 
-    const draw = (t: number) => {
-      ctx.clearRect(0, 0, width, height)
-
-      // Focal point sits top-right on wide screens, higher-centre on narrow.
-      const wide = width > 720
-      const cx = wide ? width * 0.74 : width * 0.5
-      const cy = wide ? height * 0.4 : height * 0.34
-      const maxR = Math.min(width, height) * (wide ? 0.62 : 0.5)
-
-      const spin = t * 0.00004
-      const breathe = Math.sin(t * 0.0006) * 0.5 + 0.5 // 0..1
-
-      // Concentric arcs — offset centres give the topographic / ROM feel.
-      const rings = 9
-      for (let i = 0; i < rings; i++) {
-        const p = i / (rings - 1)
-        const r = maxR * (0.18 + p * 0.82)
-        const ox = Math.cos(spin * (1 + p) + i) * maxR * 0.05
-        const oy = Math.sin(spin * (1 + p) + i) * maxR * 0.05
-        const start = spin * (1 + p * 0.5) + i * 0.6
-        const sweep = Math.PI * (0.7 + 0.9 * ((i % 3) / 2)) + breathe * 0.4
-
-        ctx.beginPath()
-        ctx.arc(cx + ox, cy + oy, r, start, start + sweep)
-        ctx.strokeStyle = palette.accent
-        ctx.globalAlpha = 0.05 + (1 - p) * 0.16
-        ctx.lineWidth = 1.25
-        ctx.stroke()
-      }
-
-      // Goniometer tick ring.
-      const tickR = maxR * 0.92
-      const ticks = 72
-      ctx.globalAlpha = 0.18
-      ctx.strokeStyle = palette.text
-      ctx.lineWidth = 1
-      for (let i = 0; i < ticks; i++) {
-        const a = (i / ticks) * Math.PI * 2 + spin * 2
-        const major = i % 6 === 0
-        const r1 = tickR
-        const r2 = tickR - (major ? 12 : 6)
-        ctx.globalAlpha = major ? 0.22 : 0.1
-        ctx.beginPath()
-        ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1)
-        ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2)
-        ctx.stroke()
-      }
-
-      // A single travelling radius, like a measuring arm.
-      const armA = spin * 6
-      ctx.globalAlpha = 0.28
-      ctx.strokeStyle = palette.accent
-      ctx.lineWidth = 1.5
-      ctx.beginPath()
-      ctx.moveTo(cx, cy)
-      ctx.lineTo(cx + Math.cos(armA) * tickR, cy + Math.sin(armA) * tickR)
-      ctx.stroke()
-
-      // Hub.
-      ctx.globalAlpha = 0.5
-      ctx.fillStyle = palette.accent
-      ctx.beginPath()
-      ctx.arc(cx, cy, 3, 0, Math.PI * 2)
-      ctx.fill()
-
-      ctx.globalAlpha = 1
-    }
-
-    const loop = (t: number) => {
-      if (!running) return
-      draw(t)
-      raf = requestAnimationFrame(loop)
-    }
-
-    const start = () => {
-      cancelAnimationFrame(raf)
-      resize()
-      if (reduce.matches) {
-        draw(6000) // one composed static frame
-        return
-      }
-      running = true
-      raf = requestAnimationFrame(loop)
-    }
-
-    const onVisibility = () => {
-      if (document.hidden) {
-        running = false
-        cancelAnimationFrame(raf)
-      } else if (!reduce.matches) {
-        running = true
-        raf = requestAnimationFrame(loop)
-      }
-    }
-
-    const onThemeChange = () => {
-      palette = readPalette()
-      if (reduce.matches) draw(6000)
-    }
-
-    const ro = new ResizeObserver(() => {
-      resize()
-      if (reduce.matches) draw(6000)
-    })
-    ro.observe(canvas)
-
-    const themeObserver = new MutationObserver(onThemeChange)
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme'],
-    })
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    media.addEventListener('change', onThemeChange)
-    reduce.addEventListener('change', start)
-    document.addEventListener('visibilitychange', onVisibility)
-
-    start()
-
-    return () => {
-      running = false
-      cancelAnimationFrame(raf)
-      ro.disconnect()
-      themeObserver.disconnect()
-      media.removeEventListener('change', onThemeChange)
-      reduce.removeEventListener('change', start)
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [])
+        return () => tl.kill()
+      })
+      return () => mm.revert()
+    },
+    { scope: ref },
+  )
 
   return (
-    <div className="hero-backdrop" aria-hidden data-parallax data-parallax-speed="12">
-      <div className="hero-grid" />
-      <canvas ref={canvasRef} />
-    </div>
+    <svg
+      ref={ref}
+      className="absolute top-1/2 right-[-6%] h-[92%] max-h-[720px] w-auto -translate-y-1/2 opacity-90 sm:right-[2%] lg:right-[6%]"
+      viewBox="0 0 380 520"
+      fill="none"
+      aria-hidden="true"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      {/* Range-of-motion arc + wedge guides (fixed, centred on the pivot) */}
+      <g data-fade>
+        <path
+          className="anat-arc"
+          d="M 235 461 A 216 216 0 0 0 66 424"
+          pathLength={1}
+        />
+        <line className="anat-arc" x1={PIVOT_X} y1={PIVOT_Y} x2={235} y2={461} />
+        <line className="anat-arc" x1={PIVOT_X} y1={PIVOT_Y} x2={66} y2={424} />
+      </g>
+
+      {/* Femur (fixed): thick rounded bone + condyle head */}
+      <path
+        data-draw
+        className="anat-stroke"
+        strokeWidth={20}
+        d="M 168 52 C 172 128, 184 192, 190 236"
+        pathLength={1}
+      />
+      <circle
+        data-fade
+        className="anat-bone"
+        cx={PIVOT_X}
+        cy={PIVOT_Y}
+        r={27}
+      />
+
+      {/* Patella (kneecap) */}
+      <ellipse
+        data-fade
+        className="anat-stroke"
+        strokeWidth={3}
+        cx={150}
+        cy={246}
+        rx={12}
+        ry={18}
+        transform="rotate(-12 150 246)"
+      />
+
+      {/* Tibia + fibula (hinging group, rotates about the pivot) */}
+      <g ref={tibia}>
+        <path
+          data-draw
+          className="anat-stroke"
+          strokeWidth={18}
+          d="M 194 264 C 199 332, 205 402, 210 462"
+          pathLength={1}
+        />
+        <path
+          data-draw
+          className="anat-stroke"
+          strokeWidth={6}
+          d="M 214 280 C 219 340, 223 402, 226 452"
+          pathLength={1}
+        />
+        {/* Foot hint */}
+        <path
+          data-draw
+          className="anat-stroke"
+          strokeWidth={7}
+          d="M 202 466 L 248 470"
+          pathLength={1}
+        />
+      </g>
+
+      {/* Pivot marker, on top */}
+      <circle data-fade className="anat-pivot" cx={PIVOT_X} cy={PIVOT_Y} r={4.5} />
+    </svg>
   )
 }

@@ -106,7 +106,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
           <button
             type="button"
             onClick={() => go('book')}
-            className="bg-accent text-accent-fg hover:bg-accent-hover text-label hidden h-control items-center gap-1.5 rounded-sm px-4 font-semibold shadow-sm transition-[background-color,box-shadow] duration-fast sm:inline-flex"
+            className="bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] text-label hidden h-control items-center gap-1.5 rounded-sm px-4 font-semibold shadow-sm transition-[background-color,box-shadow] duration-fast sm:inline-flex"
           >
             Book appointment
             <ArrowRight aria-hidden className="size-4" />
@@ -147,7 +147,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
             <button
               type="button"
               onClick={() => go('book')}
-              className="bg-accent text-accent-fg hover:bg-accent-hover text-label inline-flex h-control-lg items-center justify-center gap-2 rounded-sm font-semibold"
+              className="bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] text-label inline-flex h-control-lg items-center justify-center gap-2 rounded-sm font-semibold"
             >
               Book appointment
               <ArrowRight aria-hidden className="size-4" />
@@ -171,7 +171,7 @@ function Monogram() {
   return (
     <span
       aria-hidden
-      className="border-accent text-accent grid size-8 place-items-center rounded-md border-[1.5px]"
+      className="grid size-8 border-[color:var(--lp-accent-line)] text-[color:var(--lp-accent)] place-items-center rounded-md border-[1.5px]"
     >
       <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M12 5v14M5 12h14" strokeLinecap="round" />

@@ -76,7 +76,7 @@ type CtaSize = 'md' | 'lg'
 
 const TONE: Record<CtaTone, string> = {
   primary:
-    'bg-accent text-accent-fg hover:bg-accent-hover shadow-sm hover:shadow-md',
+    'bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] shadow-sm hover:shadow-md',
   secondary:
     'border border-border-strong text-text bg-surface/60 hover:bg-surface-hover hover:border-border-strong',
   ghost: 'text-text hover:bg-surface-hover',
@@ -176,7 +176,7 @@ export function StarRating({ rating }: { rating: number }) {
           aria-hidden
           className={cn(
             'size-4',
-            i < value ? 'fill-accent text-accent' : 'text-border-strong',
+            i < value ? 'fill-[var(--lp-accent)] text-[color:var(--lp-accent)]' : 'text-border-strong',
           )}
           strokeWidth={1.5}
         />
