@@ -68,7 +68,9 @@ export function GallerySection() {
               data-reveal-item
               className={
                 'lp-media group rounded-xl ' +
-                (i === 0 ? 'col-span-2 row-span-2' : 'aspect-square')
+                (i === 0
+                  ? 'aspect-square sm:aspect-auto sm:col-span-2 sm:row-span-2'
+                  : 'aspect-square')
               }
             >
               <img
