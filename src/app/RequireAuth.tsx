@@ -36,7 +36,7 @@ export function RequireCapability({ capability }: { capability: Capability }) {
           description="Your account role does not include this permission. An administrator can change it."
           action={
             <Button variant="secondary" asChild>
-              <a href="/">Back to dashboard</a>
+              <a href="/app">Back to dashboard</a>
             </Button>
           }
         />

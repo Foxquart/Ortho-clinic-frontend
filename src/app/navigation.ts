@@ -77,7 +77,7 @@ export interface ActionItem {
 
 export const PRIMARY_NAV: readonly NavItem[] = [
   {
-    to: '/',
+    to: '/app',
     label: 'New prescription',
     icon: SquarePen,
     goKey: 'n',

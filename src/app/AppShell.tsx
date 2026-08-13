@@ -96,8 +96,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
      three below it are the records you consult while doing it. With four rows
      total, a hairline says that better than a pair of uppercase labels would. */
   const primary = visible(PRIMARY_NAV)
-  const writing = primary.filter((i) => i.to === '/')
-  const records = primary.filter((i) => i.to !== '/')
+  const writing = primary.filter((i) => i.to === '/app')
+  const records = primary.filter((i) => i.to !== '/app')
 
   const initials =
     (user?.full_name ?? user?.username ?? '?')
@@ -109,7 +109,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col gap-1 p-2">
       <Link
-        to="/"
+        to="/app"
         onClick={onNavigate}
         className={cn(
           'mb-2 flex items-center gap-2 rounded-md px-2 py-2',

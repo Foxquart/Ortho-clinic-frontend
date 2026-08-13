@@ -21,7 +21,7 @@ export function RouteError() {
                 Reload
               </Button>
               <Button variant="primary" asChild>
-                <Link to="/">Back to the pad</Link>
+                <Link to="/app">Back to the pad</Link>
               </Button>
             </div>
           }
@@ -43,7 +43,7 @@ export function NotFound() {
         description="That address does not match any screen in the app."
         action={
           <Button variant="primary" asChild>
-            <Link to="/">Back to the pad</Link>
+            <Link to="/app">Back to the pad</Link>
           </Button>
         }
       />

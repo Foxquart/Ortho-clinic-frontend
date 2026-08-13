@@ -41,7 +41,7 @@ export function LoginScreen() {
   if (isLoading) return null
   if (isAuthenticated) {
     const from = (location.state as { from?: string } | null)?.from
-    return <Navigate to={from && from !== '/login' ? from : '/'} replace />
+    return <Navigate to={from && from !== '/login' && from !== '/' ? from : '/app'} replace />
   }
 
   const onSubmit = handleSubmit(async (values) => {
@@ -49,7 +49,7 @@ export function LoginScreen() {
     try {
       await login(values)
       const from = (location.state as { from?: string } | null)?.from
-      navigate(from && from !== '/login' ? from : '/', { replace: true })
+      navigate(from && from !== '/login' && from !== '/' ? from : '/app', { replace: true })
     } catch (error) {
       // 401 here means bad credentials — never say which field was wrong.
       if (error instanceof ApiError) {

@@ -71,6 +71,9 @@ const SiteCmsScreen = lazy(() =>
 const PublicSite = lazy(() =>
   import('@/features/public/PublicSite').then((m) => ({ default: m.PublicSite })),
 )
+const LandingPage = lazy(() =>
+  import('@/features/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
+)
 
 function LazyBoundary() {
   return (
@@ -95,6 +98,16 @@ export const router = createBrowserRouter([
     element: <Root />,
     errorElement: <RouteError />,
     children: [
+      {
+        /* The public landing page — the front door. Single page, no app shell,
+           reachable signed in or out. Staff sign in from here into /app. */
+        index: true,
+        element: (
+          <Suspense fallback={null}>
+            <LandingPage />
+          </Suspense>
+        ),
+      },
       { path: '/login', element: <LoginScreen /> },
       {
         path: '/site/*',
@@ -113,9 +126,10 @@ export const router = createBrowserRouter([
               {
                 element: <LazyBoundary />,
                 children: [
-                  /* Home is the prescription pad's front door. The dashboard
-                     keeps its screen and its (absent) guard, one level down. */
-                  { index: true, element: <PrescribeHome /> },
+                  /* The app home (prescription pad's front door) lives at /app;
+                     `/` is the public landing. The dashboard keeps its own
+                     screen and its (absent) guard, one level down. */
+                  { path: 'app', element: <PrescribeHome /> },
                   { path: 'dashboard', element: <DashboardScreen /> },
                   { path: 'patients', element: <PatientListScreen /> },
                   { path: 'patients/:patientId', element: <PatientDetailScreen /> },

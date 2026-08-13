@@ -1,0 +1,137 @@
+/* =============================================================================
+   OrthoClinic — landing page (public front door) styles
+   -----------------------------------------------------------------------------
+   Landing-only CSS. Tokens come from theme.css; nothing here redefines a
+   colour. Only keyframes, the hero backdrop canvas frame, a couple of composed
+   utilities, and the safe motion baselines live here.
+
+   MOTION CONTRACT
+   No element is ever given `opacity: 0` in this file. Reveal states are set by
+   GSAP at runtime and only inside the `(prefers-reduced-motion: no-preference)`
+   branch, so with JavaScript unavailable — or with reduced motion — every
+   section is painted in its final, legible state.
+   ========================================================================== */
+
+.landing-root {
+  /* A comfortable vertical rhythm token the sections share. */
+  --section-pad: clamp(4.5rem, 9vw, 8rem);
+  /* Height the sticky nav reserves; anchor offsets read from here. */
+  --nav-h: 4rem;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  overflow-x: clip;
+}
+
+/* The page owns its own smooth-scroll engine (Lenis). Turn the native one off
+   so the two never fight; Lenis also no-ops itself under reduced motion. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Hero backdrop                                                             */
+/* -------------------------------------------------------------------------- */
+
+.hero-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* A soft, static wash anchored to the top-right, built from tokens so it
+     flips with the theme. Not an animated gradient blob — it never moves. */
+  background:
+    radial-gradient(
+      60% 55% at 78% 18%,
+      color-mix(in oklab, var(--color-accent) 16%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 50% at 12% 92%,
+      color-mix(in oklab, var(--color-accent) 9%, transparent) 0%,
+      transparent 72%
+    );
+}
+
+.hero-backdrop canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* A faint measured grid under the canvas — precision, not decoration. */
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-border) 60%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-border) 60%, transparent) 1px, transparent 1px);
+  background-size: clamp(48px, 6vw, 76px) clamp(48px, 6vw, 76px);
+  mask-image: radial-gradient(120% 100% at 50% 0%, #000 0%, transparent 78%);
+  opacity: 0.5;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Hero headline word split                                                  */
+/*  Words are wrapped in a clip so the reveal slides from a real edge. The     */
+/*  accessible text is the full heading; the wrappers are presentational.      */
+/* -------------------------------------------------------------------------- */
+
+.hero-line {
+  display: block;
+  overflow: hidden;
+  padding-block: 0.06em; /* room for descenders inside the clip */
+}
+.hero-word {
+  display: inline-block;
+  will-change: transform;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Gallery placeholder composition (used when the clinic has no photos yet)   */
+/* -------------------------------------------------------------------------- */
+
+.gallery-plate {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, var(--color-surface) 0%, var(--color-bg-sunken) 100%);
+}
+.gallery-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in oklab, var(--color-border) 55%, transparent) 0 1px,
+      transparent 1px 12px
+    );
+  opacity: 0.6;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Marquee-free trust rule + misc                                            */
+/* -------------------------------------------------------------------------- */
+
+.rule-tick {
+  background-image: linear-gradient(
+    to right,
+    var(--color-border-strong) 0 2px,
+    transparent 2px 100%
+  );
+  background-size: clamp(28px, 4vw, 44px) 100%;
+}
+
+/* Reduced motion: belt-and-braces. The JS branch already leaves everything
+   in its final state, but if any authored transition slipped through, collapse
+   it. Distance and scale die; opacity/colour survive (they carry meaning). */
+@media (prefers-reduced-motion: reduce) {
+  .hero-word {
+    will-change: auto;
+  }
+}
