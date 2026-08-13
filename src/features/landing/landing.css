@@ -15,6 +15,7 @@
    no-preference)`, so with reduced motion or no JS every section is painted.
    ========================================================================== */
 
+@layer components {
 .landing-root {
   /* --- neutrals: locked dark, cinematic ------------------------------- */
   --color-bg: #08090b;
@@ -247,4 +248,5 @@ html.lenis body {
   .hero-word {
     will-change: auto;
   }
+}
 }

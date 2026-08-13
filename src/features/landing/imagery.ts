@@ -7,16 +7,16 @@
 const BASE = 'https://images.unsplash.com/'
 
 const PHOTO = {
-  heroMovement: 'photo-1517649763962-0c623066013b', // athlete in motion
-  runnerKnee: 'photo-1519494026892-80bbd2d6fd0d', // movement / knee
+  heroMovement: 'photo-1538805060514-97d9cc17730c', // runner on stadium steps, teal
+  runnerKnee: 'photo-1519494026892-80bbd2d6fd0d', // clinic reception
   doctor: 'photo-1612349317150-e413f6a5b16d', // clinician portrait
   doctorAlt: 'photo-1579684385127-1ef15d508118', // doctor
-  physio: 'photo-1538805060514-97d9cc17730c', // rehabilitation
+  physio: 'photo-1571019613454-1cb2f99b2d8b', // mat exercise, rehab
   team: 'photo-1551076805-e1869033e561', // medical team
   clinic: 'photo-1631815588090-d4bfec5b1ccb', // clinic interior
   scan: 'photo-1516549655169-df83a0774514', // imaging / scan
   hospital: 'photo-1559757148-5c350d0d3c56', // facility
-  strength: 'photo-1571019613454-1cb2f99b2d8b', // strength / rehab
+  strength: 'photo-1517649763962-0c623066013b', // cyclists in motion
 } as const
 
 export type PhotoKey = keyof typeof PHOTO

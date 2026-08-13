@@ -89,7 +89,7 @@ const SIZE: Record<CtaSize, string> = {
 
 function ctaClass(tone: CtaTone, size: CtaSize, className?: string): string {
   return cn(
-    'group relative inline-flex select-none items-center justify-center gap-2 rounded-sm font-semibold',
+    'group relative inline-flex select-none items-center justify-center gap-2 rounded-sm font-semibold whitespace-nowrap',
     'transition-[background-color,border-color,box-shadow,transform] duration-fast ease-out-quint',
     'active:scale-[0.98] motion-reduce:active:scale-100',
     TONE[tone],

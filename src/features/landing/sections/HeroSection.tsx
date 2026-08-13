@@ -78,7 +78,7 @@ export function HeroSection() {
         <img
           ref={imgRef}
           src={img('heroMovement', { w: 2200, h: 1400, q: 72 })}
-          alt="An athlete sprinting at full stride."
+          alt="A runner climbing stadium steps."
           decoding="async"
           fetchPriority="high"
           className="scale-105 will-change-transform"
