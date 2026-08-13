@@ -1,5 +1,6 @@
 /* Tokens, palette, typography and motion primitives live in theme.css.
    This file is only the base layer that applies them to the document. */
+@import './styles/fonts.css';
 @import './styles/theme.css';
 
 @layer base {

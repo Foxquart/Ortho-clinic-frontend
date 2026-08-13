@@ -68,7 +68,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
           className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight"
         >
           <Monogram />
-          <span className="text-heading text-text">{wordmark}</span>
+          <span className="lp-serif text-[1.35rem] leading-none text-text">{wordmark}</span>
         </a>
 
         {/* Desktop links */}

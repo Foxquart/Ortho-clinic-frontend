@@ -1,111 +1,127 @@
 /* =============================================================================
    OrthoClinic — landing page (public front door)
    -----------------------------------------------------------------------------
-   Bespoke, page-scoped design language for the clinic's marketing page. It does
-   NOT touch the app's token layer (theme.css); instead it defines its own
-   `--lp-*` variables under `.landing-root`, theme-aware, so the landing can
-   commit to a clinical petrol accent and an editorial type treatment without
-   changing the indigo the product UI uses.
+   Direction: DARK CINEMATIC. Deep near-black grounds, luminous petrol accent,
+   Instrument Serif display over Inter, real photography under heavy grade, film
+   grain, dramatic scroll motion.
 
-   PALETTE  petrol/teal accent (clinical, precise) locked across the whole page.
-            Neutrals come from the app tokens so light/dark stay coherent.
+   The landing is theme-LOCKED to dark: `.landing-root` redefines the app's
+   semantic tokens (neutrals AND accent) to a cinematic dark+teal palette, so
+   the nav, the booking form, and every shared component render on-brand here
+   without touching theme.css or the product UI.
 
-   MOTION CONTRACT  No element is ever given `opacity: 0` here. Reveal states are
-   set by GSAP at runtime and ONLY inside `(prefers-reduced-motion: no-preference)`,
-   so with reduced motion — or no JavaScript — every section paints in its final,
-   legible state.
+   MOTION CONTRACT  No element is given `opacity: 0` in this file. Reveal states
+   are set by GSAP at runtime and ONLY inside `(prefers-reduced-motion:
+   no-preference)`, so with reduced motion or no JS every section is painted.
    ========================================================================== */
 
 .landing-root {
-  /* Clinical petrol accent — the one accent, used identically page-wide. */
-  --lp-accent: #0c6b64;
-  --lp-accent-strong: #0a5751;
-  --lp-accent-fg: #ffffff;
-  --lp-accent-tint: color-mix(in oklab, var(--lp-accent) 10%, transparent);
-  --lp-accent-line: color-mix(in oklab, var(--lp-accent) 40%, transparent);
-  /* Bone: a barely-there warm neutral for section grounds. */
-  --lp-bone: color-mix(in oklab, var(--color-bg) 92%, #a8895f 8%);
+  /* --- neutrals: locked dark, cinematic ------------------------------- */
+  --color-bg: #08090b;
+  --color-bg-sunken: #050506;
+  --color-surface: #0f1114;
+  --color-surface-raised: #15181c;
+  --color-surface-hover: #191d22;
+  --color-surface-active: #1e2229;
+  --color-border: #20242b;
+  --color-border-strong: #333842;
+  --color-border-field: #3a404b;
+  --color-text: #f5f6f7;
+  --color-text-muted: #a6acb5;
+  --color-text-subtle: #6a7079;
+  --color-overlay: rgba(0, 0, 0, 0.66);
 
-  --lp-ink: var(--color-text);
-  --lp-ink-soft: var(--color-text-muted);
-  --lp-ink-faint: var(--color-text-subtle);
-  --lp-line: var(--color-border);
-  --lp-line-strong: var(--color-border-strong);
-  --lp-surface: var(--color-surface);
+  /* --- accent: luminous petrol, applied to app tokens too ------------- */
+  --color-accent: #2fc3b4;
+  --color-accent-hover: #45d4c5;
+  --color-accent-fg: #04211d;
+  --color-accent-muted: color-mix(in oklab, #2fc3b4 16%, transparent);
+  --lp-accent: #35cabb;
+  --lp-accent-strong: #4dd8c9;
+  --lp-accent-fg: #04211d;
+  --lp-accent-tint: color-mix(in oklab, #35cabb 12%, transparent);
+  --lp-accent-line: color-mix(in oklab, #35cabb 30%, transparent);
 
-  --section-pad: clamp(5rem, 10vw, 9rem);
-  --nav-h: 4.25rem;
+  --section-pad: clamp(5.5rem, 11vw, 10rem);
+  --nav-h: 4.5rem;
 
   background-color: var(--color-bg);
-  color: var(--lp-ink);
+  color: var(--color-text);
   overflow-x: clip;
-  /* Editorial: tighten the whole page's tracking a touch, enable good defaults. */
-  font-feature-settings: 'ss01', 'cv01', 'cv03';
+  font-family:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-:root[data-theme='dark'] .landing-root,
-:root:not([data-theme='light']) .landing-root {
-  --lp-accent: #2fb3a6;
-  --lp-accent-strong: #45c4b7;
-  --lp-accent-fg: #04211f;
-  --lp-accent-tint: color-mix(in oklab, var(--lp-accent) 14%, transparent);
-  --lp-accent-line: color-mix(in oklab, var(--lp-accent) 34%, transparent);
-  --lp-bone: color-mix(in oklab, var(--color-bg) 90%, #d8c4a0 10%);
-}
-
-/* Accent utilities the landing uses instead of the app's indigo tokens. */
-.lp-accent {
-  color: var(--lp-accent);
-}
-.lp-on-accent {
-  background-color: var(--lp-accent);
-  color: var(--lp-accent-fg);
-}
-.lp-on-accent:hover {
-  background-color: var(--lp-accent-strong);
+/* Film grain — fixed, non-interactive, tiny cost. Cinematic texture only. */
+.lp-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Editorial type                                                            */
-/*  System stack (offline, no webfonts) pushed with weight + tracking + optical */
-/*  scale rather than raw size, so it reads crafted rather than shouted.       */
+/*  Type — Instrument Serif display over Inter                                */
 /* -------------------------------------------------------------------------- */
+
+.lp-serif {
+  font-family: 'Instrument Serif', 'Times New Roman', Georgia, serif;
+  font-weight: 400;
+}
+.lp-serif-italic {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+}
 
 .lp-display {
-  font-size: clamp(2.9rem, 7.2vw, 6rem);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
-  font-weight: 600;
+  font-family: 'Instrument Serif', 'Times New Roman', Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(3.6rem, 9.5vw, 8.5rem);
+  line-height: 0.92;
+  letter-spacing: -0.005em;
   text-wrap: balance;
 }
 .lp-h2 {
-  font-size: clamp(1.9rem, 3.4vw, 3rem);
-  line-height: 1.04;
-  letter-spacing: -0.02em;
-  font-weight: 600;
+  font-family: 'Instrument Serif', 'Times New Roman', Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(2.4rem, 5vw, 4.25rem);
+  line-height: 0.98;
+  letter-spacing: -0.005em;
   text-wrap: balance;
 }
+/* Emphasis word inside a display line: italic of the SAME family, with
+   descender clearance so y/g/p never clip. */
+.lp-em {
+  font-style: italic;
+  color: var(--lp-accent);
+  line-height: 1.1;
+  padding-bottom: 0.05em;
+}
 .lp-lead {
-  font-size: clamp(1.125rem, 1.7vw, 1.4rem);
-  line-height: 1.5;
-  letter-spacing: -0.01em;
-  color: var(--lp-ink-soft);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: clamp(1.05rem, 1.55vw, 1.3rem);
+  line-height: 1.55;
+  letter-spacing: -0.006em;
+  color: var(--color-text-muted);
   text-wrap: pretty;
 }
-/* Small caps label — used SPARINGLY (max ~1 per 3 sections). */
 .lp-kicker {
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 0.72rem;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   font-weight: 600;
   color: var(--lp-accent);
 }
-/* Big index numerals for the "how movement is restored" steps. */
 .lp-numeral {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
-  letter-spacing: -0.04em;
+  letter-spacing: -0.03em;
 }
 
 .lenis.lenis-smooth {
@@ -117,37 +133,90 @@ html.lenis body {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Hero — anatomical motif ground                                            */
+/*  Cinematic media                                                          */
+/*  Photos get a filmic grade + a scrim so dark text/overlays always read.    */
 /* -------------------------------------------------------------------------- */
 
-.hero-backdrop {
-  position: absolute;
-  inset: 0;
+.lp-media {
+  position: relative;
   overflow: hidden;
-  /* A soft clinical wash, anchored where the anatomy sits. Never animates. */
-  background:
-    radial-gradient(
-      52% 55% at 72% 34%,
-      var(--lp-accent-tint) 0%,
-      transparent 68%
-    );
+  background-color: var(--color-bg-sunken);
 }
-
-/* A precise measured grid — reads as anatomy diagram, not sci-fi radar. */
-.hero-grid {
+.lp-media > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.74) contrast(1.06) saturate(0.92);
+}
+/* Bottom-up scrim for text laid over an image. */
+.lp-scrim::after {
+  content: '';
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--lp-line) 70%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--lp-line) 70%, transparent) 1px, transparent 1px);
-  background-size: clamp(38px, 4.4vw, 60px) clamp(38px, 4.4vw, 60px);
-  mask-image: radial-gradient(130% 120% at 72% 30%, #000 0%, transparent 70%);
-  opacity: 0.45;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 9, 11, 0.2) 0%,
+    rgba(8, 9, 11, 0.1) 42%,
+    rgba(8, 9, 11, 0.82) 100%
+  );
+  pointer-events: none;
+}
+/* Full wash for the hero — deeper, with a petrol lean on one side. */
+.lp-scrim-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(80% 90% at 82% 40%, color-mix(in oklab, var(--lp-accent) 12%, transparent) 0%, transparent 60%),
+    linear-gradient(90deg, rgba(6, 7, 9, 0.96) 0%, rgba(6, 7, 9, 0.72) 44%, rgba(6, 7, 9, 0.42) 100%),
+    linear-gradient(0deg, rgba(6, 7, 9, 0.9) 0%, transparent 46%);
+  pointer-events: none;
+}
+/* Petrol duotone accent tint over an image (mix-blend). */
+.lp-tint::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: color-mix(in oklab, var(--lp-accent) 22%, transparent);
+  mix-blend-mode: color;
+  pointer-events: none;
 }
 
-/* SVG anatomy strokes: drawn in via dashoffset. Baselines are the DRAWN state
-   so reduced-motion / no-JS shows the full figure. GSAP only sets the
-   pre-draw dashoffset inside the no-preference branch. */
+.lp-hairline {
+  border-top: 1px solid var(--color-border);
+}
+
+/* Hero headline word clips for the slide-up reveal. */
+.hero-line {
+  display: block;
+  overflow: hidden;
+  padding-block: 0.1em;
+}
+.hero-word {
+  display: inline-block;
+  will-change: transform;
+}
+
+/* Composed placeholder plate (only if a photo is ever missing). */
+.lp-plate {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(150deg, var(--color-surface) 0%, var(--color-bg-sunken) 100%);
+}
+.lp-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    -50deg,
+    color-mix(in oklab, var(--color-border) 60%, transparent) 0 1px,
+    transparent 1px 14px
+  );
+  opacity: 0.5;
+}
+
 .anat-stroke {
   fill: none;
   stroke: var(--lp-accent);
@@ -157,9 +226,8 @@ html.lenis body {
 }
 .anat-bone {
   fill: color-mix(in oklab, var(--lp-accent) 8%, transparent);
-  stroke: color-mix(in oklab, var(--lp-accent) 65%, var(--lp-ink) 10%);
+  stroke: color-mix(in oklab, var(--lp-accent) 70%, transparent);
   stroke-width: 2;
-  stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
 .anat-arc {
@@ -168,54 +236,11 @@ html.lenis body {
   stroke-width: 1.5;
   stroke-dasharray: 3 7;
   stroke-linecap: round;
-  opacity: 0.75;
+  opacity: 0.7;
   vector-effect: non-scaling-stroke;
 }
 .anat-pivot {
   fill: var(--lp-accent);
-}
-
-/* Hero headline word clips for the slide-up reveal. */
-.hero-line {
-  display: block;
-  overflow: hidden;
-  padding-block: 0.08em;
-}
-.hero-word {
-  display: inline-block;
-  will-change: transform;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Composed placeholder plate (doctor portrait / gallery with no photo yet)   */
-/* -------------------------------------------------------------------------- */
-
-.lp-plate {
-  position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(150deg, var(--lp-surface) 0%, var(--color-bg-sunken) 100%);
-}
-.lp-plate::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: repeating-linear-gradient(
-    -50deg,
-    color-mix(in oklab, var(--lp-line) 60%, transparent) 0 1px,
-    transparent 1px 14px
-  );
-  opacity: 0.5;
-}
-
-/* Hairline tick rule used to separate the stat figures. */
-.lp-ticks {
-  background-image: linear-gradient(
-    to right,
-    var(--lp-line-strong) 0 1px,
-    transparent 1px 100%
-  );
-  background-size: clamp(26px, 4vw, 40px) 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {
