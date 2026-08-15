@@ -101,19 +101,42 @@ export function FieldLabel({
   children,
   provenance,
   action,
+  hint,
   className,
 }: {
   htmlFor?: string
   children: React.ReactNode
   provenance?: Provenance
   action?: React.ReactNode
+  /**
+   * Plain-language explanation of what the field means, shown on hover of the
+   * label. Written for the doctor, not for us: say what to put in and what it
+   * does, never restate the label. The dotted underline is the affordance.
+   */
+  hint?: string
   className?: string
 }) {
+  const label = (
+    <label
+      htmlFor={htmlFor}
+      className={cn(
+        'text-micro uppercase text-text-subtle',
+        hint &&
+          'cursor-help underline decoration-border-strong decoration-dotted underline-offset-4',
+      )}
+    >
+      {children}
+    </label>
+  )
   return (
     <div className={cn('mb-1 flex min-h-5 items-center gap-1.5', className)}>
-      <label htmlFor={htmlFor} className="text-micro uppercase text-text-subtle">
-        {children}
-      </label>
+      {hint ? (
+        <Tooltip content={<span className="max-w-64 text-pretty">{hint}</span>} side="top">
+          {label}
+        </Tooltip>
+      ) : (
+        label
+      )}
       {provenance && <ProvenanceTag provenance={provenance} />}
       {action && <span className="ml-auto flex items-center">{action}</span>}
     </div>

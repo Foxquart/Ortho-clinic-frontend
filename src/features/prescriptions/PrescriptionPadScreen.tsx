@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/Input'
 import { Kbd } from '@/components/ui/Badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/Surface'
 import { isEmptyDictation, parseDictation } from '@/features/speech/parser'
+import { extractDictation } from '@/features/speech/extract'
 import type { ParsedDictation } from '@/features/speech/parser'
 import type {
   MedicineResponse,
@@ -88,6 +89,7 @@ export function PrescriptionPadScreen() {
   const [quickAdd, setQuickAdd] = useState(false)
   const [unparsed, setUnparsed] = useState<string[]>([])
   const [transcript, setTranscript] = useState('')
+  const [placing, setPlacing] = useState(false)
   const [acknowledgement, setAcknowledgement] = useState<{
     signature: string
     reason: string
@@ -336,18 +338,34 @@ export function PrescriptionPadScreen() {
     if (parsed) ingestDictation(parsed)
   }, [ingestDictation])
 
-  const placeTranscript = useCallback(() => {
+  /**
+   * Model-first, parser-fallback. The AI reads natural dictation ("use
+   * paracetamol, patient has a severe cold") into medicines, diagnosis,
+   * complaint and follow-up; the offline regex parser only understands strict
+   * notation, so it is the fallback, not the primary. A model failure of any
+   * kind (unconfigured, offline, refused) falls back silently: the doctor
+   * still gets what the regex can manage, and loses nothing either way.
+   */
+  const placeTranscript = useCallback(async () => {
     const text = transcript.trim()
-    if (!text) return
-    const parsed = parseDictation(text)
-    if (isEmptyDictation(parsed)) {
+    if (!text || placing) return
+    setPlacing(true)
+    let parsed: ParsedDictation
+    try {
+      parsed = (await extractDictation(text)).parsed
+    } catch {
+      parsed = parseDictation(text)
+    } finally {
+      setPlacing(false)
+    }
+    if (isEmptyDictation(parsed) && parsed.unparsed.length === 0) {
       // Nothing structured came out of it, but the doctor still said it.
       setUnparsed((prev) => [...prev, text])
     } else {
       ingestDictation(parsed)
     }
     setTranscript('')
-  }, [ingestDictation, transcript])
+  }, [ingestDictation, transcript, placing])
 
   const fileDictationLine = useCallback(
     (line: string, destination: 'advice' | 'notes') => {
@@ -602,6 +620,7 @@ export function PrescriptionPadScreen() {
           <RxNarrativeField
             id={FIELD_IDS.diagnosis}
             label="Diagnosis"
+            labelHint="What you have concluded is wrong, for example osteoarthritis of the right knee. Printed on the prescription."
             field={draft.diagnosis}
             onChange={setField('diagnosis')}
             maxLength={512}
@@ -611,13 +630,18 @@ export function PrescriptionPadScreen() {
           <RxNarrativeField
             id={FIELD_IDS.chiefComplaint}
             label="Chief complaint"
+            labelHint="What the patient came in complaining of, in their words. Printed on the prescription."
             field={draft.chiefComplaint}
             onChange={setField('chiefComplaint')}
             maxLength={512}
             error={serverErrors[FIELD_IDS.chiefComplaint]}
           />
           <div className="flex min-w-0 flex-col">
-            <FieldLabel htmlFor={FIELD_IDS.followUp} provenance={draft.followUpDate.provenance}>
+            <FieldLabel
+              htmlFor={FIELD_IDS.followUp}
+              provenance={draft.followUpDate.provenance}
+              hint="When the patient should come back for review. Printed on the prescription."
+            >
               Follow-up date
             </FieldLabel>
             <ProvenanceField provenance={draft.followUpDate.provenance}>
@@ -641,6 +665,7 @@ export function PrescriptionPadScreen() {
               <RxNarrativeField
                 id={FIELD_IDS.advice}
                 label="Advice to the patient"
+                labelHint="Non-medicine guidance, one instruction per line, for example avoid squatting. Printed on the prescription."
                 hint="Printed. One instruction per line."
                 field={draft.advice}
                 onChange={setField('advice')}
@@ -651,6 +676,7 @@ export function PrescriptionPadScreen() {
               <RxNarrativeField
                 id={FIELD_IDS.investigations}
                 label="Investigations"
+                labelHint="Tests to order, for example an X-ray or blood work. Saved with the prescription notes."
                 hint="No backend field yet — saved under a heading in the notes."
                 field={draft.investigations}
                 onChange={setField('investigations')}
@@ -660,6 +686,7 @@ export function PrescriptionPadScreen() {
               <RxNarrativeField
                 id={FIELD_IDS.notes}
                 label="Internal notes"
+                labelHint="Private notes for your own record. Never printed, never shown to the patient."
                 hint="Not printed."
                 field={draft.notes}
                 onChange={setField('notes')}
@@ -766,6 +793,7 @@ export function PrescriptionPadScreen() {
           <div className="order-6">
             <RxDictationPanel
               transcript={transcript}
+              placing={placing}
               lines={unparsed}
               autoStart={dictateOnArrival}
               onCapture={(text) => {

@@ -64,6 +64,28 @@ function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }
   )
 }
 
+/**
+ * The one-click theme switch, visible in the top bar. The account menu keeps
+ * the full three-way choice (light / dark / system); this button just flips
+ * between the two the doctor actually thinks in, with a visible word on it so
+ * nothing has to be discovered.
+ */
+function ThemeToggle() {
+  const { resolved, setChoice } = useTheme()
+  const next = resolved === 'light' ? 'dark' : 'light'
+  return (
+    <button
+      type="button"
+      onClick={() => setChoice(next)}
+      aria-label={`Switch to ${next} mode`}
+      className="text-label text-text-muted hover:text-text hover:bg-surface-hover flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 font-medium transition-colors duration-fast"
+    >
+      {resolved === 'light' ? <Moon className="size-4" /> : <Sun className="size-4" />}
+      <span className="hidden sm:inline">{resolved === 'light' ? 'Dark' : 'Light'}</span>
+    </button>
+  )
+}
+
 function ThemeMenuItems() {
   const { choice, setChoice } = useTheme()
   const options = [
@@ -288,6 +310,7 @@ export function AppShell() {
               <Kbd>K</Kbd>
             </span>
           </button>
+          <ThemeToggle />
         </header>
 
         <main className="min-w-0 flex-1">

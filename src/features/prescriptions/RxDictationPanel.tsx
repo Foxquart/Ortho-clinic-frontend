@@ -19,6 +19,7 @@ import { RxPrescriptionMic } from './RxMic'
  */
 export function RxDictationPanel({
   transcript,
+  placing = false,
   lines,
   autoStart,
   onCapture,
@@ -28,6 +29,8 @@ export function RxDictationPanel({
   onDiscard,
 }: {
   transcript: string
+  /** True while the AI is reading the transcript into the fields. */
+  placing?: boolean
   lines: readonly string[]
   /** Arrived with `?dictate=1` — start listening without a click. */
   autoStart: boolean
@@ -88,9 +91,10 @@ export function RxDictationPanel({
                   variant="secondary"
                   size="sm"
                   onClick={onPlace}
+                  loading={placing}
                   iconLeft={<Wand2 className="size-4" />}
                 >
-                  Place in the fields
+                  {placing ? 'Reading what you said' : 'Place in the fields'}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={onClearTranscript}>
                   Discard the transcript

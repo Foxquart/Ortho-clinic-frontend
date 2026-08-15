@@ -209,7 +209,12 @@ export function RxRowEditor({
 
           <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_8rem_minmax(10rem,12rem)_5rem]">
             <div className="sm:col-span-2 lg:col-span-1">
-              <FieldLabel htmlFor={rowFieldId.medicine(row.key)}>Medicine</FieldLabel>
+              <FieldLabel
+                htmlFor={rowFieldId.medicine(row.key)}
+                hint="The drug to prescribe. Click to browse your medicines, or type to search by name, generic or brand."
+              >
+                Medicine
+              </FieldLabel>
               <Combobox<MedicineResponse>
                 id={rowFieldId.medicine(row.key)}
                 value={selected}
@@ -240,7 +245,11 @@ export function RxRowEditor({
             </div>
 
             <div>
-              <FieldLabel htmlFor={dosageId} provenance={row.dosage.provenance}>
+              <FieldLabel
+                htmlFor={dosageId}
+                provenance={row.dosage.provenance}
+                hint="How much per intake, for example 1 tab or 10 ml. Printed on the prescription."
+              >
                 Dose
               </FieldLabel>
               <ProvenanceField provenance={row.dosage.provenance}>
@@ -259,7 +268,11 @@ export function RxRowEditor({
             </div>
 
             <div>
-              <FieldLabel htmlFor={frequencyId} provenance={row.frequency.provenance}>
+              <FieldLabel
+                htmlFor={frequencyId}
+                provenance={row.frequency.provenance}
+                hint="When it is taken. 1-0-1 means one in the morning, none at midday, one at night. SOS means only when needed."
+              >
                 Frequency
               </FieldLabel>
               <ProvenanceField provenance={row.frequency.provenance}>
@@ -277,7 +290,11 @@ export function RxRowEditor({
             </div>
 
             <div>
-              <FieldLabel htmlFor={rowFieldId.days(row.key)} provenance={row.durationDays.provenance}>
+              <FieldLabel
+                htmlFor={rowFieldId.days(row.key)}
+                provenance={row.durationDays.provenance}
+                hint="How many days the patient continues this medicine."
+              >
                 Days
               </FieldLabel>
               <Input
@@ -337,6 +354,8 @@ export function RxRowEditor({
               <FieldLabel
                 htmlFor={instructionsId}
                 provenance={row.instructions.provenance}
+                hint="Anything the patient must know for this medicine, for example after food or with warm water. Printed with the medicine."
+
                 action={
                   <RxFieldStateMic
                     id={instructionsId}
@@ -383,7 +402,12 @@ export function RxRowEditor({
           {showMore && (
             <div className="mt-2.5 grid gap-2.5 sm:grid-cols-[7rem_11rem]">
               <div>
-                <FieldLabel htmlFor={quantityId}>Quantity</FieldLabel>
+                <FieldLabel
+                  htmlFor={quantityId}
+                  hint="Total units to hand over for the whole course. Suggested automatically from frequency and days when possible."
+                >
+                  Quantity
+                </FieldLabel>
                 <Input
                   id={quantityId}
                   type="number"
@@ -417,7 +441,12 @@ export function RxRowEditor({
               </div>
 
               <div>
-                <FieldLabel htmlFor={rowFieldId.food(row.key)}>Food</FieldLabel>
+                <FieldLabel
+                  htmlFor={rowFieldId.food(row.key)}
+                  hint="Whether to take it before, after or with food."
+                >
+                  Food
+                </FieldLabel>
                 <Select
                   id={rowFieldId.food(row.key)}
                   value={row.food ?? undefined}

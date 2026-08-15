@@ -20,6 +20,7 @@ import { entered, type FieldState } from './model'
 export function RxNarrativeField({
   id,
   label,
+  labelHint,
   hint,
   field,
   onChange,
@@ -30,6 +31,9 @@ export function RxNarrativeField({
 }: {
   id: string
   label: string
+  /** Plain-language explanation of the field, shown on hovering the label. */
+  labelHint?: string
+  /** Short status note rendered under the field (for example "Not printed."). */
   hint?: React.ReactNode
   field: FieldState<string>
   onChange: (next: FieldState<string>) => void
@@ -45,6 +49,7 @@ export function RxNarrativeField({
   return (
     <div className={cn('flex min-w-0 flex-col', className)}>
       <FieldLabel
+        hint={labelHint}
         htmlFor={id}
         provenance={field.provenance}
         action={
