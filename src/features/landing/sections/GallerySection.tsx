@@ -1,5 +1,5 @@
 /**
- * Gallery — a bento of real photographs from inside the clinic.
+ * Gallery — a bento of real photographs from the doctor's life and work.
  *
  * Prefers the clinic's own uploaded, published gallery (served through
  * `resolveApiUrl`); when the CMS has none it falls back to the curated stock
@@ -14,7 +14,7 @@
  * CSS transform, disabled under reduced motion.
  */
 import { resolveApiUrl } from '@/api/http'
-import { GALLERY_PHOTOS, img } from '@/features/landing/imagery'
+import { LIFE_GALLERY, img } from '@/features/landing/imagery'
 import type { PhotoKey } from '@/features/landing/imagery'
 import { sortedGallery } from '@/features/public/content'
 import { usePublicPortfolio } from '@/features/public/usePublicData'
@@ -25,14 +25,14 @@ interface Tile {
   alt: string
 }
 
-/* Descriptive alt text for the curated stock fallback set. */
+/* Descriptive alt text for the curated life-gallery fallback set. */
 const STOCK_ALT: Partial<Record<PhotoKey, string>> = {
-  clinic: 'The clinic reception and waiting area',
-  scan: 'Diagnostic imaging inside the clinic',
-  physio: 'A physiotherapy and rehabilitation session',
-  team: 'The clinical care team',
-  strength: 'Strength and conditioning for recovery',
-  hospital: 'The clinic building and facilities',
+  speaking: 'Dr. Mehta speaking at a medical conference',
+  travel: 'Travelling: a mountain road at first light',
+  cycling: 'A morning ride on the cycle',
+  coffee: 'A quiet coffee between clinics',
+  photography: 'Out with the camera at golden hour',
+  family: 'Family time away from the clinic',
 }
 
 export function GallerySection() {
@@ -48,17 +48,17 @@ export function GallerySection() {
           src: resolveApiUrl(image.image_url),
           alt: image.alt_text ?? image.caption ?? 'A photograph from inside the clinic',
         }))
-      : GALLERY_PHOTOS.map((photo) => ({
+      : LIFE_GALLERY.map((photo: PhotoKey) => ({
           key: photo,
           src: img(photo, { w: 900, h: 900 }),
-          alt: STOCK_ALT[photo] ?? 'A photograph from inside the clinic',
+          alt: STOCK_ALT[photo] ?? 'A moment from life outside the clinic',
         }))
 
   return (
     <section id="gallery" className="scroll-mt-[var(--nav-h)] pb-[var(--section-pad)]">
       <div className="mx-auto max-w-content px-5 sm:px-8">
         <h2 data-reveal className="lp-h2 mb-10 max-w-[16ch]">
-          Inside the clinic.
+          Life, in motion.
         </h2>
 
         <div data-reveal-group className="grid grid-cols-2 gap-3 sm:grid-cols-3">

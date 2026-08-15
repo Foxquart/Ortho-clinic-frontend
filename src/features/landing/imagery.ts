@@ -22,10 +22,12 @@ const PHOTO = {
   reading: 'photo-1512820790803-83ca734da794',
   // Life & community
   family: 'photo-1511895426328-dc8714191300',
-  kitchen: 'photo-1556910103-1c02745a30bf',
+  kitchen: 'photo-1466637574441-749b8f19452f',
   // Clinic — kept minimal, only where absolutely necessary
   clinicPortrait: 'photo-1612349317150-e413f6a5b16d',
   clinicSpace: 'photo-1631815588090-d4bfec5b1ccb',
+  physio: 'photo-1538805060514-97d9cc17730c',
+  strength: 'photo-1571019613454-1cb2f99b2d8b',
 } as const
 
 export type PhotoKey = keyof typeof PHOTO

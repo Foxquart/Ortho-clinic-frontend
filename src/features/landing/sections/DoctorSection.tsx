@@ -25,7 +25,7 @@ export function DoctorSection() {
   const fullName = data?.full_name ?? 'Consultant Orthopaedic Surgeon'
   const photoSrc = data?.photo_url
     ? resolveApiUrl(data.photo_url)
-    : img('doctor', { w: 1000, h: 1250 })
+    : img('clinicPortrait', { w: 1000, h: 1250 })
 
   const facts = [
     data?.experience_years != null
