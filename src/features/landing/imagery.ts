@@ -1,29 +1,38 @@
 /**
- * Curated stock photography for the landing page. Every URL was verified to
- * return 200 image/jpeg from the Unsplash CDN. `img()` appends sizing +
- * format params so the browser gets an appropriately sized, auto-formatted
- * asset. Swap any of these for the clinic's own photos via the CMS later.
+ * Premium lifestyle photography for Dr. Arjun Mehta's personal brand landing page.
+ * Every URL points to curated Unsplash photography with a warm, editorial grade.
+ * `img()` appends sizing + format params so the browser gets an appropriately
+ * sized, auto-formatted asset. Swap these for the doctor's own photographs via
+ * the CMS later.
  */
 const BASE = 'https://images.unsplash.com/'
 
 const PHOTO = {
-  heroMovement: 'photo-1538805060514-97d9cc17730c', // runner on stadium steps, teal
-  runnerKnee: 'photo-1519494026892-80bbd2d6fd0d', // clinic reception
-  doctor: 'photo-1612349317150-e413f6a5b16d', // clinician portrait
-  doctorAlt: 'photo-1579684385127-1ef15d508118', // doctor
-  physio: 'photo-1571019613454-1cb2f99b2d8b', // mat exercise, rehab
-  team: 'photo-1551076805-e1869033e561', // medical team
-  clinic: 'photo-1631815588090-d4bfec5b1ccb', // clinic interior
-  scan: 'photo-1516549655169-df83a0774514', // imaging / scan
-  hospital: 'photo-1559757148-5c350d0d3c56', // facility
-  strength: 'photo-1517649763962-0c623066013b', // cyclists in motion
+  // Hero — warm, confident portrait with natural light and shallow depth
+  heroPortrait: 'photo-1500648767791-00dcc994a43e',
+  // Events — speaking, conferences, teaching
+  speaking: 'photo-1540575467063-178a50c2df87',
+  workshop: 'photo-1556761175-5973dc0f32e7',
+  lecture: 'photo-1515187029135-18ee286d815b',
+  // Activities & hobbies
+  travel: 'photo-1488646953014-85cb44e25828',
+  coffee: 'photo-1495474472287-4d71bcdd2085',
+  cycling: 'photo-1541625602330-2277a4c46182',
+  photography: 'photo-1516035069371-29a1b244cc32',
+  reading: 'photo-1512820790803-83ca734da794',
+  // Life & community
+  family: 'photo-1511895426328-dc8714191300',
+  kitchen: 'photo-1556910103-1c02745a30bf',
+  // Clinic — kept minimal, only where absolutely necessary
+  clinicPortrait: 'photo-1612349317150-e413f6a5b16d',
+  clinicSpace: 'photo-1631815588090-d4bfec5b1ccb',
 } as const
 
 export type PhotoKey = keyof typeof PHOTO
 
 export function img(
   key: PhotoKey,
-  { w = 1200, h, q = 70 }: { w?: number; h?: number; q?: number } = {},
+  { w = 1200, h, q = 72 }: { w?: number; h?: number; q?: number } = {},
 ): string {
   const params = new URLSearchParams({
     auto: 'format',
@@ -35,12 +44,14 @@ export function img(
   return `${BASE}${PHOTO[key]}?${params.toString()}`
 }
 
-/** Gallery set, in display order. */
-export const GALLERY_PHOTOS: PhotoKey[] = [
-  'clinic',
-  'scan',
-  'physio',
-  'team',
-  'strength',
-  'hospital',
+/** Gallery set for the life grid, in display order. */
+export const LIFE_GALLERY: PhotoKey[] = [
+  'speaking',
+  'travel',
+  'cycling',
+  'coffee',
+  'photography',
+  'family',
 ]
+
+export const EVENT_PHOTOS: PhotoKey[] = ['workshop', 'lecture', 'speaking', 'reading']

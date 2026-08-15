@@ -1,22 +1,26 @@
 /**
- * Small shared building blocks for the landing page: the CTA buttons (with an
- * opt-in magnetic pull), the service icon resolver, and a star rating. Nothing
- * here owns scroll animation — that is centralised in `LandingPage` so the
- * reduced-motion decision lives in exactly one place.
+ * Small shared building blocks for the landing page: CTA buttons (with an
+ * opt-in magnetic pull), lifestyle icon resolver, and a star rating.
+ * Nothing here owns scroll animation — that is centralised in `LandingPage`
+ * so the reduced-motion decision lives in exactly one place.
  */
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { useRef } from 'react'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import {
-  Activity,
-  Bone,
+  ArrowUpRight,
+  Bike,
+  BookOpen,
   Camera,
-  HeartPulse,
-  Scan,
-  Shield,
+  Coffee,
+  Compass,
+  Heart,
+  Mic,
+  Sparkles,
   Star,
   Stethoscope,
+  Users,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -78,7 +82,7 @@ const TONE: Record<CtaTone, string> = {
   primary:
     'bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] shadow-sm hover:shadow-md',
   secondary:
-    'border border-border-strong text-text bg-surface/60 hover:bg-surface-hover hover:border-border-strong',
+    'border border-border-strong text-text bg-surface/70 hover:bg-surface-hover hover:border-border-strong',
   ghost: 'text-text hover:bg-surface-hover',
 }
 
@@ -137,20 +141,50 @@ export function ScrollButton({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Service icon                                                              */
+/*  Lifestyle icons                                                           */
 /* -------------------------------------------------------------------------- */
 
-const SERVICE_ICONS: Record<string, LucideIcon> = {
-  bone: Bone,
-  activity: Activity,
-  camera: Camera,
-  scan: Scan,
-  shield: Shield,
-  heart: HeartPulse,
+const LIFESTYLE_ICONS: Record<string, LucideIcon> = {
+  speaking: Mic,
+  workshop: Users,
+  lecture: BookOpen,
+  travel: Compass,
+  coffee: Coffee,
+  cycling: Bike,
+  photography: Camera,
+  reading: BookOpen,
+  family: Heart,
+  kitchen: Sparkles,
   stethoscope: Stethoscope,
 }
 
-/** Maps the CMS `icon_name` to a Lucide glyph, with a calm clinical default. */
+/** Maps a lifestyle tag to a Lucide glyph. */
+export function LifestyleIcon({
+  name,
+  className,
+}: {
+  name: string | null
+  className?: string
+}) {
+  const Icon = (name && LIFESTYLE_ICONS[name.toLowerCase()]) || Stethoscope
+  return <Icon aria-hidden className={className} strokeWidth={1.5} />
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Service icon (kept for backward compatibility with CMS data)              */
+/* -------------------------------------------------------------------------- */
+
+const SERVICE_ICONS: Record<string, LucideIcon> = {
+  bone: Stethoscope,
+  activity: Stethoscope,
+  camera: Camera,
+  scan: Stethoscope,
+  shield: Stethoscope,
+  heart: Heart,
+  stethoscope: Stethoscope,
+}
+
+/** Maps the CMS `icon_name` to a Lucide glyph, with a calm default. */
 export function ServiceIcon({
   name,
   className,
@@ -182,5 +216,30 @@ export function StarRating({ rating }: { rating: number }) {
         />
       ))}
     </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Tiny inline arrow link                                                    */
+/* -------------------------------------------------------------------------- */
+
+export function ArrowLink({
+  href,
+  children,
+}: {
+  href: string
+  children: ReactNode
+}) {
+  return (
+    <a
+      href={href}
+      className="group inline-flex items-center gap-1 text-label font-semibold text-[color:var(--lp-accent)] hover:text-[color:var(--lp-accent-strong)] transition-colors duration-fast"
+    >
+      {children}
+      <ArrowUpRight
+        aria-hidden
+        className="size-4 transition-transform duration-fast group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+      />
+    </a>
   )
 }
