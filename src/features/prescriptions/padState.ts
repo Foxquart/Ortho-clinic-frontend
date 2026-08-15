@@ -124,7 +124,7 @@ export const FIELD_IDS = {
 export const rowFieldId = {
   medicine: (key: string) => `rx-med-${key}`,
   dosage: (key: string) => `rx-dosage-${key}`,
-  schedule: (key: string) => `rx-sched-${key}`,
+  frequency: (key: string) => `rx-freq-${key}`,
   days: (key: string) => `rx-days-${key}`,
   quantity: (key: string) => `rx-qty-${key}`,
   food: (key: string) => `rx-food-${key}`,
@@ -149,7 +149,7 @@ export function issueFieldId(issue: RowIssue): string {
   }
   if (issue.rowKey === 'rows') return FIELD_IDS.addMedicine
   if (issue.field === 'dosage') return rowFieldId.dosage(issue.rowKey)
-  if (issue.field === 'schedule') return rowFieldId.schedule(issue.rowKey)
+  if (issue.field === 'frequency') return rowFieldId.frequency(issue.rowKey)
   return rowFieldId.medicine(issue.rowKey)
 }
 
@@ -172,7 +172,7 @@ export function describeIssue(issue: RowIssue, draft: RxDraft): string {
   // "Dose not set" on its own leaves the doctor guessing at the format. Say
   // what to type: this is the one blocker they will hit most often.
   if (issue.field === 'dosage') return `${label} — amount per intake, e.g. “1 tab”`
-  if (issue.field === 'schedule') return `${label} — timing, e.g. 1-0-1`
+  if (issue.field === 'frequency') return `${label} — how often, e.g. 1-0-1 or SOS`
   return `${label} — ${issue.message.toLowerCase()}`
 }
 
@@ -230,7 +230,7 @@ export function mapServerFieldErrors(
         field === 'dosage'
           ? rowFieldId.dosage(row.key)
           : field === 'frequency'
-            ? rowFieldId.schedule(row.key)
+            ? rowFieldId.frequency(row.key)
             : field === 'duration_days'
               ? rowFieldId.days(row.key)
               : field === 'quantity'

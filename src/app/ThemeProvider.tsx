@@ -19,9 +19,12 @@ function readStoredChoice(): ThemeChoice {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
   } catch {
-    /* private mode — fall through to system */
+    /* private mode — fall through to the default */
   }
-  return 'system'
+  // Default is LIGHT, not system: the pad opens on warm paper regardless of the
+  // OS preference. `system` remains a selectable choice; it is just not the
+  // starting point. Mirrors the pre-paint script in index.html.
+  return 'light'
 }
 
 function systemPrefersDark(): boolean {

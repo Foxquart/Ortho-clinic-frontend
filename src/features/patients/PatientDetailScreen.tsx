@@ -125,8 +125,8 @@ function PrescriptionRow({
           'hover:bg-surface-raised focus-visible:bg-surface-raised focus-visible:outline-none',
         )}
       >
-        <div className="w-24 shrink-0" data-numeric>
-          <p className="text-label font-medium text-text">{formatDate(entry.created_at)}</p>
+        <div className="w-28 shrink-0" data-numeric>
+          <p className="text-body font-semibold text-text">{formatDate(entry.created_at)}</p>
           <p className="text-caption text-text-subtle">{formatAgo(entry.created_at)}</p>
         </div>
 
@@ -134,17 +134,17 @@ function PrescriptionRow({
           <p className="truncate text-body text-text">
             {entry.diagnosis || <span className="text-text-subtle">No diagnosis recorded</span>}
           </p>
-          <p className="mt-0.5 truncate text-caption text-text-muted">
+          <p className="mt-0.5 truncate text-label text-text-muted">
             {detail
               ? medicineLine(detail)
               : `${entry.items_count} ${entry.items_count === 1 ? 'medicine' : 'medicines'}`}
           </p>
         </div>
 
-        <span className="hidden shrink-0 font-mono text-caption text-text-subtle sm:block">
+        <span className="hidden shrink-0 font-mono text-label text-text-subtle sm:block" data-numeric>
           {entry.prescription_number}
         </span>
-        <ChevronRight aria-hidden className="mt-0.5 size-4 shrink-0 text-text-subtle" />
+        <ChevronRight aria-hidden className="mt-0.5 size-5 shrink-0 text-text-subtle" />
       </Link>
     </li>
   )
@@ -200,9 +200,9 @@ export function PatientDetailScreen() {
       <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6 sm:px-6">
         <Link
           to="/patients"
-          className="inline-flex items-center gap-1 text-caption text-text-muted hover:text-text"
+          className="inline-flex items-center gap-1.5 py-1 text-label text-text-muted hover:text-text"
         >
-          <ArrowLeft aria-hidden className="size-3.5" />
+          <ArrowLeft aria-hidden className="size-4" />
           All patients
         </Link>
         <ErrorState error={summary.error} onRetry={() => void summary.refetch()} />
@@ -214,9 +214,9 @@ export function PatientDetailScreen() {
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6">
       <Link
         to="/patients"
-        className="inline-flex w-fit items-center gap-1 text-caption text-text-muted transition-colors duration-fast hover:text-text"
+        className="inline-flex w-fit items-center gap-1.5 py-1 text-label text-text-muted transition-colors duration-fast hover:text-text"
       >
-        <ArrowLeft aria-hidden className="size-3.5" />
+        <ArrowLeft aria-hidden className="size-4" />
         All patients
       </Link>
 
@@ -464,10 +464,10 @@ export function PatientDetailScreen() {
                 {appointments.slice(0, APPOINTMENTS_SHOWN).map((appointment) => (
                   <li
                     key={appointment.id}
-                    className="flex items-center gap-2 px-4 py-2.5"
+                    className="flex items-center gap-2 px-4 py-3"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block text-label text-text" data-numeric>
+                      <span className="block text-body text-text" data-numeric>
                         {formatRelativeDay(appointment.appointment_date)} ·{' '}
                         {formatTime(appointment.start_time)}
                       </span>

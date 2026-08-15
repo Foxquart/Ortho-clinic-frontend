@@ -1,12 +1,12 @@
 import { Table, TD, TH, THead, TR } from '@/components/ui/Table'
 import { humanizeEnum } from '@/lib/format'
-import { RxScheduleView } from './RxScheduleView'
 import type { PrescriptionItemResponse } from '@/api/schema'
 
 /**
  * The medicine lines, read the way a prescription is read: one row per drug,
- * strength next to the name, timing as a visual triple, everything else in a
- * fixed column so the eye can run straight down it.
+ * strength next to the name, the stored frequency exactly as it was written
+ * ("1-0-1", "SOS", "before bed"), everything else in a fixed column so the eye
+ * can run straight down it.
  *
  * Read-only by construction — prescriptions are append-only over HTTP.
  */
@@ -22,7 +22,7 @@ export function RxMedicinesView({ items }: { items: PrescriptionItemResponse[] }
         </TH>
         <TH>Medicine</TH>
         <TH width="9rem">Dose</TH>
-        <TH width="7.5rem">Timing (M-A-N)</TH>
+        <TH width="7.5rem">Frequency</TH>
         <TH width="6rem" align="right">
           Duration
         </TH>
@@ -49,9 +49,7 @@ export function RxMedicinesView({ items }: { items: PrescriptionItemResponse[] }
               </span>
             </TD>
             <TD className="text-label text-text pt-2.5">{item.dosage}</TD>
-            <TD className="pt-2">
-              <RxScheduleView frequency={item.frequency} />
-            </TD>
+            <TD className="text-label text-text pt-2.5 font-mono">{item.frequency}</TD>
             <TD align="right" className="text-label text-text pt-2.5 whitespace-nowrap">
               {item.duration_days == null ? (
                 <span className="text-text-subtle">—</span>

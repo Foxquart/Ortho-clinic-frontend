@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Ear, Loader2, Search, Trash2, TriangleAlert } from 'lucide-react'
+import { ChevronDown, Ear, Loader2, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { apiGet } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
@@ -11,19 +11,34 @@ import { Input } from '@/components/ui/Input'
 import { Combobox } from '@/components/ui/Combobox'
 import { Select } from '@/components/ui/Controls'
 import { Tooltip } from '@/components/ui/Menu'
-import type { MedicineResponse } from '@/api/schema'
-import { DoseScheduleInput } from './DoseSchedule'
+import type { MedicineResponse, Page_MedicineResponse_ } from '@/api/schema'
 import { FieldLabel, ProvenanceField } from './Provenance'
 import { RxFieldStateMic } from './RxMic'
 import { normaliseMedicineName } from './dictation'
 import { isUnmatched, provenanceControlClass, rowFieldId, type RowMeta } from './padState'
-import { entered, rowIssues, suggestQuantity, type DoseSchedule, type RxRow } from './model'
+import { entered, rowIssues, suggestQuantity, type RxRow } from './model'
 
 const FOOD_OPTIONS = [
   { value: 'after', label: 'After food' },
   { value: 'before', label: 'Before food' },
   { value: 'with', label: 'With food' },
 ] as const
+
+/**
+ * One tap each for the frequencies this clinic writes all day. The mono value
+ * is what lands in the field; the words are what the doctor thinks in.
+ * "SOS" also marks the row as-needed (PRN).
+ */
+const FREQUENCY_PRESETS = [
+  { value: '1-0-0', label: 'Morning' },
+  { value: '1-0-1', label: 'Morning & night' },
+  { value: '1-1-1', label: 'Thrice daily' },
+  { value: '0-0-1', label: 'At night' },
+  { value: 'SOS', label: 'As needed' },
+] as const
+
+/** How the formulary is browsed when nothing has been typed yet. */
+const BROWSE_PARAMS = { page: 1, page_size: 10, sort_by: 'name', sort_order: 'asc' } as const
 
 /** Does any recorded allergy appear in this medicine's name? */
 function matchesAllergy(medicine: string, allergies: readonly string[]): string | null {
@@ -52,9 +67,10 @@ export interface RxRowEditorProps {
 /**
  * One prescribed medicine.
  *
- * The three things that decide whether this line can be printed — which drug,
- * how much, when — sit on one line and are read together. Everything optional
- * drops to a second line the eye can skip.
+ * The four things that decide whether this line can be printed and dispensed —
+ * which drug, how much, how often, for how long — sit on one line and are read
+ * together. Instructions stay visible because they are clinical; quantity and
+ * food timing fold behind "More" so an ordinary row is one glance and done.
  */
 export function RxRowEditor({
   row,
@@ -80,18 +96,36 @@ export function RxRowEditor({
     }
   }, [meta.spokenName])
 
+  const searching = debounced.length >= 1
+
   const medicines = useQuery({
     queryKey: qk.medicines.search(debounced),
     queryFn: () =>
       apiGet<MedicineResponse[]>(endpoints.medicines.search, {
         params: { q: debounced, limit: 12 },
       }),
-    enabled: debounced.length >= 1,
+    enabled: searching,
     staleTime: 30_000,
   })
 
+  // With nothing typed, the formulary is browsed rather than hidden: the
+  // search endpoint requires a non-empty `q`, and an empty dropdown over a
+  // populated formulary reads as "no medicines exist". A failed browse
+  // degrades to the typed-search behaviour, never to an error state.
+  const browse = useQuery({
+    queryKey: qk.medicines.list(BROWSE_PARAMS),
+    queryFn: () =>
+      apiGet<Page_MedicineResponse_>(endpoints.medicines.list, { params: BROWSE_PARAMS }),
+    enabled: !searching,
+    staleTime: 60_000,
+  })
+
+  const options = searching
+    ? (medicines.data ?? [])
+    : (browse.data?.items ?? []).filter((m) => m.is_active)
+
   const issues = rowIssues(row)
-  const has = (field: 'medicine' | 'dosage' | 'schedule') =>
+  const has = (field: 'medicine' | 'dosage' | 'frequency') =>
     issues.some((i) => i.field === field)
 
   const unmatched = isUnmatched(row, meta)
@@ -103,7 +137,7 @@ export function RxRowEditor({
     meta.spokenName !== null &&
     normaliseMedicineName(meta.spokenName) !== normaliseMedicineName(row.medicineName)
   const allergyHit = row.medicineName ? matchesAllergy(row.medicineName, allergies) : null
-  const quantityHint = suggestQuantity(row.schedule.value, row.durationDays.value)
+  const quantityHint = suggestQuantity(row.frequency.value, row.durationDays.value)
 
   const selected: MedicineResponse | null = row.medicineId
     ? ({ id: row.medicineId, name: row.medicineName } as MedicineResponse)
@@ -115,8 +149,19 @@ export function RxRowEditor({
     patch({ medicineId: medicine.id, medicineName: medicine.name })
 
   const dosageId = rowFieldId.dosage(row.key)
-  const scheduleId = rowFieldId.schedule(row.key)
+  const frequencyId = rowFieldId.frequency(row.key)
+  const quantityId = rowFieldId.quantity(row.key)
   const instructionsId = rowFieldId.instructions(row.key)
+
+  // Quantity and food fold away by default; a row that already carries either
+  // (dictated, carried over, or from a server error) arrives unfolded, because
+  // hiding a filled-in value is worse than showing an extra line.
+  const [showMore, setShowMore] = useState(
+    () => row.quantity.value !== null || row.food !== null,
+  )
+  useEffect(() => {
+    if (errors[quantityId] || errors[rowFieldId.food(row.key)]) setShowMore(true)
+  }, [errors, quantityId, row.key])
 
   return (
     <li
@@ -136,6 +181,8 @@ export function RxRowEditor({
         if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
         const target = e.target as HTMLElement
         if (target.tagName === 'TEXTAREA') return
+        // Buttons (frequency presets, More, remove) keep their native Enter.
+        if (target.closest('button')) return
         if (target.closest('[cmdk-root]')) return
         e.preventDefault()
         onEnter()
@@ -160,8 +207,8 @@ export function RxRowEditor({
             />
           )}
 
-          <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_9rem_auto]">
-            <div>
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_8rem_minmax(10rem,12rem)_5rem]">
+            <div className="sm:col-span-2 lg:col-span-1">
               <FieldLabel htmlFor={rowFieldId.medicine(row.key)}>Medicine</FieldLabel>
               <Combobox<MedicineResponse>
                 id={rowFieldId.medicine(row.key)}
@@ -169,8 +216,8 @@ export function RxRowEditor({
                 onChange={choose}
                 query={medicineQuery}
                 onQueryChange={setMedicineQuery}
-                items={medicines.data ?? []}
-                loading={medicines.isFetching}
+                items={options}
+                loading={searching ? medicines.isFetching : browse.isFetching}
                 getKey={(m) => m.id}
                 getLabel={(m) => m.name}
                 invalid={has('medicine')}
@@ -178,9 +225,9 @@ export function RxRowEditor({
                 placeholder={unmatched ? `“${meta.spokenName}” — not matched` : '—'}
                 searchPlaceholder="Brand or generic name…"
                 emptyMessage={
-                  debounced
+                  searching
                     ? `Nothing in the formulary matches “${debounced}”.`
-                    : 'Start typing to search.'
+                    : 'No medicines in the formulary yet.'
                 }
                 renderItem={(m) => <MedicineOption medicine={m} />}
               />
@@ -212,20 +259,23 @@ export function RxRowEditor({
             </div>
 
             <div>
-              <FieldLabel htmlFor={scheduleId} provenance={row.schedule.provenance}>
-                Timing
+              <FieldLabel htmlFor={frequencyId} provenance={row.frequency.provenance}>
+                Frequency
               </FieldLabel>
-              <ProvenanceField provenance={row.schedule.provenance} className="inline-block">
-                <DoseScheduleInput
-                  id={scheduleId}
-                  value={row.schedule.value}
-                  onChange={(next: DoseSchedule) => patch({ schedule: entered(next) })}
+              <ProvenanceField provenance={row.frequency.provenance}>
+                <Input
+                  id={frequencyId}
+                  value={row.frequency.value}
+                  invalid={has('frequency') || Boolean(errors[frequencyId])}
+                  placeholder='1-0-1, or "before bed"'
+                  maxLength={128}
+                  autoComplete="off"
+                  className={provenanceControlClass(row.frequency.provenance)}
+                  onChange={(e) => patch({ frequency: entered(e.target.value) })}
                 />
               </ProvenanceField>
             </div>
-          </div>
 
-          <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[6rem_7rem_10rem_minmax(0,1fr)]">
             <div>
               <FieldLabel htmlFor={rowFieldId.days(row.key)} provenance={row.durationDays.provenance}>
                 Days
@@ -246,54 +296,44 @@ export function RxRowEditor({
                 }
               />
             </div>
+          </div>
 
-            <div>
-              <FieldLabel htmlFor={rowFieldId.quantity(row.key)}>Quantity</FieldLabel>
-              <Input
-                id={rowFieldId.quantity(row.key)}
-                type="number"
-                min={1}
-                max={10000}
-                inputMode="numeric"
-                value={row.quantity.value ?? ''}
-                placeholder="—"
-                invalid={Boolean(errors[rowFieldId.quantity(row.key)])}
-                onChange={(e) =>
-                  patch({
-                    quantity: entered(e.target.value === '' ? null : Number(e.target.value)),
-                  })
-                }
-                slotRight={
-                  // A suggestion the doctor applies, never an auto-fill.
-                  quantityHint !== null && row.quantity.value === null ? (
-                    <Tooltip content={`Use ${quantityHint} — enough for the full course`}>
-                      <button
-                        type="button"
-                        aria-label={`Set quantity to ${quantityHint}`}
-                        onClick={() => patch({ quantity: entered(quantityHint) })}
-                        className="rounded px-1 font-mono text-caption text-accent hover:bg-accent-muted"
-                      >
-                        {quantityHint}
-                      </button>
-                    </Tooltip>
-                  ) : undefined
-                }
-              />
-            </div>
+          <div
+            role="group"
+            aria-label="Frequency presets"
+            className="mt-2 flex flex-wrap items-center gap-1.5"
+          >
+            {FREQUENCY_PRESETS.map((preset) => {
+              const active = row.frequency.value.trim() === preset.value
+              return (
+                <button
+                  key={preset.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() =>
+                    // A preset is typed-by-tap: it is the doctor's own choice,
+                    // so it lands as `entered`. SOS is the one that means
+                    // as-needed; picking a timed preset un-marks PRN.
+                    patch({ frequency: entered(preset.value), prn: preset.value === 'SOS' })
+                  }
+                  className={cn(
+                    'inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-label',
+                    'transition-colors duration-instant ease-standard',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35',
+                    active
+                      ? 'border-accent/40 bg-accent-muted text-accent-muted-fg'
+                      : 'border-border bg-surface text-text-muted hover:border-accent hover:bg-accent-muted hover:text-accent-muted-fg',
+                  )}
+                >
+                  <span className="font-mono tabular-nums">{preset.value}</span>
+                  <span>{preset.label}</span>
+                </button>
+              )
+            })}
+          </div>
 
-            <div>
-              <FieldLabel htmlFor={rowFieldId.food(row.key)}>Food</FieldLabel>
-              <Select
-                id={rowFieldId.food(row.key)}
-                value={row.food ?? undefined}
-                onChange={(v) => patch({ food: v as RxRow['food'] })}
-                options={FOOD_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-                placeholder="—"
-                aria-label="Food timing"
-              />
-            </div>
-
-            <div>
+          <div className="mt-2.5 flex flex-wrap items-end gap-2.5">
+            <div className="min-w-0 flex-1">
               <FieldLabel
                 htmlFor={instructionsId}
                 provenance={row.instructions.provenance}
@@ -320,7 +360,75 @@ export function RxRowEditor({
                 />
               </ProvenanceField>
             </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-expanded={showMore}
+              onClick={() => setShowMore((v) => !v)}
+              iconRight={
+                <ChevronDown
+                  aria-hidden
+                  className={cn(
+                    'size-3.5 transition-transform duration-fast ease-standard',
+                    showMore && 'rotate-180',
+                  )}
+                />
+              }
+            >
+              {showMore ? 'Less' : 'More'}
+            </Button>
           </div>
+
+          {showMore && (
+            <div className="mt-2.5 grid gap-2.5 sm:grid-cols-[7rem_11rem]">
+              <div>
+                <FieldLabel htmlFor={quantityId}>Quantity</FieldLabel>
+                <Input
+                  id={quantityId}
+                  type="number"
+                  min={1}
+                  max={10000}
+                  inputMode="numeric"
+                  value={row.quantity.value ?? ''}
+                  placeholder="—"
+                  invalid={Boolean(errors[quantityId])}
+                  onChange={(e) =>
+                    patch({
+                      quantity: entered(e.target.value === '' ? null : Number(e.target.value)),
+                    })
+                  }
+                  slotRight={
+                    // A suggestion the doctor applies, never an auto-fill.
+                    quantityHint !== null && row.quantity.value === null ? (
+                      <Tooltip content={`Use ${quantityHint} — enough for the full course`}>
+                        <button
+                          type="button"
+                          aria-label={`Set quantity to ${quantityHint}`}
+                          onClick={() => patch({ quantity: entered(quantityHint) })}
+                          className="rounded px-1 font-mono text-caption text-accent hover:bg-accent-muted"
+                        >
+                          {quantityHint}
+                        </button>
+                      </Tooltip>
+                    ) : undefined
+                  }
+                />
+              </div>
+
+              <div>
+                <FieldLabel htmlFor={rowFieldId.food(row.key)}>Food</FieldLabel>
+                <Select
+                  id={rowFieldId.food(row.key)}
+                  value={row.food ?? undefined}
+                  onChange={(v) => patch({ food: v as RxRow['food'] })}
+                  options={FOOD_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                  placeholder="—"
+                  aria-label="Food timing"
+                />
+              </div>
+            </div>
+          )}
 
           {allergyHit && (
             <p

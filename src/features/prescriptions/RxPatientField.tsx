@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button'
 import { Combobox } from '@/components/ui/Combobox'
 import { Input } from '@/components/ui/Input'
 import { Kbd } from '@/components/ui/Badge'
-import type { PatientSearchResult } from '@/api/schema'
+import type { Page_PatientResponse_, PatientSearchResult } from '@/api/schema'
 import { FIELD_IDS, focusField } from './padState'
 import type { RxPatient } from './model'
 
@@ -52,6 +52,9 @@ function seedFromQuery(query: string): Pick<RxPatient, 'firstName' | 'lastName' 
 
 /* -------------------------------------------------------------------------- */
 
+/** How the register is browsed when nothing has been typed yet. */
+const BROWSE_PARAMS = { page: 1, page_size: 20, sort_by: 'first_name', sort_order: 'asc' } as const
+
 export interface RxPatientFieldProps {
   patient: RxPatient
   onChange: (next: RxPatient) => void
@@ -86,18 +89,34 @@ export function RxPatientField({
   const debounced = useDebouncedValue(query.trim(), 180)
   const seeded = useRef(false)
 
+  const searching = debounced.length >= 1
+
   const results = useQuery({
     queryKey: qk.patients.search(debounced),
     queryFn: () =>
       apiGet<PatientSearchResult[]>(endpoints.patients.search, {
         params: { q: debounced, limit: 8 },
       }),
-    enabled: debounced.length >= 1,
+    enabled: searching,
     staleTime: 20_000,
   })
 
-  const items = results.data ?? []
-  const searching = debounced.length >= 1
+  // With nothing typed, the clinic's patients are browsed rather than hidden:
+  // the search endpoint requires a non-empty `q`, and an empty dropdown over a
+  // populated register reads as "no patients exist". The list scrolls inside
+  // the combobox's fixed-height panel; a failed browse degrades to the
+  // typed-search behaviour.
+  const browse = useQuery({
+    queryKey: qk.patients.list(BROWSE_PARAMS),
+    queryFn: () =>
+      apiGet<Page_PatientResponse_>(endpoints.patients.list, { params: BROWSE_PARAMS }),
+    enabled: !searching,
+    staleTime: 30_000,
+  })
+
+  const items: PatientSearchResult[] = searching
+    ? (results.data ?? [])
+    : (browse.data?.items ?? []).filter((p) => p.is_active)
   const noMatches = searching && !results.isFetching && items.length === 0
 
   // The combobox's own `value` only ever holds a *found* patient. A walk-in
@@ -166,7 +185,7 @@ export function RxPatientField({
           query={query}
           onQueryChange={setQuery}
           items={items}
-          loading={results.isFetching}
+          loading={searching ? results.isFetching : browse.isFetching}
           getKey={(p) => p.id}
           getLabel={(p) => `${fullName(p.first_name, p.last_name)} · ${p.phone}`}
           invalid={Boolean(errors[FIELD_IDS.patient])}
@@ -183,7 +202,7 @@ export function RxPatientField({
                 <span>They can still be prescribed for — see below.</span>
               </span>
             ) : (
-              'Type a name, or the last few digits of a phone number.'
+              'No patients on file yet. Type a name to search, or add one below.'
             )
           }
           renderItem={(p) => (

@@ -21,11 +21,12 @@ import type { MedicineResponse } from '@/api/schema'
 import type { ParsedDictation, ParsedRow } from '@/features/speech/parser'
 import { toIsoDate } from '@/lib/format'
 import {
-  EMPTY_SCHEDULE,
   blank,
   defaulted,
+  formatSchedule,
   heard,
   newRow,
+  scheduleIsComplete,
   type DoseSchedule,
   type RxDraft,
   type RxRow,
@@ -232,6 +233,20 @@ export function dosageFromSchedule(parsed: ParsedRow): string | null {
 }
 
 /**
+ * The parser still speaks `{m,a,n}`; the row now carries a frequency string.
+ * A complete grid becomes its "1-0-1" form. An incomplete one is treated as
+ * silence — a half-heard timing must block printing, not masquerade as a
+ * frequency. Pure PRN with no grid at all becomes the clinic's "SOS".
+ */
+function frequencyFromParsed(parsed: ParsedRow): RxRow['frequency'] {
+  if (parsed.schedule && scheduleIsComplete(parsed.schedule)) {
+    return heard(formatSchedule(parsed.schedule))
+  }
+  if (parsed.prn && parsed.schedule === null) return heard('SOS')
+  return blank('')
+}
+
+/**
  * One dictated line becomes one row, with the medicine deliberately left
  * **unresolved**: `medicineId` stays null and `medicineName` holds the spoken
  * words. Resolution happens against the formulary afterwards, and until it
@@ -248,7 +263,7 @@ export function rowFromDictation(key: string, parsed: ParsedRow): RxRow {
       : restated
         ? defaulted(restated)
         : blank(''),
-    schedule: parsed.schedule ? heard(parsed.schedule) : blank(EMPTY_SCHEDULE),
+    frequency: frequencyFromParsed(parsed),
     durationDays: parsed.durationDays !== null ? heard(parsed.durationDays) : blank(null),
     instructions: parsed.instructions ? heard(parsed.instructions) : blank(''),
     prn: parsed.prn,

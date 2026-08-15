@@ -15,8 +15,18 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2, Plus, Search, UserPlus, Users, X } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  ChevronLeft,
+  ChevronRight,
+  FilePlus2,
+  Loader2,
+  Plus,
+  Search,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { formatDate, formatRelativeDay, fullName, patientAge } from '@/lib/format'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
@@ -26,7 +36,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
 import { Card, PageHeader } from '@/components/ui/Surface'
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/Feedback'
-import { Pagination, TD, TH, THead, TR, Table } from '@/components/ui/Table'
+import { TD, TH, THead, TR, Table } from '@/components/ui/Table'
 import type { PatientSearchResult, SortOrder } from '@/api/schema'
 import { PAGE_SIZE, SEARCH_Q_MAX, shortGender, usePatientList, usePatientSearch } from './api'
 import { AllergyChip } from './AllergyDisplay'
@@ -60,10 +70,63 @@ function LoadingRows({ columns }: { columns: number }) {
   )
 }
 
+/**
+ * Local, fully labelled pagination. The shared `Pagination` uses icon-only
+ * chevrons; this list is walked dozens of times a day between patients, so the
+ * controls here spell out Previous / Next at full button size.
+ */
+function ListPagination({
+  page,
+  pages,
+  total,
+  pageSize,
+  onPageChange,
+}: {
+  page: number
+  pages: number
+  total: number
+  pageSize: number
+  onPageChange: (page: number) => void
+}) {
+  if (total === 0) return null
+  const first = (page - 1) * pageSize + 1
+  const last = Math.min(page * pageSize, total)
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2.5">
+      <p className="text-label text-text-muted" data-numeric>
+        {first.toLocaleString()}–{last.toLocaleString()} of {total.toLocaleString()} patients
+      </p>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="secondary"
+          iconLeft={<ChevronLeft aria-hidden className="size-4" />}
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+        >
+          Previous
+        </Button>
+        <span className="px-1 text-label text-text-muted" data-numeric>
+          Page {page} of {Math.max(pages, 1)}
+        </span>
+        <Button
+          variant="secondary"
+          iconRight={<ChevronRight aria-hidden className="size-4" />}
+          disabled={page >= pages}
+          onClick={() => onPageChange(page + 1)}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function PatientListScreen() {
   const navigate = useNavigate()
   const { can } = useAuth()
   const canWrite = can('patients.write')
+  const canPrescribe = can('prescriptions.write')
 
   const [searchParams, setSearchParams] = useSearchParams()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -127,7 +190,7 @@ export function PatientListScreen() {
     if (searching) void search.refetch()
     else void list.refetch()
   }
-  const columns = searching ? 6 : 5
+  const columns = (searching ? 6 : 5) + (canPrescribe ? 1 : 0)
 
   function toggleSort(column: string) {
     setPage(1)
@@ -191,7 +254,11 @@ export function PatientListScreen() {
             type="text"
             maxLength={SEARCH_Q_MAX}
             autoComplete="off"
-            placeholder="Search by name or phone…"
+            /* Large and pre-focused: between patients the doctor walks in and
+               just types — no click, no squint. */
+            inputSize="lg"
+            autoFocus
+            placeholder="Search by name or phone"
             iconLeft={<Search />}
             slotRight={
               refetching ? (
@@ -266,6 +333,11 @@ export function PatientListScreen() {
                   Added
                 </TH>
               )}
+              {canPrescribe && (
+                <TH width="1%">
+                  <span className="sr-only">Quick actions</span>
+                </TH>
+              )}
             </THead>
 
             <tbody>
@@ -332,12 +404,12 @@ export function PatientListScreen() {
 
                   return (
                     <TR key={patient.id} onClick={() => navigate(`/patients/${patient.id}`)}>
-                      <TD>
+                      <TD className="py-2.5">
                         {/* items-start, or the allergy chip stretches to the
                             full column width and reads as a banner. */}
                         <div className="flex min-w-0 flex-col items-start gap-1">
                           <span className="flex min-w-0 items-center gap-2">
-                            <span className="truncate text-body font-medium text-text">
+                            <span className="truncate text-body font-semibold text-text">
                               {fullName(patient.first_name, patient.last_name)}
                             </span>
                             {!patient.is_active && <Badge tone="neutral">Inactive</Badge>}
@@ -346,29 +418,50 @@ export function PatientListScreen() {
                         </div>
                       </TD>
                       <TD numeric>
-                        <span className="text-label text-text-muted">
+                        <span className="text-body text-text-muted">
                           {age === null ? '—' : age}
                           <span className="text-text-subtle"> / {shortGender(patient.gender)}</span>
                         </span>
                       </TD>
-                      <TD numeric className="font-mono text-label text-text-muted">
+                      <TD numeric className="font-mono text-body text-text-muted">
                         {patient.phone}
                       </TD>
-                      <TD className="text-label text-text-muted">
+                      <TD className="text-body text-text-muted">
                         <span className="block truncate">{patient.city || '—'}</span>
                       </TD>
                       {searching ? (
                         <>
-                          <TD numeric className="text-label text-text-muted">
+                          <TD numeric className="text-body text-text-muted">
                             {lastVisit ? formatRelativeDay(lastVisit) : 'Never'}
                           </TD>
-                          <TD numeric align="right" className="text-label text-text-muted">
+                          <TD numeric align="right" className="text-body text-text-muted">
                             {rxCount ?? '—'}
                           </TD>
                         </>
                       ) : (
-                        <TD numeric className="text-label text-text-muted">
+                        <TD numeric className="text-body text-text-muted">
                           {formatDate(patient.created_at)}
+                        </TD>
+                      )}
+                      {canPrescribe && (
+                        <TD align="right" className="w-px whitespace-nowrap">
+                          {/* The single most common task, one click from the
+                              list. `stopPropagation` keeps the row's own
+                              navigation out of the way. */}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            asChild
+                            iconLeft={<FilePlus2 aria-hidden className="size-3.5" />}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Link
+                              to={`/prescriptions/new?patientId=${patient.id}`}
+                              aria-label={`New prescription for ${fullName(patient.first_name, patient.last_name)}`}
+                            >
+                              New prescription
+                            </Link>
+                          </Button>
                         </TD>
                       )}
                     </TR>
@@ -385,7 +478,7 @@ export function PatientListScreen() {
               </p>
             )
           ) : (
-            <Pagination
+            <ListPagination
               page={list.data?.page ?? 1}
               pages={list.data?.pages ?? 1}
               total={total}

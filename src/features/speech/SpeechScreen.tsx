@@ -8,6 +8,7 @@ import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
 import { cn } from '@/lib/cn'
 import { Badge } from '@/components/ui/Badge'
+import type { StreamStatus } from './useSpeechStream'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { Card, CardBody, CardHeader, PageHeader } from '@/components/ui/Surface'
@@ -127,46 +128,50 @@ export function SpeechScreen() {
         <CardHeader
           title="Say it"
           description={`English (${ENGLISH_ASR_LANGUAGE}) · ${config.data?.provider ?? '—'} · ${sampleRate} Hz`}
-          action={
-            recording ? (
+        />
+        <CardBody className="flex flex-col gap-4">
+          {/* The record control is THE control on this screen. It stays one
+              size in both states so nothing jumps when recording starts. */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            {recording ? (
               <Button
                 variant="danger"
+                size="lg"
+                className="h-12 px-5"
                 onClick={dictation.stop}
-                iconLeft={<Square className="size-4" />}
+                iconLeft={<Square className="size-5" />}
               >
-                Stop
+                Stop recording
               </Button>
             ) : (
               <Button
                 variant="primary"
+                size="lg"
+                className="h-12 px-5"
                 onClick={beginDictation}
                 loading={dictation.status === 'connecting'}
                 disabled={config.isPending}
-                iconLeft={<Mic className="size-4" />}
+                iconLeft={<Mic className="size-5" />}
               >
                 Start dictating
               </Button>
-            )
-          }
-        />
-        <CardBody className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge status={dictation.status} recording={recording} />
+            )}
+            <StatusLine status={dictation.status} recording={recording} />
             <LevelMeter level={dictation.level} active={recording} />
             {recording && (
-              <Button variant="ghost" size="sm" onClick={discardRecording}>
+              <Button variant="secondary" className="ml-auto" onClick={discardRecording}>
                 Discard this recording
               </Button>
             )}
-            <span className="text-caption text-text-subtle ml-auto">
-              Not translated. Not stored anywhere until you send it.
-            </span>
           </div>
+          <p className="text-caption text-text-subtle">
+            Not translated. Not stored anywhere until you send it.
+          </p>
 
           {dictation.error && (
             <p
               role="alert"
-              className="border-danger/25 bg-danger-muted text-caption text-danger flex items-start gap-2 rounded-md border px-3 py-2"
+              className="border-danger/25 bg-danger-muted text-label text-danger flex items-start gap-2 rounded-md border px-3 py-2.5"
             >
               <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
               {dictation.error}
@@ -178,7 +183,7 @@ export function SpeechScreen() {
           <p
             aria-live="polite"
             className={cn(
-              'text-body min-h-6 italic',
+              'text-heading min-h-8 font-normal italic leading-relaxed',
               dictation.partial ? 'text-text-muted' : 'text-text-subtle',
             )}
           >
@@ -190,28 +195,36 @@ export function SpeechScreen() {
           </label>
           <Textarea
             id="dictation-transcript"
-            rows={4}
+            rows={5}
+            className="text-heading font-normal leading-relaxed"
             value={transcript}
             onChange={(event) => setTranscript(event.target.value)}
             placeholder="tab zerodol SP one zero one for five days after food, cap myoril one at night for three days"
           />
-          <p className="text-caption text-text-subtle">
+          <p className="text-label text-text-muted font-normal">
             Editable. Correcting a misheard brand name here fixes the row below before it ever
             reaches the pad.
           </p>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-1">
             <Button
               variant="primary"
+              size="lg"
               onClick={send}
               disabled={nothingToSend}
               iconLeft={<WandSparkles className="size-4" />}
             >
               Send to the prescription pad
             </Button>
+            {parsed.rows.length > 0 && (
+              <span className="text-label text-text-muted">
+                {parsed.rows.length} {parsed.rows.length === 1 ? 'medicine' : 'medicines'} read from
+                this transcript
+              </span>
+            )}
             <Button
-              variant="ghost"
-              size="sm"
+              variant="secondary"
+              className="ml-auto"
               onClick={() => {
                 setTranscript('')
                 dictation.reset()
@@ -219,14 +232,8 @@ export function SpeechScreen() {
               disabled={transcript === '' || busy}
               iconLeft={<Eraser className="size-4" />}
             >
-              Clear
+              Clear the transcript
             </Button>
-            {parsed.rows.length > 0 && (
-              <span className="text-caption text-text-subtle ml-auto">
-                {parsed.rows.length} {parsed.rows.length === 1 ? 'medicine' : 'medicines'} read from
-                this transcript
-              </span>
-            )}
           </div>
         </CardBody>
       </Card>
@@ -278,28 +285,40 @@ export function SpeechScreen() {
   )
 }
 
-function StatusBadge({ status, recording }: { status: string; recording: boolean }) {
-  if (recording && status === 'ready') {
-    return (
-      <Badge tone="danger" dot>
-        Recording
-      </Badge>
-    )
+/**
+ * The one-glance answer to "is it recording right now?".
+ *
+ * A badge was too small for that question. This is body-size text next to the
+ * record button, and it never disappears: when nothing is happening it says so
+ * in words rather than going blank.
+ */
+function StatusLine({ status, recording }: { status: StreamStatus; recording: boolean }) {
+  let dot = 'bg-border-strong'
+  let ink = 'text-text-muted'
+  let text = 'Not recording'
+  if (recording) {
+    dot = 'bg-danger animate-pulse motion-reduce:animate-none'
+    ink = 'text-danger'
+    text = 'Listening…'
+  } else if (status === 'connecting') {
+    dot = 'bg-info'
+    ink = 'text-text'
+    text = 'Connecting…'
+  } else if (status === 'closing') {
+    dot = 'bg-warning'
+    ink = 'text-text'
+    text = 'Processing…'
+  } else if (status === 'error') {
+    dot = 'bg-danger'
+    ink = 'text-danger'
+    text = 'Microphone error'
   }
-  switch (status) {
-    case 'connecting':
-      return <Badge tone="info">Connecting…</Badge>
-    case 'ready':
-      return <Badge tone="success">Connected</Badge>
-    case 'closing':
-      return <Badge tone="warning">Finishing…</Badge>
-    case 'error':
-      return <Badge tone="danger">Error</Badge>
-    case 'closed':
-      return <Badge tone="neutral">Finished</Badge>
-    default:
-      return <Badge tone="neutral">Ready</Badge>
-  }
+  return (
+    <p role="status" className={cn('text-body flex items-center gap-2 font-semibold', ink)}>
+      <span aria-hidden className={cn('size-2.5 shrink-0 rounded-full', dot)} />
+      {text}
+    </p>
+  )
 }
 
 /**
@@ -331,14 +350,14 @@ function AnalysisBanner({ analysis }: { analysis: UseDictationAnalysis }) {
         )}
 
         {source === 'local' && available && !isAnalysing && (
-          <span className="text-caption text-text-subtle">
+          <span className="text-label text-text-muted font-normal">
             {modelError
               ? 'The model could not be reached, so this is the built-in parser.'
               : 'Stop dictating and this gets read by the model.'}
           </span>
         )}
         {!available && (
-          <span className="text-caption text-text-subtle">
+          <span className="text-label text-text-muted font-normal">
             No analysis model configured — this is the built-in parser, which only
             understands common notations.
           </span>
@@ -358,20 +377,20 @@ function AnalysisBanner({ analysis }: { analysis: UseDictationAnalysis }) {
       </div>
 
       {modelError && (
-        <p className="text-caption text-text-subtle border-border rounded-md border px-3 py-2">
+        <p className="text-label text-text-muted border-border rounded-md border px-3 py-2 font-normal">
           {modelError}
         </p>
       )}
 
       {rejected.length > 0 && (
-        <div className="border-warning/25 bg-warning-muted rounded-md border px-3 py-2">
-          <p className="text-caption text-warning-muted-fg flex items-start gap-2 font-medium">
+        <div className="border-warning/25 bg-warning-muted rounded-md border px-3 py-2.5">
+          <p className="text-label text-warning-muted-fg flex items-start gap-2 font-medium">
             <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
             {rejected.length === 1
               ? 'One value was discarded because it was not in what you said'
               : `${rejected.length} values were discarded because they were not in what you said`}
           </p>
-          <ul className="text-caption text-text-muted mt-1 list-disc space-y-0.5 pl-9">
+          <ul className="text-label text-text-muted mt-1 list-disc space-y-1 pl-9 font-normal">
             {rejected.map((reason) => (
               <li key={reason}>{reason}</li>
             ))}

@@ -539,7 +539,7 @@ export function PrescriptionPadScreen() {
         : 'known'
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pb-40 pt-6 sm:px-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pb-40 pt-6 sm:px-6 xl:max-w-none xl:px-10">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Button variant="ghost" size="icon-sm" asChild aria-label="Back to prescriptions">
           <Link to="/prescriptions">
@@ -562,9 +562,19 @@ export function PrescriptionPadScreen() {
         </p>
       </header>
 
-      {/* ------------------------------ patient ----------------------------- */}
-      <Card>
-        <CardBody className="flex flex-col gap-3">
+      {/*
+        Below `xl` the column wrappers are `display: contents`, so every card is
+        a direct flex item of this container and the explicit `order-N`s
+        reproduce today's single-column reading order exactly. From `xl` up the
+        wrappers become real columns — patient and narrative on the left,
+        medicines and dictation on the right — so a laptop sees the whole pad
+        with far less scrolling.
+      */}
+      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(360px,1fr)_1.6fr] xl:items-start xl:gap-6">
+        <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-4">
+          {/* ---------------------------- patient ---------------------------- */}
+          <Card className="order-1">
+            <CardBody className="flex flex-col gap-3">
           <RxPatientField
             patient={draft.patient}
             onChange={setPatient}
@@ -583,12 +593,12 @@ export function PrescriptionPadScreen() {
           )}
 
           {namedPatient && <RxAllergyRecord patient={draft.patient} status={allergyStatus} />}
-        </CardBody>
-      </Card>
+            </CardBody>
+          </Card>
 
-      {/* ----------------------------- clinical ----------------------------- */}
-      <Card>
-        <CardBody className="grid gap-4 sm:grid-cols-2">
+          {/* --------------------------- clinical ---------------------------- */}
+          <Card className="order-2">
+            <CardBody className="grid gap-4 sm:grid-cols-2">
           <RxNarrativeField
             id={FIELD_IDS.diagnosis}
             label="Diagnosis"
@@ -623,11 +633,55 @@ export function PrescriptionPadScreen() {
             </ProvenanceField>
           </div>
         </CardBody>
-      </Card>
+          </Card>
 
-      {/* The allergy banner sits directly above the medicines, because it has
-          to be read before anything is chosen, not after. */}
-      <div id="rx-allergy-conflict" tabIndex={-1}>
+          {/* ---------------------------- advice ----------------------------- */}
+          <Card className="order-5">
+            <CardBody className="grid gap-4 sm:grid-cols-2">
+              <RxNarrativeField
+                id={FIELD_IDS.advice}
+                label="Advice to the patient"
+                hint="Printed. One instruction per line."
+                field={draft.advice}
+                onChange={setField('advice')}
+                rows={4}
+                maxLength={4000}
+                error={serverErrors[FIELD_IDS.advice]}
+              />
+              <RxNarrativeField
+                id={FIELD_IDS.investigations}
+                label="Investigations"
+                hint="No backend field yet — saved under a heading in the notes."
+                field={draft.investigations}
+                onChange={setField('investigations')}
+                rows={4}
+                maxLength={2000}
+              />
+              <RxNarrativeField
+                id={FIELD_IDS.notes}
+                label="Internal notes"
+                hint="Not printed."
+                field={draft.notes}
+                onChange={setField('notes')}
+                rows={3}
+                maxLength={4000}
+                error={serverErrors[FIELD_IDS.notes]}
+                className="sm:col-span-2"
+              />
+            </CardBody>
+          </Card>
+
+          <p className="order-7 flex items-start gap-2 px-1 text-caption text-text-subtle">
+            <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            Prescriptions are append-only. Once this is saved it cannot be edited or deleted — a
+            correction is a new prescription, written from this pad and printed over the old one.
+          </p>
+        </div>
+
+        <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-4">
+          {/* The allergy banner sits directly above the medicines, because it
+              has to be read before anything is chosen, not after. */}
+          <div id="rx-allergy-conflict" tabIndex={-1} className="order-3 empty:hidden">
         <RxAllergyConflictBanner
           conflicts={conflicts}
           acknowledgedReason={acknowledgement?.signature === signature ? acknowledgement.reason : null}
@@ -635,10 +689,10 @@ export function PrescriptionPadScreen() {
           onRevoke={revokeAcknowledgement}
           onFocusRow={(rowKey) => focusField(rowFieldId.medicine(rowKey))}
         />
-      </div>
+          </div>
 
-      {/* ---------------------------- medicines ----------------------------- */}
-      <Card>
+          {/* -------------------------- medicines ---------------------------- */}
+          <Card className="order-4">
         <CardHeader
           title="Medicines"
           description={
@@ -706,71 +760,33 @@ export function PrescriptionPadScreen() {
             </ul>
           )}
         </CardBody>
-      </Card>
+          </Card>
 
-      {/* ------------------------------ advice ------------------------------ */}
-      <Card>
-        <CardBody className="grid gap-4 sm:grid-cols-2">
-          <RxNarrativeField
-            id={FIELD_IDS.advice}
-            label="Advice to the patient"
-            hint="Printed. One instruction per line."
-            field={draft.advice}
-            onChange={setField('advice')}
-            rows={4}
-            maxLength={4000}
-            error={serverErrors[FIELD_IDS.advice]}
-          />
-          <RxNarrativeField
-            id={FIELD_IDS.investigations}
-            label="Investigations"
-            hint="No backend field yet — saved under a heading in the notes."
-            field={draft.investigations}
-            onChange={setField('investigations')}
-            rows={4}
-            maxLength={2000}
-          />
-          <RxNarrativeField
-            id={FIELD_IDS.notes}
-            label="Internal notes"
-            hint="Not printed."
-            field={draft.notes}
-            onChange={setField('notes')}
-            rows={3}
-            maxLength={4000}
-            error={serverErrors[FIELD_IDS.notes]}
-            className="sm:col-span-2"
-          />
-        </CardBody>
-      </Card>
-
-      {/* ---------------------------- dictation ----------------------------- */}
-      <RxDictationPanel
-        transcript={transcript}
-        lines={unparsed}
-        autoStart={dictateOnArrival}
-        onCapture={(text) => {
-          const chunk = text.trim()
-          if (chunk) setTranscript((prev) => (prev ? `${prev} ${chunk}` : chunk))
-        }}
-        onPlace={placeTranscript}
-        onClearTranscript={() => setTranscript('')}
-        onFile={fileDictationLine}
-        onDiscard={(index) => setUnparsed((prev) => prev.filter((_, i) => i !== index))}
-      />
-
-      <p className="flex items-start gap-2 px-1 text-caption text-text-subtle">
-        <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-        Prescriptions are append-only. Once this is saved it cannot be edited or deleted — a
-        correction is a new prescription, written from this pad and printed over the old one.
-      </p>
+          {/* -------------------------- dictation ---------------------------- */}
+          <div className="order-6">
+            <RxDictationPanel
+              transcript={transcript}
+              lines={unparsed}
+              autoStart={dictateOnArrival}
+              onCapture={(text) => {
+                const chunk = text.trim()
+                if (chunk) setTranscript((prev) => (prev ? `${prev} ${chunk}` : chunk))
+              }}
+              onPlace={placeTranscript}
+              onClearTranscript={() => setTranscript('')}
+              onFile={fileDictationLine}
+              onDiscard={(index) => setUnparsed((prev) => prev.filter((_, i) => i !== index))}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* ---------------------------- action bar ---------------------------- */}
       <div
         data-print-hide
         className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg/85 backdrop-blur-md"
       >
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-6 xl:max-w-none xl:px-10">
           <div className="min-w-0 flex-1">
             <RxMissingSummary
               issues={issues}

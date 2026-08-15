@@ -60,7 +60,7 @@ export function LevelMeter({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(normalised * 100)}
-      className={cn('flex items-end gap-0.5', className)}
+      className={cn('flex items-end gap-1', className)}
     >
       {Array.from({ length: BARS }, (_, i) => {
         const lit = active && i < litBars
@@ -71,10 +71,10 @@ export function LevelMeter({
             key={i}
             aria-hidden
             className={cn(
-              'w-1 rounded-full transition-[height,background-color] duration-75',
+              'w-1.5 rounded-full transition-[height,background-color] duration-75',
               lit ? (hot ? 'bg-warning' : 'bg-accent') : 'bg-border',
             )}
-            style={{ height: `${6 + i * 0.8}px` }}
+            style={{ height: `${8 + i * 1.1}px` }}
           />
         )
       })}

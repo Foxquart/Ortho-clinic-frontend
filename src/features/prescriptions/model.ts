@@ -12,14 +12,19 @@
  * is the single function that changes.
  */
 
-/** Morning / afternoon / night. Halves are legal: 0.5 means half a unit. */
+/**
+ * Morning / afternoon / night. Halves are legal: 0.5 means half a unit.
+ *
+ * No longer stored on a row — the row carries a free-text `frequency` string,
+ * which is what the API stores. This shape survives as a pure helper: it is
+ * what the dictation parser emits, and what `parseSchedule` recovers from a
+ * "1-0-1" string when a quantity suggestion needs a per-day total.
+ */
 export interface DoseSchedule {
   m: number | null
   a: number | null
   n: number | null
 }
-
-export const EMPTY_SCHEDULE: DoseSchedule = { m: null, a: null, n: null }
 
 /**
  * Where a value came from. The doctor must be able to tell at a glance what
@@ -64,8 +69,8 @@ export interface RxRow {
   medicineName: string
   /** Free-text amount per administration, e.g. "1 tab", "10 ml". */
   dosage: FieldState<string>
-  /** Structured m-a-n schedule. Serialised to "1-0-1" on submit. */
-  schedule: FieldState<DoseSchedule>
+  /** Free-text frequency, e.g. "1-0-1" or "before bed". Sent verbatim. */
+  frequency: FieldState<string>
   durationDays: FieldState<number | null>
   quantity: FieldState<number | null>
   /** Free text. Currently also the home for PRN and max-per-day. */
@@ -82,7 +87,7 @@ export function newRow(key: string): RxRow {
     medicineId: null,
     medicineName: '',
     dosage: blank(''),
-    schedule: blank(EMPTY_SCHEDULE),
+    frequency: blank(''),
     durationDays: blank(null),
     quantity: blank(null),
     instructions: blank(''),
@@ -106,10 +111,6 @@ export function formatSchedule(s: DoseSchedule): string {
   return `${part(s.m)}-${part(s.a)}-${part(s.n)}`
 }
 
-export function scheduleIsBlank(s: DoseSchedule): boolean {
-  return s.m === null && s.a === null && s.n === null
-}
-
 export function scheduleIsComplete(s: DoseSchedule): boolean {
   return s.m !== null && s.a !== null && s.n !== null
 }
@@ -120,9 +121,17 @@ export function dailyTotal(s: DoseSchedule): number | null {
   return (s.m ?? 0) + (s.a ?? 0) + (s.n ?? 0)
 }
 
-/** Suggested pack quantity — a suggestion only, never auto-applied. */
-export function suggestQuantity(s: DoseSchedule, days: number | null): number | null {
-  const perDay = dailyTotal(s)
+/**
+ * Suggested pack quantity — a suggestion only, never auto-applied.
+ *
+ * Works from the free-text frequency: if it parses as a complete "1-0-1"
+ * schedule the daily total is known and a course quantity follows. Free text
+ * like "SOS" or "before bed" has no daily total, so no suggestion is made.
+ */
+export function suggestQuantity(frequency: string, days: number | null): number | null {
+  const schedule = parseSchedule(frequency)
+  if (!schedule) return null
+  const perDay = dailyTotal(schedule)
   if (perDay === null || perDay <= 0 || !days || days <= 0) return null
   return Math.ceil(perDay * days)
 }
@@ -133,7 +142,7 @@ export function suggestQuantity(s: DoseSchedule, days: number | null): number | 
 
 export interface RowIssue {
   rowKey: string
-  field: 'medicine' | 'dosage' | 'schedule'
+  field: 'medicine' | 'dosage' | 'frequency'
   message: string
 }
 
@@ -151,8 +160,8 @@ export function rowIssues(row: RxRow): RowIssue[] {
   if (row.dosage.provenance === 'blank' || row.dosage.value.trim() === '') {
     issues.push({ rowKey: row.key, field: 'dosage', message: 'Dose not set' })
   }
-  if (row.schedule.provenance === 'blank' || scheduleIsBlank(row.schedule.value)) {
-    issues.push({ rowKey: row.key, field: 'schedule', message: 'Timing not set' })
+  if (row.frequency.provenance === 'blank' || row.frequency.value.trim() === '') {
+    issues.push({ rowKey: row.key, field: 'frequency', message: 'How often?' })
   }
 
   return issues
@@ -203,13 +212,14 @@ export function toApiItem(row: RxRow): ApiPrescriptionItem {
   const dosage = row.dosage.value.trim()
   if (!dosage) throw new Error(`Row ${row.key} has no dose`)
 
-  if (scheduleIsBlank(row.schedule.value)) throw new Error(`Row ${row.key} has no timing`)
+  const frequency = row.frequency.value.trim()
+  if (!frequency) throw new Error(`Row ${row.key} has no frequency`)
 
   return {
     medicine_id: row.medicineId,
     dosage,
-    // The API takes free text here; "1-0-1" is the convention this clinic uses.
-    frequency: formatSchedule(row.schedule.value),
+    // Free text on both sides; "1-0-1" is the convention this clinic uses.
+    frequency,
     duration_days: row.durationDays.value,
     quantity: row.quantity.value,
     instructions: buildInstructions(row),
@@ -253,13 +263,13 @@ export function rowFromPrevious(
     instructions?: string | null
   },
 ): RxRow {
-  const schedule = parseSchedule(item.frequency)
   return {
     key,
     medicineId: item.medicine_id,
     medicineName: item.medicine_name ?? '',
     dosage: defaulted(item.dosage),
-    schedule: schedule ? defaulted(schedule) : blank(EMPTY_SCHEDULE),
+    // The stored string travels back verbatim — "1-0-1" and "SOS" alike.
+    frequency: defaulted(item.frequency),
     durationDays: item.duration_days != null ? defaulted(item.duration_days) : blank(null),
     quantity: item.quantity != null ? defaulted(item.quantity) : blank(null),
     instructions: item.instructions ? defaulted(item.instructions) : blank(''),

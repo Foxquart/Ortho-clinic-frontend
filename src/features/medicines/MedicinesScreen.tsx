@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Ban, Pencil, Pill, Plus, RotateCcw, Search, X } from 'lucide-react'
+import { Pill, Plus, Search, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { humanizeEnum } from '@/lib/format'
 import { errorMessage } from '@/api/errors'
@@ -13,7 +13,6 @@ import { Card, PageHeader } from '@/components/ui/Surface'
 import { Select, SegmentedControl } from '@/components/ui/Controls'
 import { ConfirmDialog } from '@/components/ui/Dialog'
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/Feedback'
-import { Tooltip } from '@/components/ui/Menu'
 import { Field, Input } from '@/components/ui/Input'
 import { Pagination, TD, TH, THead, TR, Table } from '@/components/ui/Table'
 import { MEDICINE_DOSAGE_FORMS } from '@/api/schema'
@@ -96,12 +95,12 @@ function MedicineRow({
         highlighted && 'bg-accent-muted',
       )}
     >
-      <TD>
+      <TD className="py-2.5">
         <span ref={highlighted ? scrollIntoView : undefined} className="flex items-center gap-2">
           <span className="max-w-[28rem] min-w-0">
-            <span className="block truncate font-medium">{medicine.name}</span>
+            <span className="block truncate font-semibold">{medicine.name}</span>
             {medicine.generic_name && (
-              <span className="text-caption text-text-subtle block truncate">
+              <span className="text-label text-text-subtle block truncate">
                 {medicine.generic_name}
               </span>
             )}
@@ -119,44 +118,43 @@ function MedicineRow({
       <TD className="hidden lg:table-cell">
         <Cell value={medicine.category} />
       </TD>
-      <TD className="hidden xl:table-cell">
+      {/* 2xl, not xl: with fully labelled row actions the manufacturer column
+          only fits once the card reaches its full 1152px. */}
+      <TD className="hidden 2xl:table-cell">
         <Cell value={medicine.manufacturer} />
       </TD>
       {canWrite && (
         <TD align="right" className="w-px whitespace-nowrap">
-          <span className="inline-flex items-center gap-0.5">
-            <Tooltip content="Edit">
+          {/* Labelled, not icon-only: the action should be readable without a
+              hover, a tooltip or a guess. Words only — the words are the
+              affordance, and the column stays narrow enough to never clip. */}
+          <span className="inline-flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={`Edit ${medicine.name}`}
+              onClick={() => onEdit(medicine)}
+            >
+              Edit
+            </Button>
+            {medicine.is_active ? (
               <Button
                 variant="ghost"
-                size="icon-sm"
-                aria-label={`Edit ${medicine.name}`}
-                onClick={() => onEdit(medicine)}
+                size="sm"
+                aria-label={`Deactivate ${medicine.name}`}
+                onClick={() => onDeactivate(medicine)}
               >
-                <Pencil aria-hidden className="size-4" />
+                Deactivate
               </Button>
-            </Tooltip>
-            {medicine.is_active ? (
-              <Tooltip content="Deactivate">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Deactivate ${medicine.name}`}
-                  onClick={() => onDeactivate(medicine)}
-                >
-                  <Ban aria-hidden className="size-4" />
-                </Button>
-              </Tooltip>
             ) : (
-              <Tooltip content="Reactivate">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Reactivate ${medicine.name}`}
-                  onClick={() => onReactivate(medicine)}
-                >
-                  <RotateCcw aria-hidden className="size-4" />
-                </Button>
-              </Tooltip>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Reactivate ${medicine.name}`}
+                onClick={() => onReactivate(medicine)}
+              >
+                Reactivate
+              </Button>
             )}
           </span>
         </TD>
@@ -419,9 +417,9 @@ export function MedicinesScreen() {
               <TH width="7rem">Form</TH>
               <TH width="7rem">Strength</TH>
               <TH className="hidden lg:table-cell">Category</TH>
-              <TH className="hidden xl:table-cell">Manufacturer</TH>
+              <TH className="hidden 2xl:table-cell">Manufacturer</TH>
               {canWrite && (
-                <TH align="right" width="1%">
+                <TH align="right">
                   <span className="sr-only">Actions</span>
                 </TH>
               )}
@@ -445,7 +443,7 @@ export function MedicinesScreen() {
                       <TD className="hidden lg:table-cell">
                         <Skeleton className="h-3 w-20" />
                       </TD>
-                      <TD className="hidden xl:table-cell">
+                      <TD className="hidden 2xl:table-cell">
                         <Skeleton className="h-3 w-24" />
                       </TD>
                       {canWrite && <TD />}

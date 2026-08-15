@@ -46,55 +46,59 @@
 
 /* ============================================================================
    PALETTE — LIGHT
-   A warm-neutral ground with white paper on top. The ground is never white:
-   a card has to be able to sit on something.
+   Warm paper, not screen-white: the ground is a soft parchment and the card on
+   top is a warm near-white. The ground is never white — a card has to be able
+   to sit on something — and nothing in this theme is pure #fff or #000.
    ========================================================================= */
 :root {
   color-scheme: light;
   accent-color: var(--color-accent); /* native checkbox/range/scrollbar */
 
   /* -- Ground and surfaces ------------------------------------------------ */
-  --c-bg: #f4f5f7; /* app ground, behind everything */
-  --c-bg-sunken: #e8eaee; /* wells, table headers, inset areas */
-  --c-surface: #ffffff; /* cards, panels, the sheet of paper */
-  --c-surface-raised: #ffffff; /* menus, popovers, dialogs (+ elevation) */
-  --c-surface-hover: #f0f1f5; /* row / list-item hover */
-  --c-surface-active: #e4e6ec; /* row pressed or selected */
-  --c-overlay: rgb(14 16 21 / 0.42); /* scrim behind dialogs and sheets */
+  --c-bg: #f7f3ea; /* app ground, behind everything — warm paper */
+  --c-bg-sunken: #ede7d9; /* wells, table headers, inset areas */
+  --c-surface: #fffdf8; /* cards, panels, the sheet of paper */
+  --c-surface-raised: #fffdf8; /* menus, popovers, dialogs (+ elevation) */
+  --c-surface-hover: #f4efe4; /* row / list-item hover */
+  --c-surface-active: #eae4d5; /* row pressed or selected */
+  --c-overlay: rgb(24 19 12 / 0.42); /* scrim behind dialogs and sheets — warm ink */
 
   /* -- Lines -------------------------------------------------------------- *
      Three weights, and the middle one is not decoration. A text input on a
      white card is identified ONLY by its boundary, so that boundary owes the
      user 3:1 (WCAG 1.4.11). `--c-border` is the decorative hairline between
      rows and around cards, where the fill already does the separating.       */
-  --c-border: #e1e3e9; /* hairline: card edges, table rules       1.3:1 */
-  --c-border-field: #868c97; /* control boundary at rest                3.4:1 */
-  --c-border-strong: #7f8593; /* hovered control, divider that must read 3.7:1 */
+  --c-border: #e6e0d2; /* hairline: card edges, table rules       1.3:1 */
+  --c-border-field: #8f897c; /* control boundary at rest                3.4:1 */
+  --c-border-strong: #898375; /* hovered control, divider that must read 3.7:1 */
 
   /* -- Ink ----------------------------------------------------------------- *
      Three tiers, and every one of them clears 7:1 on a card. The hierarchy is
      carried by SIZE and WEIGHT, not by fading text towards the background —
      a clinic monitor at the wrong gamma eats the bottom tier first.          */
-  --c-text: #0e1015; /* primary content            19.0:1 on surface */
-  --c-text-muted: #3e414a; /* labels, secondary content  10.2:1 on surface */
-  --c-text-subtle: #4e515a; /* timestamps, hints, TH       7.9:1 on surface */
+  --c-text: #100d0b; /* primary content            19.1:1 on surface */
+  --c-text-muted: #443f38; /* labels, secondary content  10.3:1 on surface */
+  --c-text-subtle: #544f48; /* timestamps, hints, TH       8.0:1 on surface */
 
   /* -- Accent (primary action) --------------------------------------------- *
-     Indigo ink, not the generic UI blue. Two reasons, both practical:
-     it is the colour of the pen a prescription gets signed with, and it is the
-     one cool hue NOT already spoken for — `info` and `heard` own azure,
-     `success` owns green. A button can therefore never be mistaken for a
-     status, and the "heard" rail can never be mistaken for a link.           */
-  --c-accent: #3a41b5;
-  --c-accent-hover: #2f3596;
-  --c-accent-fg: #ffffff; /* ink ON a solid accent fill  8.1:1 */
-  --c-accent-muted: #ecedfc; /* accent tint background */
-  --c-accent-muted-fg: #2f3596; /* ink ON the accent tint     10.1:1 */
+     Deep teal — the same accent the public landing uses, so the brand reads as
+     one product from the marketing page into the pad. It is deliberately much
+     DARKER than either neighbour that shares its family: `info`/`heard` azure
+     sits at 6.1:1 and `success` green at 5.4:1, while the accent sits at 7.7:1
+     and is near-grey in chroma next to both — a solid teal button reads as
+     chrome, not as a status. The hover is the landing's lighter companion
+     (#147a72); white ink on it is 5.2:1, still comfortably past 4.5:1 for the
+     label at the moment the pointer is on it. */
+  --c-accent: #0f5c56;
+  --c-accent-hover: #147a72;
+  --c-accent-fg: #ffffff; /* ink ON a solid accent fill  7.8:1 (5.2:1 on hover) */
+  --c-accent-muted: #e1f0ea; /* accent tint background */
+  --c-accent-muted-fg: #0a443f; /* ink ON the accent tint      9.3:1 */
 
   /* The ring. `index.css` draws it at `outline-offset: 2px`, so the colour it
      must separate from is the GROUND either side of the gap, not the control
-     it surrounds — 5.4:1 there. The 2px gap is the light half of the ring. */
-  --c-focus: #3a41b5;
+     it surrounds — 7.1:1 there. The 2px gap is the light half of the ring. */
+  --c-focus: #0f5c56;
 
   /* -- Status ------------------------------------------------------------- *
      Four tokens per role, no more, no guessing:
@@ -117,37 +121,37 @@
 
      which yields, in pure greyscale (also: the B&W laser this pad prints on)
        danger  vs warning  1.59:1     danger vs success  1.39:1
-       allergy vs warning  1.68:1     success vs warning 1.14:1
+       allergy vs warning  1.77:1     success vs warning 1.15:1
      Every ratio that separates "stop" from "caution" is now a visible step.
      `success` vs `warning` stays weak in greyscale and is carried by hue
      (ΔE 38 deutan / 26 protan) plus the mandatory icon — see DESIGN.md.
      None of this licenses hue-only meaning: every status still ships an icon
      or a shape as well. Colour is the second channel, never the first.      */
 
-  --c-success: #0d7a4a; /* 5.4:1 on white */
+  --c-success: #127849; /* 5.4:1 on surface */
   --c-success-fg: #ffffff;
-  --c-success-muted: #e2f4ea;
-  --c-success-muted-fg: #0a5f3b;
+  --c-success-muted: #e2f2e5;
+  --c-success-muted-fg: #0a5c36; /* 7.0:1 on the tint */
 
-  --c-warning: #a86307; /* 4.7:1 — deliberately the LIGHTEST of the four */
+  --c-warning: #a0650e; /* 4.7:1 — deliberately the LIGHTEST of the four */
   --c-warning-fg: #ffffff;
-  --c-warning-muted: #fbf0da;
-  --c-warning-muted-fg: #7c4704;
+  --c-warning-muted: #f9eed5;
+  --c-warning-muted-fg: #744807; /* 6.8:1 on the tint */
 
-  --c-danger: #a8161f; /* 7.5:1 — deliberately DARK, so it outranks amber */
+  --c-danger: #a31b24; /* 7.5:1 — deliberately DARK, so it outranks amber */
   /* ADDED. A designed hover, because `bg-danger/90` composites toward the page
      and LIGHTENS a solid button on a light ground — the fill gets weaker on
      hover, and the white label loses contrast at the exact moment the pointer
      is on it. Solid fills hover to a token, never to an alpha. */
-  --c-danger-hover: #8e1119;
+  --c-danger-hover: #861a1f;
   --c-danger-fg: #ffffff;
-  --c-danger-muted: #fce9ea;
-  --c-danger-muted-fg: #8e1119;
+  --c-danger-muted: #fae8e6;
+  --c-danger-muted-fg: #861a1f; /* 8.1:1 on the tint */
 
-  --c-info: #0c63b1; /* azure. Shared with `heard` on purpose. */
+  --c-info: #1563a8; /* azure. Shared with `heard` on purpose. */
   --c-info-fg: #ffffff;
-  --c-info-muted: #e6f0fb;
-  --c-info-muted-fg: #094c88;
+  --c-info-muted: #e6effa;
+  --c-info-muted-fg: #0d4b82; /* 7.7:1 on the tint */
 
   /* -- CLINICAL SAFETY: allergy / contraindication ------------------------ *
      Deliberately separate from `danger`. `danger` is UI danger — delete this,
@@ -157,10 +161,10 @@
      never truncated. This practice prescribes NSAIDs constantly and an allergy
      missed once is a real injury. The `-muted` pair exists only for the inline
      chip on a medicine row that already sits inside a solid banner.            */
-  --c-allergy: #9c0f18; /* 8.4:1 — the darkest thing in the palette */
-  --c-allergy-fg: #ffffff;
-  --c-allergy-muted: #fce4e5;
-  --c-allergy-muted-fg: #820c14;
+  --c-allergy: #98151b; /* 8.4:1 — the darkest thing in the palette */
+  --c-allergy-fg: #ffffff; /* 8.5:1 on the fill */
+  --c-allergy-muted: #fae3e1;
+  --c-allergy-muted-fg: #7c1316; /* 8.7:1 on the tint */
 
   /* -- CLINICAL SAFETY: field provenance ---------------------------------- *
      Where did the value in this prescription field come from?
@@ -187,29 +191,31 @@
      the sign action. It must never be confused with a disabled field, which in
      this system is the only thing allowed to drop below full opacity. Do not
      soften it, do not tint it, and never promote it to `danger`.              */
-  --c-prov-heard: #0a5896; /* 6.9:1 — a structural mark, not a link */
-  --c-prov-heard-muted: #e6f0fb;
-  --c-prov-defaulted: #8f5205; /* 6.2:1 */
-  --c-prov-defaulted-muted: #fbf0da;
-  --c-prov-blank: #4f5461; /* 8.0:1 — louder than body-secondary, on purpose */
-  --c-prov-blank-muted: #eef0f3;
+  --c-prov-heard: #0f5b9a; /* 6.9:1 — a structural mark, not a link */
+  --c-prov-heard-muted: #e6effa;
+  --c-prov-defaulted: #8b5209; /* 6.2:1 */
+  --c-prov-defaulted-muted: #f9eed5;
+  --c-prov-blank: #534f47; /* 8.0:1 — louder than body-secondary, on purpose */
+  --c-prov-blank-muted: #eeeae1;
 
   /* -- Elevation — light --------------------------------------------------- *
      Tinted with the ground's hue, never pure black, and always paired with a
      1px colour ring so an edge exists even at zero blur.
 
      The 1px ring alphas are heavier than a shadow system would normally want,
-     because `surface-raised` is the same white as `surface`: on a menu floating
-     over a card the ring is the ONLY edge, and a washed-out clinic panel eats a
-     5% line before it eats anything else.                                     */
-  --elev-xs: 0 0 0 1px rgb(16 17 20 / 0.08);
-  --elev-sm: 0 0 0 1px rgb(16 17 20 / 0.08), 0 1px 2px -1px rgb(16 17 20 / 0.1);
-  --elev-md: 0 0 0 1px rgb(16 17 20 / 0.1), 0 2px 4px -2px rgb(16 17 20 / 0.1),
-    0 6px 14px -6px rgb(16 17 20 / 0.12);
-  --elev-lg: 0 0 0 1px rgb(16 17 20 / 0.12), 0 4px 8px -4px rgb(16 17 20 / 0.12),
-    0 16px 32px -12px rgb(16 17 20 / 0.18);
-  --elev-overlay: 0 0 0 1px rgb(16 17 20 / 0.14), 0 8px 16px -8px rgb(16 17 20 / 0.16),
-    0 32px 64px -24px rgb(16 17 20 / 0.28);
+     because `surface-raised` is the same warm white as `surface`: on a menu
+     floating over a card the ring is the ONLY edge, and a washed-out clinic
+     panel eats a 5% line before it eats anything else. The shadow ink is warm
+     (espresso, not blue-black) so a shadow on parchment reads as shade,
+     not as a smudge of a different temperature.                               */
+  --elev-xs: 0 0 0 1px rgb(46 38 24 / 0.08);
+  --elev-sm: 0 0 0 1px rgb(46 38 24 / 0.08), 0 1px 2px -1px rgb(46 38 24 / 0.1);
+  --elev-md: 0 0 0 1px rgb(46 38 24 / 0.1), 0 2px 4px -2px rgb(46 38 24 / 0.1),
+    0 6px 14px -6px rgb(46 38 24 / 0.12);
+  --elev-lg: 0 0 0 1px rgb(46 38 24 / 0.12), 0 4px 8px -4px rgb(46 38 24 / 0.12),
+    0 16px 32px -12px rgb(46 38 24 / 0.18);
+  --elev-overlay: 0 0 0 1px rgb(46 38 24 / 0.14), 0 8px 16px -8px rgb(46 38 24 / 0.16),
+    0 32px 64px -24px rgb(46 38 24 / 0.28);
 }
 
 /* ============================================================================

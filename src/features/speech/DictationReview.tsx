@@ -50,7 +50,7 @@ export function DictationReview({ parsed }: { parsed: ParsedDictation }) {
           </tbody>
         </Table>
       ) : (
-        <p className="text-caption text-text-muted flex items-center gap-2">
+        <p className="text-body text-text-muted flex items-center gap-2">
           <Pill aria-hidden className="size-4" />
           No medicines were recognised in this dictation.
         </p>
@@ -85,8 +85,10 @@ function RxPreviewRow({ row }: { row: ParsedRow }) {
     <TR>
       <TD>
         <span className="prov-heard block pl-2">
-          <span className="text-label text-text font-medium">{row.spokenName}</span>
-          <span className="text-caption text-text-subtle mt-0.5 block">“{row.sourceText}”</span>
+          <span className="text-body text-text font-semibold">{row.spokenName}</span>
+          <span className="text-label text-text-subtle mt-0.5 block font-normal">
+            “{row.sourceText}”
+          </span>
         </span>
       </TD>
       <TD>
@@ -100,7 +102,7 @@ function RxPreviewRow({ row }: { row: ParsedRow }) {
       </TD>
       <TD>
         {notes.length > 0 ? (
-          <span className="text-caption text-text-muted">{notes.join(' · ')}</span>
+          <span className="text-label text-text-muted font-normal">{notes.join(' · ')}</span>
         ) : (
           <Cell value={null} />
         )}
@@ -121,9 +123,9 @@ function Cell({ value, mono = false }: { value: string | null; mono?: boolean })
     return (
       <span
         data-provenance="blank"
-        className="text-caption text-text-subtle prov-blank inline-flex items-center gap-1 px-1.5 py-0.5"
+        className="text-label text-text-subtle prov-blank inline-flex items-center gap-1.5 px-2 py-1"
       >
-        <CircleDashed aria-hidden className="size-3" />
+        <CircleDashed aria-hidden className="size-3.5" />
         not said
       </span>
     )
@@ -132,7 +134,7 @@ function Cell({ value, mono = false }: { value: string | null; mono?: boolean })
     <span
       data-provenance="heard"
       data-numeric={mono || undefined}
-      className={cn('text-label text-text prov-heard inline-block pl-2', mono && 'font-mono')}
+      className={cn('text-body text-text prov-heard inline-block pl-2', mono && 'font-mono')}
     >
       {value}
     </span>
@@ -158,19 +160,19 @@ function NarrativeRow({ label, value }: { label: string; value: string | null })
  */
 function UnparsedNotice({ lines }: { lines: readonly string[] }) {
   return (
-    <div className="border-warning/25 bg-warning-muted rounded-md border px-3 py-2">
-      <p className="text-caption text-warning-muted-fg flex items-center gap-2 font-medium">
+    <div className="border-warning/25 bg-warning-muted rounded-md border px-3 py-2.5">
+      <p className="text-label text-warning-muted-fg flex items-center gap-2 font-medium">
         <TriangleAlert aria-hidden className="size-4 shrink-0" />
         Heard, but not understood
       </p>
       <ul className="mt-1.5 flex flex-col gap-1">
         {lines.map((line, index) => (
-          <li key={`${line}-${index}`} className="text-caption text-warning-muted-fg">
+          <li key={`${line}-${index}`} className="text-label text-warning-muted-fg font-normal">
             “{line}”
           </li>
         ))}
       </ul>
-      <p className="text-caption text-warning-muted-fg mt-1.5">
+      <p className="text-label text-warning-muted-fg mt-1.5 font-normal">
         These went nowhere structured. They travel to the pad as notes so nothing you said is
         lost.
       </p>
@@ -182,18 +184,18 @@ function UnparsedNotice({ lines }: { lines: readonly string[] }) {
 export function DictationHints() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-caption text-text-muted flex items-center gap-2">
+      <p className="text-body text-text-muted flex items-center gap-2">
         <Clock aria-hidden className="size-4 shrink-0" />
         Speak the whole prescription in one go. Chain medicines with “and” — the parser splits
         them.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {DICTATION_HINTS.map((hint) => (
-          <div key={hint.title} className="bg-surface-raised rounded-md px-3 py-2">
+          <div key={hint.title} className="bg-surface-raised rounded-md px-3 py-2.5">
             <p className="text-micro text-text-subtle tracking-caps uppercase">{hint.title}</p>
-            <ul className="mt-1 flex flex-col gap-0.5">
+            <ul className="mt-1.5 flex flex-col gap-1">
               {hint.examples.map((example) => (
-                <li key={example} className="text-caption text-text-muted font-mono">
+                <li key={example} className="text-label text-text-muted font-mono font-normal">
                   {example}
                 </li>
               ))}
@@ -201,7 +203,7 @@ export function DictationHints() {
           </div>
         ))}
       </div>
-      <p className="text-caption text-text-subtle">
+      <p className="text-label text-text-subtle font-normal">
         Nothing is filled in on your behalf. If you do not say a timing,{' '}
         <Badge tone="neutral">not said</Badge> is what the pad receives — and it blocks printing
         until you set it.

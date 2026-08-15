@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { FileText } from 'lucide-react'
-import { apiGet } from '@/api/http'
+import { ChevronRight, FileText, Printer } from 'lucide-react'
+import { API_BASE_URL, apiGet, resolveApiUrl } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
 import { cn } from '@/lib/cn'
@@ -24,6 +24,15 @@ const RECENT_PARAMS = {
 } satisfies ListPrescriptionsParams
 
 /**
+ * Fuller sentences than the palette hints in `navigation.ts`, because here
+ * there is room to say what actually happens next.
+ */
+const ACTION_DESCRIPTIONS: Record<string, string> = {
+  '/speech?autostart=1': 'The microphone is already live. Just speak the prescription.',
+  '/prescriptions/new?focus=patient': 'The pad opens on the patient field, ready to fill in.',
+}
+
+/**
  * One of the two ways in. Both cards are the same size, the same weight and the
  * same colour on purpose: the doctor picks by habit, not by hierarchy, and a
  * "recommended" one would just be wrong half the time.
@@ -35,7 +44,7 @@ function StartCard({ action, autoFocus }: { action: ActionItem; autoFocus?: bool
       to={action.to}
       autoFocus={autoFocus}
       className={cn(
-        'group flex flex-col gap-3 rounded-xl border border-border bg-surface p-5 shadow-sm',
+        'group flex flex-col gap-4 rounded-xl border border-border bg-surface p-6 shadow-sm',
         'transition-[background-color,border-color,transform] duration-fast ease-standard',
         'hover:border-border-strong hover:bg-surface-hover',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
@@ -44,7 +53,7 @@ function StartCard({ action, autoFocus }: { action: ActionItem; autoFocus?: bool
     >
       <span
         aria-hidden
-        className="grid size-9 place-items-center rounded-md bg-accent-muted text-accent [&_svg]:size-5"
+        className="grid size-11 place-items-center rounded-lg bg-accent-muted text-accent [&_svg]:size-6"
       >
         <Icon />
       </span>
@@ -56,33 +65,53 @@ function StartCard({ action, autoFocus }: { action: ActionItem; autoFocus?: bool
             <Kbd>{action.goKey}</Kbd>
           </span>
         )}
+        <ChevronRight
+          aria-hidden
+          className="ml-auto size-5 shrink-0 text-text-subtle transition-colors duration-fast group-hover:text-text"
+        />
       </span>
-      <span className="text-caption text-text-muted">{action.hint}</span>
+      <span className="text-body text-text-muted">
+        {ACTION_DESCRIPTIONS[action.to] ?? action.hint}
+      </span>
     </Link>
   )
 }
 
 function RecentRow({ item }: { item: PrescriptionResponse }) {
+  const patientName = item.patient_name?.trim() || 'Unnamed patient'
+  /* Same URL the prescription detail screen prints from: the API renders the
+     A4 sheet itself, and a new tab hands over the browser's print dialog. */
+  const printUrl = resolveApiUrl(
+    `${API_BASE_URL}${endpoints.prescriptions.printView(item.id)}`,
+  )
+
   return (
-    <li>
+    <li className="flex items-center gap-1 pr-2 transition-colors duration-fast hover:bg-surface-hover">
       <Link
         to={`/prescriptions/${item.id}`}
         className={cn(
-          'flex h-11 items-center gap-3 px-4 text-body',
-          'transition-colors duration-fast hover:bg-surface-hover',
+          'flex h-12 min-w-0 flex-1 items-center gap-3 px-4 text-body',
           'focus-visible:bg-surface-hover focus-visible:outline-none',
         )}
       >
-        <span className="min-w-0 flex-1 truncate text-text">
-          {item.patient_name?.trim() || 'Unnamed patient'}
-        </span>
-        <span className="shrink-0 font-mono text-caption text-text-subtle">
+        <span className="min-w-0 flex-1 truncate font-medium text-text">{patientName}</span>
+        <span className="hidden shrink-0 font-mono text-label text-text-subtle sm:block" data-numeric>
           {item.prescription_number}
         </span>
-        <span className="w-24 shrink-0 text-right text-caption text-text-muted" data-numeric>
+        <span className="w-24 shrink-0 text-right text-label text-text-muted" data-numeric>
           {formatAgo(item.created_at)}
         </span>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-text-subtle" />
       </Link>
+      <Button
+        variant="ghost"
+        size="sm"
+        iconLeft={<Printer aria-hidden className="size-3.5" />}
+        aria-label={`Print prescription for ${patientName}`}
+        onClick={() => window.open(printUrl, '_blank', 'noopener,noreferrer')}
+      >
+        Print
+      </Button>
     </li>
   )
 }
@@ -147,7 +176,7 @@ export function PrescribeHome() {
         ) : recent.isPending ? (
           <ul className="divide-y divide-border/60">
             {Array.from({ length: 4 }, (_, i) => (
-              <li key={i} className="flex h-11 items-center gap-3 px-4">
+              <li key={i} className="flex h-12 items-center gap-3 px-4">
                 <Skeleton className="h-3 flex-1" />
                 <Skeleton className="h-3 w-20 shrink-0" />
                 <Skeleton className="h-3 w-16 shrink-0" />

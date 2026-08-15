@@ -36,7 +36,9 @@ function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }
         onClick={onNavigate}
         aria-current={isActive ? 'page' : undefined}
         className={cn(
-          'group relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-body font-medium',
+          /* h-10 = a 40px hit target on every nav row; the label stays
+             text-body so the rail reads at arm's length. */
+          'group relative flex h-10 items-center gap-2.5 rounded-md px-2.5 text-body font-medium',
           'transition-colors duration-fast ease-standard',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
           isActive
@@ -154,26 +156,26 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <button
               type="button"
               className={cn(
-                'mt-1 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left',
+                'mt-1 flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left',
                 'transition-colors duration-fast hover:bg-surface-raised',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
               )}
             >
               <span
                 aria-hidden
-                className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-raised text-caption font-semibold text-text-muted"
+                className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-raised text-caption font-semibold text-text-muted"
               >
                 {initials}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-caption font-medium text-text">
+                <span className="block truncate text-label font-medium text-text">
                   {user?.full_name ?? user?.username}
                 </span>
-                <span className="block truncate text-[11px] text-text-subtle">
+                <span className="block truncate text-caption text-text-subtle">
                   {ROLE_LABEL[role as Role] ?? role}
                 </span>
               </span>
-              <ChevronDown aria-hidden className="size-3.5 shrink-0 text-text-subtle" />
+              <ChevronDown aria-hidden className="size-4 shrink-0 text-text-subtle" />
             </button>
           </MenuTrigger>
           <MenuContent align="start">
@@ -250,26 +252,31 @@ export function AppShell() {
           data-print-hide
           className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-bg/80 px-3 backdrop-blur-md"
         >
+          {/* Labelled, not icon-only: the word says what the hamburger only
+              implies. */}
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="sm"
             className="lg:hidden"
             aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'}
+            iconLeft={
+              mobileNavOpen ? (
+                <X aria-hidden className="size-4" />
+              ) : (
+                <MenuIcon aria-hidden className="size-4" />
+              )
+            }
             onClick={() => setMobileNavOpen((v) => !v)}
           >
-            {mobileNavOpen ? (
-              <X aria-hidden className="size-4" />
-            ) : (
-              <MenuIcon aria-hidden className="size-4" />
-            )}
+            Menu
           </Button>
 
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
             className={cn(
-              'group flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2 sm:max-w-72',
-              'text-caption text-text-subtle transition-colors duration-fast',
+              'group flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2.5 sm:max-w-72',
+              'text-label text-text-subtle transition-colors duration-fast',
               'hover:border-border-strong hover:text-text-muted',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
             )}

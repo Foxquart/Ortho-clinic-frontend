@@ -7,14 +7,20 @@
     <meta name="color-scheme" content="light dark" />
     <title>OrthoClinic</title>
     <script>
-      // Resolve the theme before first paint so there is never a light flash
-      // on a dark-mode machine. Mirrors the contract in src/styles/theme.css:
-      // an explicit choice stamps data-theme, "system" leaves it unset.
+      // Resolve the theme before first paint so there is never a wrong-theme
+      // flash. Mirrors the contract in src/styles/theme.css: an explicit choice
+      // stamps data-theme, "system" leaves it unset. When nothing is stored the
+      // default is LIGHT — stamped here so a dark-OS machine does not flash
+      // dark before ThemeProvider mounts. Keep in sync with readStoredChoice()
+      // in src/app/ThemeProvider.tsx.
       ;(function () {
         try {
           var t = localStorage.getItem('ortho-theme')
           if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
-        } catch (_) {}
+          else if (t !== 'system') document.documentElement.dataset.theme = 'light'
+        } catch (_) {
+          document.documentElement.dataset.theme = 'light'
+        }
       })()
     </script>
   </head>

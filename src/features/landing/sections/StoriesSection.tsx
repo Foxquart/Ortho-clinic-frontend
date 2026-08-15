@@ -17,9 +17,50 @@ import { StarRating } from '@/features/landing/primitives'
 import { sortedTestimonials } from '@/features/public/content'
 import { usePublicPortfolio } from '@/features/public/usePublicData'
 
+/**
+ * Prototype-only placeholder stories, used to top the grid up to six while the
+ * CMS holds only a couple of real ones. CMS testimonials always render first;
+ * each real one added later displaces a placeholder. Remove for production.
+ */
+const PLACEHOLDER_STORIES = [
+  {
+    id: 'ph-1',
+    author_name: 'Sharmila Banerjee',
+    author_role: 'School teacher, Kolkata',
+    content:
+      'Both knees replaced in one winter. By March I was back on my feet for a full school day without sitting down once.',
+    rating: 5,
+  },
+  {
+    id: 'ph-2',
+    author_name: 'Vikram Deshpande',
+    author_role: 'Marathon runner',
+    content:
+      'ACL reconstruction and eight months of honest rehab. Ran my first half marathon since the injury this January.',
+    rating: 5,
+  },
+  {
+    id: 'ph-3',
+    author_name: 'Farida Ansari',
+    author_role: 'Retired banker',
+    content:
+      'Years of shoulder pain, gone after one small procedure. I only wish I had come in sooner instead of managing it.',
+    rating: 4,
+  },
+  {
+    id: 'ph-4',
+    author_name: 'Joydeep Sen',
+    author_role: 'Businessman',
+    content:
+      'A badly set wrist fracture from years ago, corrected properly this time. Clear explanations at every step.',
+    rating: 5,
+  },
+] as const
+
 export function StoriesSection() {
   const portfolio = usePublicPortfolio()
-  const testimonials = sortedTestimonials(portfolio.data?.testimonials).slice(0, 6)
+  const fromCms = sortedTestimonials(portfolio.data?.testimonials)
+  const testimonials = [...fromCms, ...PLACEHOLDER_STORIES.slice(0, Math.max(0, 6 - fromCms.length))].slice(0, 6)
 
   if (testimonials.length === 0) return null
 
