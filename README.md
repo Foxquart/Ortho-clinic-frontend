@@ -1,7 +1,6 @@
 # Ortho-clinic-frontend
 
-A digital prescription system for a single orthopaedic clinic. One doctor,
-writing prescriptions, mostly by voice.
+A digital prescription system for a single orthopaedic clinic. One doctor,writing prescriptions, mostly by voice.
 
 The API lives in a separate repository. This app talks to it over a cookie
 session; it stores nothing itself.
