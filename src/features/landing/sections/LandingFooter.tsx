@@ -1,10 +1,10 @@
 /**
- * Footer — the dark base of the landing page.
+ * Footer — the quiet base of the landing page.
  *
- * A serif wordmark with a teal cross monogram, the clinic tagline, in-page
+ * A serif wordmark with the smile monogram, a one-line note, in-page
  * navigation (the same smooth-scroll targets used across the page), a contact
- * column, and the one quiet door back to the product: a real router `Link` to
- * the staff sign-in. Everything reads from the public clinic settings with
+ * column, and the one discreet door back to the product: a real router `Link`
+ * to the staff sign-in. Everything reads from the public clinic settings with
  * calm fallbacks, so the footer is never blank.
  */
 import { Link } from 'react-router-dom'
@@ -13,28 +13,27 @@ import { ScrollButton } from '@/features/landing/primitives'
 import { usePublicClinic } from '@/features/public/usePublicData'
 
 const NAV_LINKS: { target: string; label: string }[] = [
-  { target: 'services', label: 'Services' },
-  { target: 'doctor', label: 'Doctor' },
+  { target: 'events', label: 'Events' },
+  { target: 'life', label: 'Life' },
+  { target: 'about', label: 'About' },
   { target: 'visit', label: 'Visit' },
   { target: 'book', label: 'Book' },
 ]
 
 export function LandingFooter() {
   const clinic = usePublicClinic()
-  const clinicName = clinic.data?.clinic_name ?? 'OrthoClinic'
-  const tagline =
-    clinic.data?.tagline ?? 'Precise orthopaedic care that gives you back your range of movement.'
+  const clinicName = clinic.data?.clinic_name ?? 'Dr. Arjun Mehta'
   const address = [clinic.data?.address, clinic.data?.city].filter(Boolean).join(', ')
 
   return (
     <footer className="border-t border-border">
       <div className="mx-auto flex max-w-content flex-col gap-10 px-5 py-14 sm:px-8 md:flex-row md:items-start md:justify-between">
-        {/* Wordmark + tagline */}
+        {/* Wordmark + note */}
         <div className="max-w-sm">
           <div className="flex items-center gap-2.5">
             <span
               aria-hidden
-              className="grid size-8 place-items-center rounded-md border-[1.5px] border-[color:var(--lp-accent-line)] text-[color:var(--lp-accent)]"
+              className="grid size-8 place-items-center rounded-full border-[1.5px] border-[color:var(--lp-accent-line)] text-[color:var(--lp-accent)]"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -43,12 +42,15 @@ export function LandingFooter() {
                 stroke="currentColor"
                 strokeWidth={2}
               >
-                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                <path d="M7 13c1.4 2.6 3 4 5 4s3.6-1.4 5-4" strokeLinecap="round" />
               </svg>
             </span>
             <span className="lp-serif text-2xl leading-none text-text">{clinicName}</span>
           </div>
-          <p className="mt-4 text-body leading-relaxed text-text-muted">{tagline}</p>
+          <p className="mt-4 text-body leading-relaxed text-text-muted">
+            Orthodontist, speaker, cyclist. This page is mostly about the last
+            two; the clinic is one click away when you need it.
+          </p>
         </div>
 
         {/* In-page navigation */}
@@ -98,7 +100,7 @@ export function LandingFooter() {
       {/* Bottom bar */}
       <div className="border-t border-border">
         <p className="mx-auto max-w-content px-5 py-5 text-caption text-text-subtle sm:px-8">
-          © {clinicName}. For emergencies, call your nearest hospital.
+          © {clinicName}. For medical emergencies, call your nearest hospital.
         </p>
       </div>
     </footer>

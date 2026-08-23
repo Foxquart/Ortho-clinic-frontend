@@ -1,13 +1,14 @@
 /**
- * Doctor — a two-column split: a large, filmically graded portrait on one side,
- * the surgeon's name, qualifications, bio, a compact facts list and the primary
- * booking CTA on the other.
+ * About — the person behind the practice, told briefly and warmly.
  *
- * The portrait defaults to curated stock so the section always reads as a real
- * clinician; an uploaded CMS `photo_url` is used in preference when present.
- * Text falls back to sensible copy while the profile query is in flight (a
- * same-column skeleton) or when a field is empty. `data-reveal` is on each
- * column for the page's GSAP.
+ * A two-column split: a filmic portrait on one side, a short biography and a
+ * few honest facts on the other. Clinic credentials appear once, in a single
+ * quiet facts row, because this page is about the person first. Text falls
+ * back to sensible copy while the profile query is in flight.
+ *
+ * MOTION CONTRACT (see landing.css): `data-reveal` on each column is animated
+ * by the PAGE-level GSAP, only inside the reduced-motion "no-preference"
+ * branch.
  */
 import { ArrowRight } from 'lucide-react'
 import { resolveApiUrl } from '@/api/http'
@@ -16,36 +17,38 @@ import { ScrollButton } from '@/features/landing/primitives'
 import { usePublicDoctor } from '@/features/public/usePublicData'
 
 const FALLBACK_BIO =
-  'A registered orthopaedic surgeon focused on restoring movement, from sports injuries and fractures to joint replacement and long-term joint care.'
+  'An orthodontist who believes a good consultation starts with a good conversation. Trained in Mumbai, practising in Kolkata, and happiest when the appointment runs five minutes long because we got talking.'
 
 export function DoctorSection() {
   const doctor = usePublicDoctor()
   const data = doctor.data
 
-  const fullName = data?.full_name ?? 'Consultant Orthopaedic Surgeon'
+  const fullName = data?.full_name ?? 'Dr. Arjun Mehta'
   const photoSrc = data?.photo_url
     ? resolveApiUrl(data.photo_url)
     : img('clinicPortrait', { w: 1000, h: 1250 })
 
   const facts = [
     data?.experience_years != null
-      ? { term: 'Experience', detail: `${data.experience_years}+ years` }
+      ? { term: 'In practice', detail: `${data.experience_years}+ years` }
       : null,
     data?.registration_number
       ? { term: 'Registration', detail: data.registration_number }
       : null,
-    data?.specialization ? { term: 'Focus', detail: data.specialization } : null,
+    data?.specialization ? { term: 'Speciality', detail: data.specialization } : null,
+    { term: 'First language', detail: 'Conversation' },
   ].filter((fact): fact is { term: string; detail: string } => fact !== null)
 
   return (
-    <section id="doctor" className="scroll-mt-[var(--nav-h)] py-[var(--section-pad)]">
-      <div className="mx-auto grid max-w-content items-center gap-10 px-5 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+    <section id="about" className="scroll-mt-[var(--nav-h)] py-[var(--section-pad)]">
+      <div className="mx-auto grid max-w-content items-center gap-10 px-5 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
         <div data-reveal>
-          <figure className="lp-media lp-scrim relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-3xl lg:max-w-none">
+          <figure className="lp-media relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-3xl lg:max-w-none">
             <img
               src={photoSrc}
               alt={`Portrait of ${fullName}`}
               loading="lazy"
+              decoding="async"
               className="size-full object-cover"
             />
             <div className="pointer-events-none absolute inset-3 z-10 rounded-2xl border border-[color:var(--lp-accent-line)]" />
@@ -78,7 +81,7 @@ export function DoctorSection() {
 
               <div className="mt-9">
                 <ScrollButton target="book" tone="primary" size="lg" magnetic>
-                  Consult the doctor
+                  Say hello
                   <ArrowRight aria-hidden className="size-4" />
                 </ScrollButton>
               </div>
@@ -112,7 +115,7 @@ function DoctorTextSkeleton() {
           </div>
         ))}
       </div>
-      <div className="bg-surface mt-9 h-12 w-52 rounded-sm" />
+      <div className="bg-surface mt-9 h-12 w-40 rounded-full" />
     </div>
   )
 }

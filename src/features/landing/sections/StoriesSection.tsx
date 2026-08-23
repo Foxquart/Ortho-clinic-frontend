@@ -1,16 +1,14 @@
 /**
- * Patient stories — a quiet grid of published testimonials.
+ * Kind words — a quiet grid of things patients and hosts have said.
  *
  * Reads straight from the public portfolio CMS. `sortedTestimonials` already
  * drops unpublished rows and honours `sort_order`, so a half-filled CMS
  * degrades cleanly; with nothing published the section renders nothing at all
  * rather than an empty heading.
  *
- * MOTION CONTRACT (see landing.css): nothing here carries an `opacity: 0`
- * baseline. The `data-reveal` heading and the `data-reveal-group` /
- * `data-reveal-item` grid are revealed by the PAGE-level GSAP, only inside the
- * `(prefers-reduced-motion: no-preference)` branch — so with reduced motion, or
- * if JS never runs, every card paints in its final, legible state.
+ * MOTION CONTRACT (see landing.css): `data-reveal` and `data-reveal-group` /
+ * `data-reveal-item` are animated by the PAGE-level GSAP, only inside the
+ * reduced-motion "no-preference" branch.
  */
 import { Quote } from 'lucide-react'
 import { StarRating } from '@/features/landing/primitives'
@@ -28,31 +26,31 @@ const PLACEHOLDER_STORIES = [
     author_name: 'Sharmila Banerjee',
     author_role: 'School teacher, Kolkata',
     content:
-      'Both knees replaced in one winter. By March I was back on my feet for a full school day without sitting down once.',
+      'Eighteen months of aligners and I finally stopped covering my mouth in photographs. Worth every visit.',
     rating: 5,
   },
   {
     id: 'ph-2',
     author_name: 'Vikram Deshpande',
-    author_role: 'Marathon runner',
+    author_role: 'Conference organiser, Pune',
     content:
-      'ACL reconstruction and eight months of honest rehab. Ran my first half marathon since the injury this January.',
+      'He spoke to four hundred dentists for forty minutes and nobody checked their phone once.',
     rating: 5,
   },
   {
     id: 'ph-3',
     author_name: 'Farida Ansari',
-    author_role: 'Retired banker',
+    author_role: 'Parent of a patient',
     content:
-      'Years of shoulder pain, gone after one small procedure. I only wish I had come in sooner instead of managing it.',
-    rating: 4,
+      'My daughter used to hide from the dentist. Now she asks when her next appointment is. I still do not fully understand it.',
+    rating: 5,
   },
   {
     id: 'ph-4',
     author_name: 'Joydeep Sen',
-    author_role: 'Businessman',
+    author_role: 'Book club host',
     content:
-      'A badly set wrist fracture from years ago, corrected properly this time. Clear explanations at every step.',
+      'We invited him to talk about teeth. He stayed three hours talking about everything else. Best evening we have had.',
     rating: 5,
   },
 ] as const
@@ -65,10 +63,10 @@ export function StoriesSection() {
   if (testimonials.length === 0) return null
 
   return (
-    <section id="stories" className="scroll-mt-[var(--nav-h)] pb-[var(--section-pad)]">
+    <section id="stories" className="scroll-mt-[var(--nav-h)] py-[var(--section-pad)]">
       <div className="mx-auto max-w-content px-5 sm:px-8">
-        <h2 data-reveal className="lp-h2 mb-12 max-w-[16ch]">
-          Movement, given back.
+        <h2 data-reveal className="lp-h2 mb-12 max-w-[18ch]">
+          Kind words, kept short.
         </h2>
 
         <div data-reveal-group className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -76,7 +74,7 @@ export function StoriesSection() {
             <figure
               key={t.id}
               data-reveal-item
-              className="flex flex-col rounded-2xl border border-border bg-surface/60 p-6"
+              className="flex flex-col rounded-3xl border border-border bg-surface p-6"
             >
               <Quote
                 aria-hidden

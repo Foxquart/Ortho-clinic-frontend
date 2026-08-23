@@ -45,15 +45,3 @@ export function img(
   if (h) params.set('h', String(h))
   return `${BASE}${PHOTO[key]}?${params.toString()}`
 }
-
-/** Gallery set for the life grid, in display order. */
-export const LIFE_GALLERY: PhotoKey[] = [
-  'speaking',
-  'travel',
-  'cycling',
-  'coffee',
-  'photography',
-  'family',
-]
-
-export const EVENT_PHOTOS: PhotoKey[] = ['workshop', 'lecture', 'speaking', 'reading']

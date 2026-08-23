@@ -72,6 +72,49 @@ interface Confirmation {
   patientName: string
 }
 
+/**
+ * What the time is for. The API carries one free-text `reason`, so the choice
+ * is prepended to whatever the visitor writes, keeping the distinction visible
+ * to the clinic without a schema change.
+ */
+const PURPOSES = [
+  {
+    id: 'consultation',
+    title: 'A consultation',
+    detail: 'Something about your teeth or your smile.',
+    prefix: 'Consultation.',
+  },
+  {
+    id: 'conversation',
+    title: 'A conversation',
+    detail: 'Coffee, ideas, or a question you have been carrying.',
+    prefix: 'A conversation.',
+  },
+  {
+    id: 'event',
+    title: 'An event or talk',
+    detail: 'Speaking, teaching, or a community evening.',
+    prefix: 'An event or talk.',
+  },
+] as const
+
+type Purpose = (typeof PURPOSES)[number]['id']
+
+const REASON_COPY: Record<Purpose, { label: string; hint: string }> = {
+  consultation: {
+    label: 'What would you like to be seen for?',
+    hint: 'A short note helps me prepare, for example "crowded front teeth" or "thinking about aligners".',
+  },
+  conversation: {
+    label: 'What shall we talk about?',
+    hint: 'A sentence or two is plenty. It helps me bring the right stories.',
+  },
+  event: {
+    label: 'Tell me about the event',
+    hint: 'The audience, the city, and what you would like the room to leave with.',
+  },
+}
+
 /** What the patient has picked so far, rendered live in the identity panel. */
 interface Selection {
   date: string
@@ -94,6 +137,7 @@ export function BookingSection(): JSX.Element {
   const availabilityQuery = usePublicAvailability()
   const availability = useMemo(() => availabilityQuery.data ?? [], [availabilityQuery.data])
 
+  const [purpose, setPurpose] = useState<Purpose>('consultation')
   const [date, setDate] = useState<string | null>(null)
   const [slot, setSlot] = useState<string | null>(null)
   const [slotError, setSlotError] = useState<string | null>(null)
@@ -215,6 +259,8 @@ export function BookingSection(): JSX.Element {
     }
     setSlotError(null)
 
+    const prefix = PURPOSES.find((p) => p.id === purpose)?.prefix ?? ''
+
     try {
       const appointment = await booking.mutateAsync({
         patient_first_name: values.patient_first_name,
@@ -222,7 +268,7 @@ export function BookingSection(): JSX.Element {
         patient_phone: values.patient_phone,
         appointment_date: date,
         start_time: slot,
-        reason: values.reason ? values.reason : null,
+        reason: values.reason ? `${prefix} ${values.reason}` : prefix || null,
       })
       setConfirmation({
         appointment,
@@ -803,8 +849,8 @@ function BookingConfirmation({
       </dl>
 
       <div>
-        <Button variant="secondary" size="lg" onClick={onBookAnother}>
-          Book another appointment
+        <Button variant="secondary" size="lg" className="rounded-full" onClick={onBookAnother}>
+          Book another time
         </Button>
       </div>
     </div>

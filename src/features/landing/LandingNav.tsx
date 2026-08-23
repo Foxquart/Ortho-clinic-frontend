@@ -1,21 +1,25 @@
 /**
- * Sticky top navigation. Transparent over the hero, then materialises into a
- * translucent bar once the page scrolls — driven by a plain scroll listener so
- * it behaves identically with GSAP/Lenis absent or under reduced motion.
+ * Floating pill navigation. Detached from the top edge as a rounded glass
+ * island; once the page scrolls it picks up a border and a shadow. The links
+ * are the same smooth-scroll targets used across the page.
+ *
+ * The menu button morphs to an X and opens a full-screen warm overlay whose
+ * links stagger up from a masked position. Behaviour is identical with GSAP
+ * and Lenis absent or under reduced motion: every state is a plain CSS
+ * transition, so nothing is left half-run.
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Menu, X } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/app/AuthProvider'
 import { scrollToAnchor } from './smoothScroll'
 
 const LINKS = [
-  { id: 'services', label: 'Services' },
-  { id: 'doctor', label: 'Doctor' },
-  { id: 'stories', label: 'Patient stories' },
+  { id: 'events', label: 'Events' },
+  { id: 'life', label: 'Life' },
+  { id: 'about', label: 'About' },
   { id: 'visit', label: 'Visit' },
-  { id: 'book', label: 'Book' },
 ] as const
 
 export function LandingNav({ wordmark }: { wordmark: string }) {
@@ -24,20 +28,24 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12)
+    const onScroll = () => setScrolled(window.scrollY > 16)
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Close the mobile sheet on escape.
+  // Close the menu on escape and keep the page from scrolling behind it.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.documentElement.style.overflow = ''
+    }
   }, [open])
 
   const go = (id: string) => {
@@ -46,39 +54,38 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
   }
 
   return (
-    <header
-      className={cn(
-        'fixed inset-x-0 top-0 z-[var(--z-index-sticky)] transition-[background-color,border-color,box-shadow,backdrop-filter] duration-base ease-out-quint',
-        scrolled
-          ? 'border-b border-border bg-surface/80 shadow-sm backdrop-blur-xl backdrop-saturate-150'
-          : 'border-b border-transparent bg-transparent',
-      )}
-    >
+    <header className="fixed inset-x-0 top-0 z-[var(--z-index-sticky)] px-4 pt-4 sm:px-6">
       <nav
         aria-label="Primary"
-        className="mx-auto flex h-[var(--nav-h)] max-w-content items-center justify-between gap-4 px-5 sm:px-8"
+        className={cn(
+          'lp-nav-pill mx-auto flex h-14 w-max max-w-full items-center gap-1 rounded-full border px-2.5',
+          scrolled || open
+            ? 'border-border bg-surface/85 shadow-sm backdrop-blur-xl backdrop-saturate-150'
+            : 'border-transparent bg-surface/40 backdrop-blur-md',
+        )}
       >
         {/* Wordmark */}
         <a
           href="#top"
           onClick={(e) => {
             e.preventDefault()
+            setOpen(false)
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
-          className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight"
+          className="mr-2 flex items-center gap-2 rounded-full pr-1 font-semibold tracking-tight"
         >
           <Monogram />
-          <span className="lp-serif text-[1.35rem] leading-none text-text">{wordmark}</span>
+          <span className="lp-serif text-[1.3rem] leading-none text-text">{wordmark}</span>
         </a>
 
         {/* Desktop links */}
-        <div className="hidden items-center gap-1 lg:flex">
+        <div className="hidden items-center gap-0.5 lg:flex">
           {LINKS.map((l) => (
             <button
               key={l.id}
               type="button"
               onClick={() => go(l.id)}
-              className="text-label text-text-muted hover:text-text hover:bg-surface-hover rounded-sm px-3 py-2 font-medium transition-colors duration-fast"
+              className="text-label text-text-muted hover:text-text hover:bg-surface-hover rounded-full px-3.5 py-2 font-medium transition-colors duration-fast"
             >
               {l.label}
             </button>
@@ -86,18 +93,18 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="ml-1 flex items-center gap-1.5">
           {isAuthenticated ? (
             <Link
               to="/app"
-              className="text-label text-text-muted hover:text-text hidden rounded-sm px-3 py-2 font-medium transition-colors duration-fast sm:inline-flex"
+              className="text-label text-text-muted hover:text-text hidden rounded-full px-3 py-2 font-medium transition-colors duration-fast sm:inline-flex"
             >
               Enter dashboard
             </Link>
           ) : (
             <Link
               to="/login"
-              className="text-label text-text-muted hover:text-text hidden rounded-sm px-3 py-2 font-medium transition-colors duration-fast sm:inline-flex"
+              className="text-label text-text-muted hover:text-text hidden rounded-full px-3 py-2 font-medium transition-colors duration-fast sm:inline-flex"
             >
               Staff sign in
             </Link>
@@ -106,56 +113,79 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
           <button
             type="button"
             onClick={() => go('book')}
-            className="bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] text-label hidden h-control items-center gap-1.5 rounded-sm px-4 font-semibold shadow-sm transition-[background-color,box-shadow] duration-fast sm:inline-flex"
+            className="bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] text-label hidden h-10 items-center gap-1.5 rounded-full px-4 font-semibold shadow-sm transition-[background-color,box-shadow] duration-fast sm:inline-flex"
           >
-            Book appointment
+            Book time
             <ArrowRight aria-hidden className="size-4" />
           </button>
 
-          {/* Mobile toggle */}
+          {/* Mobile toggle — hamburger morphs to X */}
           <button
             type="button"
             aria-label={open ? 'Close menu' : 'Open menu'}
             aria-expanded={open}
             aria-controls="landing-mobile-menu"
             onClick={() => setOpen((v) => !v)}
-            className="border-border text-text hover:bg-surface-hover grid size-control place-items-center rounded-sm border bg-surface/60 transition-colors duration-fast lg:hidden"
+            className="relative grid size-10 place-items-center rounded-full text-text transition-colors duration-fast hover:bg-surface-hover lg:hidden"
           >
-            {open ? <X aria-hidden className="size-5" /> : <Menu aria-hidden className="size-5" />}
+            <span
+              aria-hidden
+              className={cn(
+                'absolute h-[1.5px] w-4.5 bg-current transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
+                open ? 'rotate-45' : '-translate-y-[3px]',
+              )}
+            />
+            <span
+              aria-hidden
+              className={cn(
+                'absolute h-[1.5px] w-4.5 bg-current transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
+                open ? '-rotate-45' : 'translate-y-[3px]',
+              )}
+            />
           </button>
         </div>
       </nav>
 
-      {/* Mobile sheet */}
+      {/* Mobile overlay menu */}
       <div
         id="landing-mobile-menu"
         hidden={!open}
-        className="border-b border-border bg-surface/95 backdrop-blur-xl lg:hidden"
+        className="fixed inset-0 -z-10 bg-bg/95 backdrop-blur-2xl lg:hidden"
       >
-        <div className="mx-auto flex max-w-content flex-col gap-1 px-5 py-4 sm:px-8">
-          {LINKS.map((l) => (
-            <button
-              key={l.id}
-              type="button"
-              onClick={() => go(l.id)}
-              className="text-body text-text hover:bg-surface-hover rounded-sm px-3 py-3 text-left font-medium transition-colors duration-fast"
-            >
-              {l.label}
-            </button>
+        <div className="flex h-full flex-col justify-center gap-1 px-8 pt-16">
+          {LINKS.map((l, i) => (
+            <div key={l.id} className="overflow-hidden">
+              <button
+                type="button"
+                onClick={() => go(l.id)}
+                style={open ? { transitionDelay: `${90 + i * 60}ms` } : undefined}
+                className={cn(
+                  'lp-serif text-text w-full text-left text-4xl leading-tight tracking-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]',
+                  open ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0',
+                )}
+              >
+                {l.label}
+              </button>
+            </div>
           ))}
-          <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
+          <div
+            className={cn(
+              'mt-8 flex flex-col gap-3 transition-all delay-300 duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]',
+              open ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0',
+            )}
+          >
             <button
               type="button"
               onClick={() => go('book')}
-              className="bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] text-label inline-flex h-control-lg items-center justify-center gap-2 rounded-sm font-semibold"
+              className="bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] text-label inline-flex h-control-lg items-center justify-center gap-2 rounded-full font-semibold"
             >
-              Book appointment
+              Book time
               <ArrowRight aria-hidden className="size-4" />
             </button>
             <Link
               to={isAuthenticated ? '/app' : '/login'}
               onClick={() => setOpen(false)}
-              className="border-border text-text hover:bg-surface-hover text-label inline-flex h-control-lg items-center justify-center rounded-sm border font-medium"
+              className="text-label text-text-muted inline-flex h-control-lg items-center justify-center rounded-full border border-border font-medium"
             >
               {isAuthenticated ? 'Enter dashboard' : 'Staff sign in'}
             </Link>
@@ -166,15 +196,15 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
   )
 }
 
-/** A tiny authored brand mark: a cross set in a ring. Not an illustration. */
+/** A tiny authored brand mark: a smile arc in a ring. Not an illustration. */
 function Monogram() {
   return (
     <span
       aria-hidden
-      className="grid size-8 border-[color:var(--lp-accent-line)] text-[color:var(--lp-accent)] place-items-center rounded-md border-[1.5px]"
+      className="grid size-8 place-items-center rounded-full border-[1.5px] border-[color:var(--lp-accent-line)] text-[color:var(--lp-accent)]"
     >
       <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+        <path d="M7 13c1.4 2.6 3 4 5 4s3.6-1.4 5-4" strokeLinecap="round" />
       </svg>
     </span>
   )

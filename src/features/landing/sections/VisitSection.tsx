@@ -31,7 +31,7 @@ export function VisitSection() {
       <div className="mx-auto grid max-w-content gap-10 px-5 sm:px-8 lg:grid-cols-2">
         {/* Contact ------------------------------------------------------ */}
         <div data-reveal>
-          <h2 className="lp-h2 max-w-[14ch]">Come and see us.</h2>
+          <h2 className="lp-h2 max-w-[16ch]">The clinic, when you need it.</h2>
           <ul className="mt-9 space-y-4">
             {rows.map((row) => (
               <li key={row.label} className="flex items-start gap-3.5">
