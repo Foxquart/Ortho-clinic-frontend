@@ -194,7 +194,9 @@ export function ProvenanceLegend({ className }: { className?: string }) {
           className="flex items-center gap-1.5 text-caption text-text-muted"
         >
           <span className="grid w-4 place-items-center">{sample}</span>
-          <span className="text-text">{COPY[provenance].label}</span>
+          {/* Muted, not full-strength: the legend is metadata and must never
+              read as loud as the prescription it annotates. */}
+          <span className="text-text-muted">{COPY[provenance].label}</span>
           <span className="text-text-subtle">· {note}</span>
         </dd>
       ))}

@@ -26,6 +26,8 @@ import type {
 import { RxRowEditor } from './RxRowEditor'
 import { RxPatientField, RxPatientIdentity } from './RxPatientField'
 import { RxNarrativeField } from './RxNarrativeField'
+import { RxAdvicePicker } from './RxAdvicePicker'
+import { applyMedicineDefaults, forgetAppliedDefaults } from './medicineDefaults'
 import { RxMissingSummary } from './RxMissingSummary'
 import { RxDictationPanel } from './RxDictationPanel'
 import { RxAllergyConflictBanner, RxAllergyRecord } from './RxAllergyGate'
@@ -140,6 +142,7 @@ export function PrescriptionPadScreen() {
   }, [addRow])
 
   const removeRow = useCallback((key: string) => {
+    forgetAppliedDefaults(key)
     setDraft((d) => ({ ...d, rows: d.rows.filter((r) => r.key !== key) }))
     setRowMeta((prev) => {
       if (!(key in prev)) return prev
@@ -271,11 +274,12 @@ export function PrescriptionPadScreen() {
           [rowKey]: { spokenName, candidates: results, resolving: false, resolved: true },
         }))
         if (match) {
+          // The confident match is a full formulary record, so its
+          // prescription defaults ride along — filling only what dictation
+          // left blank, marked `defaulted` for the doctor to verify.
           setDraft((d) => ({
             ...d,
-            rows: d.rows.map((r) =>
-              r.key === rowKey ? { ...r, medicineId: match.id, medicineName: match.name } : r,
-            ),
+            rows: d.rows.map((r) => (r.key === rowKey ? applyMedicineDefaults(r, match) : r)),
           }))
         }
       } catch {
@@ -581,15 +585,15 @@ export function PrescriptionPadScreen() {
       </header>
 
       {/*
-        Below `xl` the column wrappers are `display: contents`, so every card is
+        Below 1400px the column wrappers are `display: contents`, so every card is
         a direct flex item of this container and the explicit `order-N`s
         reproduce today's single-column reading order exactly. From `xl` up the
         wrappers become real columns — patient and narrative on the left,
         medicines and dictation on the right — so a laptop sees the whole pad
         with far less scrolling.
       */}
-      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(360px,1fr)_1.6fr] xl:items-start xl:gap-6">
-        <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-4">
+      <div className="flex flex-col gap-4 min-[1400px]:grid min-[1400px]:grid-cols-[minmax(360px,1fr)_1.6fr] min-[1400px]:items-start min-[1400px]:gap-6">
+        <div className="contents min-[1400px]:flex min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4">
           {/* ---------------------------- patient ---------------------------- */}
           <Card className="order-1">
             <CardBody className="flex flex-col gap-3">
@@ -617,16 +621,8 @@ export function PrescriptionPadScreen() {
           {/* --------------------------- clinical ---------------------------- */}
           <Card className="order-2">
             <CardBody className="grid gap-4 sm:grid-cols-2">
-          <RxNarrativeField
-            id={FIELD_IDS.diagnosis}
-            label="Diagnosis"
-            labelHint="What you have concluded is wrong, for example osteoarthritis of the right knee. Printed on the prescription."
-            field={draft.diagnosis}
-            onChange={setField('diagnosis')}
-            maxLength={512}
-            error={serverErrors[FIELD_IDS.diagnosis]}
-            className="sm:col-span-2"
-          />
+          {/* Complaint before diagnosis: the consultation records what the
+              patient says first, then what the doctor concludes. */}
           <RxNarrativeField
             id={FIELD_IDS.chiefComplaint}
             label="Chief complaint"
@@ -635,6 +631,16 @@ export function PrescriptionPadScreen() {
             onChange={setField('chiefComplaint')}
             maxLength={512}
             error={serverErrors[FIELD_IDS.chiefComplaint]}
+            className="sm:col-span-2"
+          />
+          <RxNarrativeField
+            id={FIELD_IDS.diagnosis}
+            label="Diagnosis"
+            labelHint="What you have concluded is wrong, for example osteoarthritis of the right knee. Printed on the prescription."
+            field={draft.diagnosis}
+            onChange={setField('diagnosis')}
+            maxLength={512}
+            error={serverErrors[FIELD_IDS.diagnosis]}
           />
           <div className="flex min-w-0 flex-col">
             <FieldLabel
@@ -662,17 +668,23 @@ export function PrescriptionPadScreen() {
           {/* ---------------------------- advice ----------------------------- */}
           <Card className="order-5">
             <CardBody className="grid gap-4 sm:grid-cols-2">
-              <RxNarrativeField
-                id={FIELD_IDS.advice}
-                label="Advice to the patient"
-                labelHint="Non-medicine guidance, one instruction per line, for example avoid squatting. Printed on the prescription."
-                hint="Printed. One instruction per line."
-                field={draft.advice}
-                onChange={setField('advice')}
-                rows={4}
-                maxLength={4000}
-                error={serverErrors[FIELD_IDS.advice]}
-              />
+              <div className="flex min-w-0 flex-col gap-3">
+                {/* One tap per line of advice. Renders nothing until the
+                    backend serves the library, so the field below stands
+                    alone exactly as before. */}
+                <RxAdvicePicker field={draft.advice} onChange={setField('advice')} />
+                <RxNarrativeField
+                  id={FIELD_IDS.advice}
+                  label="Advice to the patient"
+                  labelHint="Non-medicine guidance, one instruction per line, for example avoid squatting. Printed on the prescription."
+                  hint="Printed. One instruction per line."
+                  field={draft.advice}
+                  onChange={setField('advice')}
+                  rows={4}
+                  maxLength={4000}
+                  error={serverErrors[FIELD_IDS.advice]}
+                />
+              </div>
               <RxNarrativeField
                 id={FIELD_IDS.investigations}
                 label="Investigations"
@@ -705,7 +717,7 @@ export function PrescriptionPadScreen() {
           </p>
         </div>
 
-        <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-4">
+        <div className="contents min-[1400px]:flex min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4">
           {/* The allergy banner sits directly above the medicines, because it
               has to be read before anything is chosen, not after. */}
           <div id="rx-allergy-conflict" tabIndex={-1} className="order-3 empty:hidden">
@@ -731,7 +743,7 @@ export function PrescriptionPadScreen() {
             <div className="flex items-center gap-2">
               {lastPrescription && (
                 <Button
-                  variant="ghost"
+                  variant="primary"
                   size="sm"
                   onClick={carryOverPrevious}
                   iconLeft={<History className="size-4" />}
@@ -744,7 +756,7 @@ export function PrescriptionPadScreen() {
               )}
               <Button
                 id={FIELD_IDS.addMedicine}
-                variant="secondary"
+                variant="primary"
                 size="sm"
                 onClick={addRowAndFocus}
                 iconLeft={<Plus className="size-4" />}
@@ -764,7 +776,7 @@ export function PrescriptionPadScreen() {
               <p className="mt-1 text-caption text-text-muted">
                 Add one, dictate them, or carry over the last visit&rsquo;s.
               </p>
-              <Button variant="secondary" size="sm" className="mt-3" onClick={addRowAndFocus}>
+              <Button variant="primary" size="sm" className="mt-3" onClick={addRowAndFocus}>
                 Add the first medicine
               </Button>
             </div>

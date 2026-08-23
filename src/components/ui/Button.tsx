@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn'
 
 export type ButtonVariant =
   | 'primary'
+  | 'tonal'
   | 'secondary'
   | 'ghost'
   | 'subtle'
@@ -30,6 +31,11 @@ export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm'
 const VARIANTS: Record<ButtonVariant, string> = {
   // One primary per view. If two things look primary, neither is.
   primary: 'bg-accent text-accent-fg shadow-sm hover:bg-accent-hover active:bg-accent-hover',
+  // The rung between primary and secondary: an accent-tinted fill for the
+  // important-but-not-THE-action (Add medicine, Continue previous). Loud
+  // enough to be found at a glance, quiet enough not to compete with Save.
+  tonal:
+    'bg-accent-muted text-accent-muted-fg shadow-xs hover:bg-accent-muted-hover active:bg-accent-muted-hover',
   secondary:
     'bg-surface text-text border border-border-field shadow-sm hover:bg-surface-hover hover:border-border-strong active:bg-surface-active',
   ghost: 'text-text-muted hover:bg-surface-hover hover:text-text active:bg-surface-active',

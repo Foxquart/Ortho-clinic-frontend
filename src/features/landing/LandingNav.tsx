@@ -16,10 +16,9 @@ import { useAuth } from '@/app/AuthProvider'
 import { scrollToAnchor } from './smoothScroll'
 
 const LINKS = [
-  { id: 'events', label: 'Events' },
+  { id: 'record', label: 'The record' },
   { id: 'life', label: 'Life' },
-  { id: 'about', label: 'About' },
-  { id: 'visit', label: 'Visit' },
+  { id: 'reviews', label: 'Reviews' },
 ] as const
 
 export function LandingNav({ wordmark }: { wordmark: string }) {
@@ -115,7 +114,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
             onClick={() => go('book')}
             className="bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] text-label hidden h-10 items-center gap-1.5 rounded-full px-4 font-semibold shadow-sm transition-[background-color,box-shadow] duration-fast sm:inline-flex"
           >
-            Book time
+            Book
             <ArrowRight aria-hidden className="size-4" />
           </button>
 
@@ -179,7 +178,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
               onClick={() => go('book')}
               className="bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] text-label inline-flex h-control-lg items-center justify-center gap-2 rounded-full font-semibold"
             >
-              Book time
+              Book
               <ArrowRight aria-hidden className="size-4" />
             </button>
             <Link
@@ -196,15 +195,28 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
   )
 }
 
-/** A tiny authored brand mark: a smile arc in a ring. Not an illustration. */
-function Monogram() {
+/**
+ * A tiny authored brand mark: two shafts meeting at a joint, in a ring. The
+ * previous mark was a smile arc, which belonged to the orthodontist this page
+ * used to be about. Abstract on purpose — a literal bone reads as a warning
+ * sign at 16px.
+ */
+export function Monogram() {
   return (
     <span
       aria-hidden
       className="grid size-8 place-items-center rounded-full border-[1.5px] border-[color:var(--lp-accent-line)] text-[color:var(--lp-accent)]"
     >
-      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M7 13c1.4 2.6 3 4 5 4s3.6-1.4 5-4" strokeLinecap="round" />
+      <svg
+        viewBox="0 0 24 24"
+        className="size-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      >
+        <path d="M12 4v4.4M12 15.6V20" />
+        <circle cx="12" cy="12" r="2.4" />
       </svg>
     </span>
   )

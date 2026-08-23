@@ -1,6 +1,7 @@
 /**
  * Small shared building blocks for the landing page: CTA buttons (with an
- * opt-in magnetic pull), lifestyle icon resolver, and a star rating.
+ * opt-in magnetic pull), lifestyle icon resolver, a star rating, and the
+ * dev-only chip that marks copy we have not yet had confirmed.
  * Nothing here owns scroll animation — that is centralised in `LandingPage`
  * so the reduced-motion decision lives in exactly one place.
  */
@@ -18,6 +19,7 @@ import {
   Heart,
   Mic,
   Sparkles,
+  TriangleAlert,
   Star,
   Stethoscope,
   Users,
@@ -241,5 +243,34 @@ export function ArrowLink({
         className="size-4 transition-transform duration-fast group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
       />
     </a>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Draft marker                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Marks copy we wrote as a placeholder rather than something Dr. Deb Roy has
+ * said or confirmed. It only ever renders in development — production builds
+ * strip the draft entries themselves (see `published()` in `profile.ts`), so
+ * this chip is a working aid, not a disclaimer that could ship.
+ *
+ * It is deliberately loud. Invented biography on a practising surgeon's
+ * website is the kind of mistake that is very hard to walk back, and the
+ * cheapest defence is that nobody can look at the page in dev without seeing
+ * exactly which sentences are still ours.
+ */
+export function DraftChip({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning-muted px-2.5 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-warning-muted-fg',
+        className,
+      )}
+    >
+      <TriangleAlert aria-hidden className="size-3" />
+      Draft copy
+    </span>
   )
 }

@@ -1,11 +1,26 @@
 /**
- * Dr. Arjun Mehta — personal brand landing page (the front door at `/`).
+ * Dr. Sankar Deb Roy — personal landing page (the front door at `/`).
  *
- * Editorial luxury, life-first: warm paper grounds, deep teal accent,
- * Instrument Serif display over Inter, real lifestyle photography under a soft
- * filmic grade, paper grain, GSAP-driven motion over a single Lenis engine.
- * The page is ordered around the person — manifesto, events, life — with the
- * clinic and the booking flow as the quiet, always-reachable layer beneath.
+ * Editorial, person-first: warm paper grounds, deep teal accent, Instrument
+ * Serif display over Inter, photography under a soft filmic grade, paper
+ * grain, GSAP-driven motion over a single Lenis engine.
+ *
+ * ## Why the clinic is at the bottom
+ *
+ * The order is the argument. Somebody searching "orthopedic doctor in
+ * agartala" gets a page of directory listings that all say the same four
+ * things — degree, years, fee, phone — about every surgeon in the city. None
+ * of it distinguishes anyone. What distinguishes him is checkable and personal:
+ * where he trained, the hospital department he is attached to, an hour of
+ * state television on arthritis, a peer-reviewed paper, and the fact that the
+ * consultation happens in Bengali.
+ *
+ * So the page runs person → record → life → what people said, and then the
+ * booking form. There is no clinic band and no separate About block: the
+ * address lives in the footer, where a NAP block belongs, and everything about
+ * him is consolidated into the hero rather than restated three times down the
+ * page. The seven-day hours table and the fuller practice pages still exist,
+ * on `/site`, for the reader who came looking for exactly that.
  *
  * The page owns the Lenis smooth-scroll engine and the shared reveal
  * choreography; each section is an isolated component that only tags elements
@@ -20,16 +35,14 @@ import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
-import { usePublicClinic, usePublicDoctor } from '@/features/public/usePublicData'
+import { DOCTOR } from './profile'
 import { LandingNav } from './LandingNav'
+import { SeoHead } from './SeoHead'
 import { setActiveLenis } from './smoothScroll'
 import { HeroSection } from './sections/HeroSection'
-import { ManifestoSection } from './sections/ManifestoSection'
-import { EventsSection } from './sections/EventsSection'
+import { RecordSection } from './sections/RecordSection'
 import { LifeGridSection } from './sections/LifeGridSection'
-import { DoctorSection } from './sections/DoctorSection'
-import { StoriesSection } from './sections/StoriesSection'
-import { VisitSection } from './sections/VisitSection'
+import { ReviewsSection } from './sections/ReviewsSection'
 import { LandingFooter } from './sections/LandingFooter'
 import { BookingSection } from './BookingSection'
 import './landing.css'
@@ -38,10 +51,12 @@ gsap.registerPlugin(ScrollTrigger, useGSAP)
 
 export function LandingPage() {
   const root = useRef<HTMLDivElement>(null)
-  const clinic = usePublicClinic()
-  const doctor = usePublicDoctor()
 
-  const wordmark = doctor.data?.full_name ?? clinic.data?.clinic_name ?? 'Dr. Arjun Mehta'
+  /* Not from the CMS. The wordmark is the doctor's name, and the name is the
+     entity every search engine resolves this site against — it must not be
+     able to change to whatever a half-configured clinic-settings record
+     happens to hold. */
+  const wordmark = DOCTOR.shortName
 
   useGSAP(
     () => {
@@ -104,17 +119,15 @@ export function LandingPage() {
 
   return (
     <div ref={root} className="landing-root min-h-dvh">
+      <SeoHead />
       <div aria-hidden className="lp-grain" />
       <LandingNav wordmark={wordmark} />
 
       <main>
         <HeroSection />
-        <ManifestoSection />
-        <EventsSection />
+        <RecordSection />
         <LifeGridSection />
-        <DoctorSection />
-        <StoriesSection />
-        <VisitSection />
+        <ReviewsSection />
 
         <div data-reveal className="scroll-mt-[var(--nav-h)]">
           <BookingSection />

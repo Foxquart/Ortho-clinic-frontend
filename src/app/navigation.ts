@@ -88,6 +88,20 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     hint: 'Dictate or type a new prescription',
   },
   {
+    to: '/dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    goKey: 'd',
+    hint: 'Today at a glance: appointments and patients',
+  },
+  {
+    to: '/appointments',
+    label: 'Appointments',
+    icon: CalendarDays,
+    goKey: 'a',
+    hint: 'The schedule and clinic hours',
+  },
+  {
     to: '/prescriptions',
     label: 'Prescriptions',
     icon: FileText,
@@ -114,20 +128,6 @@ export const SECONDARY_NAV: readonly NavItem[] = [
  * here is the order they appear at the bottom of the command palette.
  */
 export const DEMOTED_NAV: readonly NavItem[] = [
-  {
-    to: '/dashboard',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    goKey: 'd',
-    hint: 'Counts and today at a glance',
-  },
-  {
-    to: '/appointments',
-    label: 'Appointments',
-    icon: CalendarDays,
-    goKey: 'a',
-    hint: 'The schedule',
-  },
   {
     to: '/settings/site',
     label: 'Public website',

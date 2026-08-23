@@ -538,6 +538,15 @@ export interface MedicineResponse {
   category: string | null;
   manufacturer: string | null;
   description: string | null;
+  /**
+   * Prescription defaults, set once on the medicine so the pad can pre-fill
+   * the whole row. All nullable; absent on backends that predate them.
+   */
+  default_dosage?: string | null;
+  default_frequency?: string | null;
+  default_duration_days?: number | null;
+  default_food_timing?: 'before' | 'after' | 'with' | null;
+  default_instructions?: string | null;
   is_active: boolean;
   created_at: DateTimeString;
   updated_at: DateTimeString;
@@ -561,6 +570,16 @@ export interface MedicineCreateRequest {
   manufacturer?: string | null;
   /** max 2000 chars. */
   description?: string | null;
+  /** max 128 chars. Prescription default: dose per intake, e.g. `"1 tab"`. */
+  default_dosage?: string | null;
+  /** max 64 chars. Prescription default: e.g. `"1-0-1"` or `"SOS"`. */
+  default_frequency?: string | null;
+  /** Integer 1..365. Prescription default: course length in days. */
+  default_duration_days?: number | null;
+  /** Prescription default: when to take it relative to food. */
+  default_food_timing?: 'before' | 'after' | 'with' | null;
+  /** max 1000 chars. Prescription default: per-medicine instructions. */
+  default_instructions?: string | null;
 }
 
 /** Convenience alias for `MedicineCreateRequest`. */
@@ -584,6 +603,16 @@ export interface MedicineUpdateRequest {
   manufacturer?: string | null;
   /** max 2000 chars. */
   description?: string | null;
+  /** max 128 chars. `null` clears the stored default. */
+  default_dosage?: string | null;
+  /** max 64 chars. `null` clears the stored default. */
+  default_frequency?: string | null;
+  /** Integer 1..365. `null` clears the stored default. */
+  default_duration_days?: number | null;
+  /** `null` clears the stored default. */
+  default_food_timing?: 'before' | 'after' | 'with' | null;
+  /** max 1000 chars. `null` clears the stored default. */
+  default_instructions?: string | null;
   /** Also togglable via the dedicated deactivate/reactivate endpoints. */
   is_active?: boolean | null;
 }
@@ -1306,4 +1335,34 @@ export interface TranscriptionResponse {
   chunks: TranscriptChunkResponse[];
   language_code?: string | null;
   duration_seconds?: number | null;
+}
+
+
+/** `AdvicePresetResponse` — one line of the doctor's advice library. */
+export interface AdvicePresetResponse {
+  id: UUID;
+  label: string;
+  /** The condition it belongs to, e.g. `Knee pain`. Null means general. */
+  category: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: DateTimeString;
+  updated_at: DateTimeString;
+}
+
+/** Body of `POST /advice-presets`. [admin] */
+export interface AdvicePresetCreate {
+  /** 1..256 */
+  label: string;
+  /** <=64 */
+  category?: string | null;
+  sort_order?: number;
+}
+
+/** Body of `PATCH /advice-presets/{id}`. [admin] */
+export interface AdvicePresetUpdate {
+  label?: string;
+  category?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
 }

@@ -16,9 +16,11 @@ interface SettingsTab {
 const TABS: readonly SettingsTab[] = [
   { to: '/settings', label: 'Clinic', end: true },
   { to: '/settings/account', label: 'Your account' },
+  { to: '/settings/advice', label: 'Advice library', requires: 'medicines.write' },
   { to: '/settings/users', label: 'Users', requires: 'users.manage' },
   { to: '/settings/audit', label: 'Audit log', requires: 'audit.read' },
   { to: '/settings/site', label: 'Public site', requires: 'portfolio.manage' },
+  { to: '/appointments?hours=1', label: 'Clinic hours' },
 ]
 
 /**
@@ -27,7 +29,7 @@ const TABS: readonly SettingsTab[] = [
  * still work — so they are listed here as links out rather than as tabs that
  * pretend to be settings pages. The arrow says they leave this layout.
  */
-const OUTSIDE_TABS = new Set(['/dashboard', '/appointments'])
+const OUTSIDE_TABS = new Set(['/dashboard', '/appointments', '/appointments?hours=1'])
 
 const TAB_CLASS =
   '-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-body font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus'

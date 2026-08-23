@@ -65,6 +65,11 @@ const UsersScreen = lazy(() =>
 const AuditLogScreen = lazy(() =>
   import('@/features/audit/AuditLogScreen').then((m) => ({ default: m.AuditLogScreen })),
 )
+const AdviceLibraryScreen = lazy(() =>
+  import('@/features/advice/AdviceLibraryScreen').then((m) => ({
+    default: m.AdviceLibraryScreen,
+  })),
+)
 const SiteCmsScreen = lazy(() =>
   import('@/features/portfolio/SiteCmsScreen').then((m) => ({ default: m.SiteCmsScreen })),
 )
@@ -154,6 +159,12 @@ export const router = createBrowserRouter([
                     children: [
                       { index: true, element: <ClinicSettingsScreen /> },
                       { path: 'account', element: <AccountScreen /> },
+                      {
+                        /* The advice library is formulary-adjacent: the same
+                           admin who curates medicines curates advice. */
+                        element: <RequireCapability capability="medicines.write" />,
+                        children: [{ path: 'advice', element: <AdviceLibraryScreen /> }],
+                      },
                       {
                         element: <RequireCapability capability="users.manage" />,
                         children: [{ path: 'users', element: <UsersScreen /> }],

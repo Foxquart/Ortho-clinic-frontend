@@ -55,6 +55,7 @@ import {
 } from './api'
 import { AllergyBanner } from './AllergyDisplay'
 import { PatientFormSheet } from './PatientFormSheet'
+import { hasMeasurements, readVitals } from './vitals'
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   scheduled: 'info',
@@ -83,6 +84,33 @@ function Fact({
     <div className="min-w-0">
       <dt className="text-caption text-text-subtle">{label}</dt>
       <dd className="mt-0.5 truncate text-body text-text">{children}</dd>
+    </div>
+  )
+}
+
+/** One vital on the card: label above, value with its unit beside it. */
+function VitalFact({
+  label,
+  value,
+  unit,
+}: {
+  label: string
+  value: string | number | undefined
+  unit: string
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-caption text-text-subtle">{label}</dt>
+      <dd className="mt-0.5 text-body font-medium text-text" data-numeric>
+        {value === undefined ? (
+          <span className="font-normal text-text-subtle">—</span>
+        ) : (
+          <>
+            {value}
+            <span className="ml-1 text-caption font-normal text-text-subtle">{unit}</span>
+          </>
+        )}
+      </dd>
     </div>
   )
 }
@@ -181,6 +209,8 @@ export function PatientDetailScreen() {
   const name = patient ? fullName(patient.first_name, patient.last_name) : ''
   const age = patientAge(patient?.date_of_birth)
   const allergyCount = cleanAllergies(patient?.allergies).length
+  const vitals = readVitals(patient?.medical_history)
+  const vitalsRecorded = hasMeasurements(vitals)
 
   function setActive(isActive: boolean) {
     update.mutate(
@@ -243,7 +273,15 @@ export function PatientDetailScreen() {
                 <span aria-hidden className="text-text-subtle">
                   ·
                 </span>
-                <span>{patient.gender ? humanizeEnum(patient.gender) : 'Gender not recorded'}</span>
+                <span>{patient.gender ? humanizeEnum(patient.gender) : 'Sex not recorded'}</span>
+                {patient.blood_group && (
+                  <>
+                    <span aria-hidden className="text-text-subtle">
+                      ·
+                    </span>
+                    <span>{patient.blood_group}</span>
+                  </>
+                )}
                 <span aria-hidden className="text-text-subtle">
                   ·
                 </span>
@@ -381,6 +419,60 @@ export function PatientDetailScreen() {
         </Card>
 
         <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader
+              title="Vitals"
+              action={
+                vitalsRecorded &&
+                canWrite && (
+                  <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
+                    Edit
+                  </Button>
+                )
+              }
+            />
+            {summary.isPending ? (
+              <CardBody>
+                <div className="flex flex-col gap-3">
+                  {Array.from({ length: 2 }, (_, i) => (
+                    <Skeleton key={i} className="h-3 w-full" />
+                  ))}
+                </div>
+              </CardBody>
+            ) : !vitalsRecorded ? (
+              <CardBody className="flex items-center justify-between gap-3">
+                <p className="text-body text-text-muted">No vitals recorded yet</p>
+                {canWrite && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconLeft={<Pencil className="size-4" />}
+                    onClick={() => setEditOpen(true)}
+                  >
+                    Edit
+                  </Button>
+                )}
+              </CardBody>
+            ) : (
+              <CardBody>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <VitalFact label="Blood pressure" value={vitals.bp} unit="mmHg" />
+                  <VitalFact label="Weight" value={vitals.weight_kg} unit="kg" />
+                  <VitalFact label="SpO2" value={vitals.spo2} unit="%" />
+                  <VitalFact label="Pulse" value={vitals.pulse_bpm} unit="bpm" />
+                </dl>
+                {vitals.recorded_at && (
+                  <p
+                    className="mt-3 border-t border-border pt-3 text-caption text-text-subtle"
+                    data-numeric
+                  >
+                    recorded {formatDate(vitals.recorded_at)}
+                  </p>
+                )}
+              </CardBody>
+            )}
+          </Card>
+
           <Card>
             <CardHeader title="Details" />
             <CardBody>

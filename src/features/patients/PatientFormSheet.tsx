@@ -29,6 +29,14 @@ import { Field, Input, Textarea } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Controls'
 import { conflictingPatientId, useCreatePatient, useUpdatePatient } from './api'
 import { TagInput } from './TagInput'
+import {
+  hasMeasurements,
+  readVitals,
+  sameMeasurements,
+  writeVitals,
+  type Vitals,
+  type VitalsMeasurements,
+} from './vitals'
 
 /* -------------------------------------------------------------------------- */
 /* Schema — every bound below is transcribed from the OpenAPI document        */
@@ -63,6 +71,33 @@ const schema = z.object({
   address: z.string().trim().max(512, 'Use 512 characters or fewer'),
   blood_group: z.string().trim().max(8, 'Use 8 characters or fewer'),
   allergies: z.array(z.string().trim().min(1)),
+  // Vitals are kept as strings in the form and converted on submit, so a
+  // half-typed number never fights the keyboard. All optional.
+  vitals_bp: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || /^\d{2,3}\s*\/\s*\d{2,3}$/.test(v), 'Systolic/diastolic, like 120/80'),
+  vitals_weight: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === '' || (/^\d{1,3}(\.\d)?$/.test(v) && Number(v) >= 1 && Number(v) <= 300),
+      'Between 1 and 300 kg, one decimal at most',
+    ),
+  vitals_spo2: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === '' || (/^\d{2,3}$/.test(v) && Number(v) >= 70 && Number(v) <= 100),
+      'A whole number from 70 to 100',
+    ),
+  vitals_pulse: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === '' || (/^\d{2,3}$/.test(v) && Number(v) >= 30 && Number(v) <= 250),
+      'A whole number from 30 to 250',
+    ),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -98,10 +133,44 @@ const BLANK: FormValues = {
   address: '',
   blood_group: '',
   allergies: [],
+  vitals_bp: '',
+  vitals_weight: '',
+  vitals_spo2: '',
+  vitals_pulse: '',
 }
 
-/** Every optional field goes to the API as `null` when empty, never as `""`. */
-function toPayload(values: FormValues): PatientCreateRequest {
+/** The form's vitals strings, as the numbers/normalised text that get stored. */
+function measurementsFromValues(values: FormValues): VitalsMeasurements {
+  const out: VitalsMeasurements = {}
+  if (values.vitals_bp) out.bp = values.vitals_bp.replace(/\s+/g, '')
+  if (values.vitals_weight) out.weight_kg = Number(values.vitals_weight)
+  if (values.vitals_spo2) out.spo2 = Number(values.vitals_spo2)
+  if (values.vitals_pulse) out.pulse_bpm = Number(values.vitals_pulse)
+  return out
+}
+
+/**
+ * Every optional field goes to the API as `null` when empty, never as `""`.
+ *
+ * `medical_history` is rebuilt from the record being edited so that every key
+ * it already holds survives; only the namespaced `vitals` block is replaced.
+ * `recorded_at` moves to today only when a measurement was entered or changed —
+ * re-saving untouched vitals keeps the date they were actually taken.
+ */
+function toPayload(values: FormValues, existing?: PatientResponse): PatientCreateRequest {
+  const history = existing?.medical_history ?? null
+  const prior = readVitals(history)
+  const next = measurementsFromValues(values)
+
+  const vitals: Vitals = hasMeasurements(next)
+    ? {
+        ...next,
+        recorded_at: sameMeasurements(next, prior)
+          ? (prior.recorded_at ?? todayIso())
+          : todayIso(),
+      }
+    : {}
+
   return {
     first_name: values.first_name,
     last_name: values.last_name,
@@ -113,10 +182,12 @@ function toPayload(values: FormValues): PatientCreateRequest {
     city: values.city || null,
     blood_group: values.blood_group || null,
     allergies: values.allergies,
+    medical_history: writeVitals(history, vitals),
   }
 }
 
 function fromPatient(patient: PatientResponse): FormValues {
+  const vitals = readVitals(patient.medical_history)
   return {
     first_name: patient.first_name,
     last_name: patient.last_name,
@@ -128,6 +199,10 @@ function fromPatient(patient: PatientResponse): FormValues {
     address: patient.address ?? '',
     blood_group: patient.blood_group ?? '',
     allergies: Array.isArray(patient.allergies) ? patient.allergies : [],
+    vitals_bp: vitals.bp ?? '',
+    vitals_weight: vitals.weight_kg !== undefined ? String(vitals.weight_kg) : '',
+    vitals_spo2: vitals.spo2 !== undefined ? String(vitals.spo2) : '',
+    vitals_pulse: vitals.pulse_bpm !== undefined ? String(vitals.pulse_bpm) : '',
   }
 }
 
@@ -241,7 +316,7 @@ export function PatientFormSheet({
 
   function onSubmit(values: FormValues) {
     setDuplicateId(null)
-    const payload = toPayload(values)
+    const payload = toPayload(values, patient)
     const handlers = {
       onSuccess: (saved: PatientResponse) => {
         toast.success(editing ? 'Patient updated' : `${saved.first_name} ${saved.last_name} added`)
@@ -364,7 +439,8 @@ export function PatientFormSheet({
               )}
             </Field>
 
-            <Field label="Gender" error={errors.gender?.message} optionalLabel>
+            {/* Visible label is "Sex"; the API field stays `gender`. */}
+            <Field label="Sex" error={errors.gender?.message} optionalLabel>
               {(a) => (
                 <Controller
                   control={control}
@@ -433,6 +509,83 @@ export function PatientFormSheet({
               <Input {...a} {...register('email')} type="email" maxLength={255} autoComplete="email" />
             )}
           </Field>
+
+          {/* Vitals — stored under medical_history.vitals, see ./vitals.ts.
+              Large inputs on purpose: these are typed mid-consultation. */}
+          <section className="mt-1 flex flex-col gap-4 border-t border-border pt-4">
+            <div>
+              <h3 className="text-heading font-semibold text-text">Vitals</h3>
+              <p className="mt-0.5 text-caption text-text-muted">
+                All optional. The recorded date updates whenever a value is entered or changed.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Blood pressure" error={errors.vitals_bp?.message} optionalLabel>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_bp')}
+                    inputSize="lg"
+                    placeholder="120/80"
+                    maxLength={9}
+                    data-numeric
+                    className="pr-16"
+                    slotRight={<span className="text-caption">mmHg</span>}
+                  />
+                )}
+              </Field>
+
+              <Field label="Weight" error={errors.vitals_weight?.message} optionalLabel>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_weight')}
+                    inputSize="lg"
+                    inputMode="decimal"
+                    placeholder="72.5"
+                    maxLength={5}
+                    data-numeric
+                    className="pr-10"
+                    slotRight={<span className="text-caption">kg</span>}
+                  />
+                )}
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="SpO2" error={errors.vitals_spo2?.message} optionalLabel>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_spo2')}
+                    inputSize="lg"
+                    inputMode="numeric"
+                    placeholder="98"
+                    maxLength={3}
+                    data-numeric
+                    slotRight={<span className="text-caption">%</span>}
+                  />
+                )}
+              </Field>
+
+              <Field label="Pulse" error={errors.vitals_pulse?.message} optionalLabel>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_pulse')}
+                    inputSize="lg"
+                    inputMode="numeric"
+                    placeholder="76"
+                    maxLength={3}
+                    data-numeric
+                    className="pr-12"
+                    slotRight={<span className="text-caption">bpm</span>}
+                  />
+                )}
+              </Field>
+            </div>
+          </section>
         </form>
       </SheetContent>
     </DialogRoot>

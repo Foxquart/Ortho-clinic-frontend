@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ArrowUpRight,
   CalendarClock,
+  Clock,
   CalendarDays,
   FileText,
   Pill,
@@ -114,11 +115,18 @@ export function DashboardScreen() {
         title={firstName ? `${greeting}, ${firstName}` : greeting}
         description="Today at a glance."
         actions={
-          can('prescriptions.write') && (
-            <Button variant="primary" asChild iconLeft={<Plus className="size-4" />}>
-              <Link to="/prescriptions/new">New prescription</Link>
+          <>
+            {/* The hours behind the public booking page live one click away,
+                because "which days am I available" should never need hunting. */}
+            <Button variant="primary" asChild iconLeft={<Clock className="size-4" />}>
+              <Link to="/appointments?hours=1">Set clinic hours</Link>
             </Button>
-          )
+            {can('prescriptions.write') && (
+              <Button variant="primary" asChild iconLeft={<Plus className="size-4" />}>
+                <Link to="/prescriptions/new">New prescription</Link>
+              </Button>
+            )}
+          </>
         }
       />
 

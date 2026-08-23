@@ -56,6 +56,19 @@ function Cell({ value }: { value: string | null }) {
   )
 }
 
+/**
+ * The prescription defaults in one glance: "1 tab · 1-0-1 · 5d · after".
+ * Null when the medicine carries no defaults at all.
+ */
+function defaultsSummary(medicine: MedicineResponse): string | null {
+  const parts: string[] = []
+  if (medicine.default_dosage) parts.push(medicine.default_dosage)
+  if (medicine.default_frequency) parts.push(medicine.default_frequency)
+  if (medicine.default_duration_days != null) parts.push(`${medicine.default_duration_days}d`)
+  if (medicine.default_food_timing) parts.push(medicine.default_food_timing)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 function prefersReducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 }
@@ -117,6 +130,17 @@ function MedicineRow({
       </TD>
       <TD className="hidden lg:table-cell">
         <Cell value={medicine.category} />
+      </TD>
+      {/* What the pad will pre-fill for this medicine. Compact and mono so the
+          eye can scan the column like a prescription line. */}
+      <TD className="hidden xl:table-cell">
+        {defaultsSummary(medicine) ? (
+          <span className="text-caption text-text-muted font-mono whitespace-nowrap">
+            {defaultsSummary(medicine)}
+          </span>
+        ) : (
+          <Cell value={null} />
+        )}
       </TD>
       {/* 2xl, not xl: with fully labelled row actions the manufacturer column
           only fits once the card reaches its full 1152px. */}
@@ -292,7 +316,7 @@ export function MedicinesScreen() {
     setStatus('all')
   }, [])
 
-  const columnCount = canWrite ? 7 : 6
+  const columnCount = canWrite ? 8 : 7
   const searching = debouncedQuery.length > 0
   const showSummary = searching || filtering || view.truncated
 
@@ -417,6 +441,7 @@ export function MedicinesScreen() {
               <TH width="7rem">Form</TH>
               <TH width="7rem">Strength</TH>
               <TH className="hidden lg:table-cell">Category</TH>
+              <TH className="hidden xl:table-cell">Defaults</TH>
               <TH className="hidden 2xl:table-cell">Manufacturer</TH>
               {canWrite && (
                 <TH align="right">
@@ -442,6 +467,9 @@ export function MedicinesScreen() {
                       </TD>
                       <TD className="hidden lg:table-cell">
                         <Skeleton className="h-3 w-20" />
+                      </TD>
+                      <TD className="hidden xl:table-cell">
+                        <Skeleton className="h-3 w-28" />
                       </TD>
                       <TD className="hidden 2xl:table-cell">
                         <Skeleton className="h-3 w-24" />

@@ -199,8 +199,8 @@ export function PrescriptionDetailScreen() {
         </div>
 
         <div className="grid gap-4 px-4 py-3 sm:grid-cols-2">
-          <Meta label="Diagnosis" value={rx.diagnosis} />
           <Meta label="Chief complaint" value={rx.chief_complaint} />
+          <Meta label="Diagnosis" value={rx.diagnosis} />
         </div>
 
         <div className="border-border border-t">

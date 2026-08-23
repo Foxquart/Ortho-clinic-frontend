@@ -1,29 +1,36 @@
 /**
- * Footer — the quiet base of the landing page.
+ * Footer — the quiet base of the landing page, and the page's NAP block.
  *
- * A serif wordmark with the smile monogram, a one-line note, in-page
- * navigation (the same smooth-scroll targets used across the page), a contact
- * column, and the one discreet door back to the product: a real router `Link`
- * to the staff sign-in. Everything reads from the public clinic settings with
- * calm fallbacks, so the footer is never blank.
+ * Name, address and phone in plain text, matching the Google Business Profile
+ * character for character. That matching is the whole job: Google reconciles a
+ * practice from agreeing name-address-phone triples across the web, and right
+ * now his listings agree on neither the clinic's name nor his own. This footer
+ * is the reference copy every directory entry should be corrected against —
+ * which is why the address is rendered as a real `<address>` element rather
+ * than as decorative text.
+ *
+ * Everything reads from the public clinic settings with the static values in
+ * `profile.ts` as the fallback, so the footer is never blank and the address is
+ * legible to a crawler that does not wait for the API.
  */
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
+import { Monogram } from '@/features/landing/LandingNav'
 import { ScrollButton } from '@/features/landing/primitives'
-import { usePublicClinic } from '@/features/public/usePublicData'
+import { CLINIC, DOCTOR, PRESENCE } from '@/features/landing/profile'
 
 const NAV_LINKS: { target: string; label: string }[] = [
-  { target: 'events', label: 'Events' },
+  { target: 'record', label: 'The record' },
   { target: 'life', label: 'Life' },
-  { target: 'about', label: 'About' },
-  { target: 'visit', label: 'Visit' },
+  { target: 'reviews', label: 'Reviews' },
   { target: 'book', label: 'Book' },
 ]
 
 export function LandingFooter() {
-  const clinic = usePublicClinic()
-  const clinicName = clinic.data?.clinic_name ?? 'Dr. Arjun Mehta'
-  const address = [clinic.data?.address, clinic.data?.city].filter(Boolean).join(', ')
+  /* Static, not from the CMS. A NAP block only works if it matches the Google
+     Business Profile character for character, so it is version-controlled and
+     reviewed rather than whatever the clinic-settings record currently says. */
+  const addressLines = [CLINIC.street, `${CLINIC.city}, ${CLINIC.state} ${CLINIC.postalCode}`]
 
   return (
     <footer className="border-t border-border">
@@ -31,26 +38,22 @@ export function LandingFooter() {
         {/* Wordmark + note */}
         <div className="max-w-sm">
           <div className="flex items-center gap-2.5">
-            <span
-              aria-hidden
-              className="grid size-8 place-items-center rounded-full border-[1.5px] border-[color:var(--lp-accent-line)] text-[color:var(--lp-accent)]"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                className="size-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path d="M7 13c1.4 2.6 3 4 5 4s3.6-1.4 5-4" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span className="lp-serif text-2xl leading-none text-text">{clinicName}</span>
+            <Monogram />
+            <span className="lp-serif text-2xl leading-none text-text">{DOCTOR.shortName}</span>
           </div>
           <p className="mt-4 text-body leading-relaxed text-text-muted">
-            Orthodontist, speaker, cyclist. This page is mostly about the last
-            two; the clinic is one click away when you need it.
+            {DOCTOR.specialty} in {DOCTOR.city}. Bones, joints, and the long
+            unglamorous business of getting people walking again.
           </p>
+          <a
+            href={PRESENCE.doordarshan}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex items-center gap-1.5 text-label font-medium text-text-subtle transition-colors duration-fast hover:text-text"
+          >
+            An hour on arthritis, Doordarshan Tripura
+            <ArrowRight aria-hidden className="size-3.5" />
+          </a>
         </div>
 
         {/* In-page navigation */}
@@ -68,25 +71,25 @@ export function LandingFooter() {
           ))}
         </nav>
 
-        {/* Contact + the one door back to the product */}
+        {/* The NAP block, and the one door back to the product */}
         <div className="flex flex-col gap-2 text-body text-text-muted">
-          {clinic.data?.phone && (
+          <span className="text-text font-medium">{CLINIC.name}</span>
+          <address className="not-italic leading-relaxed">
+            {addressLines.map((line) => (
+              <span key={line} className="block">
+                {line}
+              </span>
+            ))}
+          </address>
+          {CLINIC.phone && (
             <a
-              href={`tel:${clinic.data.phone.replace(/\s+/g, '')}`}
+              href={`tel:${CLINIC.phone.replace(/\s+/g, '')}`}
               className="transition-colors duration-fast hover:text-text"
             >
-              {clinic.data.phone}
+              {CLINIC.phone}
             </a>
           )}
-          {clinic.data?.email && (
-            <a
-              href={`mailto:${clinic.data.email}`}
-              className="transition-colors duration-fast hover:text-text"
-            >
-              {clinic.data.email}
-            </a>
-          )}
-          {address && <span>{address}</span>}
+          <span className="text-text-subtle">{CLINIC.hours}</span>
           <Link
             to="/login"
             className="mt-2 inline-flex w-fit items-center gap-1.5 text-label font-medium text-text-subtle transition-colors duration-fast hover:text-text"
@@ -100,7 +103,8 @@ export function LandingFooter() {
       {/* Bottom bar */}
       <div className="border-t border-border">
         <p className="mx-auto max-w-content px-5 py-5 text-caption text-text-subtle sm:px-8">
-          © {clinicName}. For medical emergencies, call your nearest hospital.
+          © {DOCTOR.name}, {DOCTOR.city}. This site is not for emergencies — for
+          urgent injuries, go to your nearest hospital.
         </p>
       </div>
     </footer>

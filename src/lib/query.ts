@@ -88,6 +88,10 @@ export const qk = {
     testimonials: () => ['portfolio', 'testimonials'] as const,
     gallery: () => ['portfolio', 'gallery'] as const,
   },
+  advicePresets: {
+    all: () => ['advice-presets'] as const,
+    list: (includeInactive: boolean) => ['advice-presets', { includeInactive }] as const,
+  },
   speech: {
     config: () => ['speech', 'config'] as const,
   },

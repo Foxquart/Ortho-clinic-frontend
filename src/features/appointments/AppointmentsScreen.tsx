@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { addDays, startOfWeek } from 'date-fns'
 import { toast } from 'sonner'
 import { CalendarDays, ChevronLeft, ChevronRight, Columns3, Plus, Settings2 } from 'lucide-react'
@@ -80,7 +81,11 @@ export function AppointmentsScreen() {
   const [view, setView] = useState<ViewMode>('day')
   const [date, setDate] = useState<string>(() => todayIso())
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'all'>('all')
-  const [hoursOpen, setHoursOpen] = useState(false)
+  // `?hours=1` deep-links straight into the weekly-hours editor, so "set my
+  // available days" is one click from the dashboard and Settings instead of a
+  // control the doctor has to know to look for on this screen.
+  const [searchParams] = useSearchParams()
+  const [hoursOpen, setHoursOpen] = useState(() => searchParams.get('hours') === '1')
   const [bookingOpen, setBookingOpen] = useState(false)
   const [bookingRequest, setBookingRequest] = useState<{
     date: string
@@ -172,8 +177,7 @@ export function AppointmentsScreen() {
         actions={
           <>
             <Button
-              variant="ghost"
-              size="sm"
+              variant="tonal"
               iconLeft={<Settings2 className="size-4" />}
               onClick={() => setHoursOpen(true)}
             >

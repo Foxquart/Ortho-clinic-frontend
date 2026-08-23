@@ -93,6 +93,7 @@
   --c-accent-hover: #147a72;
   --c-accent-fg: #ffffff; /* ink ON a solid accent fill  7.8:1 (5.2:1 on hover) */
   --c-accent-muted: #e1f0ea; /* accent tint background */
+  --c-accent-muted-hover: #cfe6dc; /* tonal button hover: one step deeper, ink stays 8.6:1 */
   --c-accent-muted-fg: #0a443f; /* ink ON the accent tint      9.3:1 */
 
   /* The ring. `index.css` draws it at `outline-offset: 2px`, so the colour it
@@ -254,6 +255,7 @@
   --c-accent-hover: #b4b8ff;
   --c-accent-fg: #131538; /* dark ink on a light fill — the fill is the light */
   --c-accent-muted: #1c1f3f;
+  --c-accent-muted-hover: #262a52; /* tonal hover step for dark */
   --c-accent-muted-fg: #b9bdff;
 
   --c-focus: #9ba1ff;
@@ -350,6 +352,7 @@
     --c-accent-hover: #b4b8ff;
     --c-accent-fg: #131538; /* dark ink on a light fill — the fill is the light */
     --c-accent-muted: #1c1f3f;
+  --c-accent-muted-hover: #262a52; /* tonal hover step for dark */
     --c-accent-muted-fg: #b9bdff;
 
     --c-focus: #9ba1ff;
@@ -450,6 +453,7 @@
   --color-accent-hover: var(--c-accent-hover);
   --color-accent-fg: var(--c-accent-fg);
   --color-accent-muted: var(--c-accent-muted);
+  --color-accent-muted-hover: var(--c-accent-muted-hover);
   --color-accent-muted-fg: var(--c-accent-muted-fg);
 
   --color-focus: var(--c-focus);

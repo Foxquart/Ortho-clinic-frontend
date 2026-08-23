@@ -572,6 +572,35 @@ export function BookingSection(): JSX.Element {
                     </Button>
                   </div>
 
+                  {/* What kind of visit this is. The choice prefixes the note
+                      sent to the clinic and retunes the reason field's copy. */}
+                  <fieldset className="flex flex-col gap-2">
+                    <legend className="text-label text-text-muted mb-1 font-medium">
+                      What is this visit about?
+                    </legend>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {PURPOSES.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setPurpose(p.id)}
+                          aria-pressed={purpose === p.id}
+                          className={
+                            'rounded-lg border px-3 py-2.5 text-left transition-colors duration-fast ' +
+                            (purpose === p.id
+                              ? 'border-[color:var(--lp-accent)] bg-[color:var(--lp-accent-tint)]'
+                              : 'border-border bg-surface hover:border-border-strong')
+                          }
+                        >
+                          <span className="text-label text-text block font-semibold">{p.title}</span>
+                          <span className="text-caption text-text-subtle mt-0.5 block">
+                            {p.detail}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+
                   <div className="flex flex-col gap-1">
                     <h3 className="text-heading text-text">Your details</h3>
                     <p className="text-body text-text-muted">
@@ -637,9 +666,9 @@ export function BookingSection(): JSX.Element {
                     </Field>
 
                     <Field
-                      label="What would you like to be seen for?"
+                      label={REASON_COPY[purpose].label}
                       optionalLabel
-                      hint="A short note helps the clinic prepare. For example: knee pain for three weeks."
+                      hint={REASON_COPY[purpose].hint}
                       error={form.formState.errors.reason?.message}
                     >
                       {(a) => (

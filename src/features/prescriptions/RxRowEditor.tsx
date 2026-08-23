@@ -15,6 +15,7 @@ import type { MedicineResponse, Page_MedicineResponse_ } from '@/api/schema'
 import { FieldLabel, ProvenanceField } from './Provenance'
 import { RxFieldStateMic } from './RxMic'
 import { normaliseMedicineName } from './dictation'
+import { applyMedicineDefaults } from './medicineDefaults'
 import { isUnmatched, provenanceControlClass, rowFieldId, type RowMeta } from './padState'
 import { entered, rowIssues, suggestQuantity, type RxRow } from './model'
 
@@ -145,8 +146,10 @@ export function RxRowEditor({
 
   const patch = (next: Partial<RxRow>) => onChange({ ...row, ...next })
 
-  const choose = (medicine: MedicineResponse) =>
-    patch({ medicineId: medicine.id, medicineName: medicine.name })
+  // Selecting a medicine also pulls in its prescription defaults: blank
+  // fields fill as `defaulted` ("Carried over"), touched fields are never
+  // overwritten, and a swap clears the previous medicine's defaults first.
+  const choose = (medicine: MedicineResponse) => onChange(applyMedicineDefaults(row, medicine))
 
   const dosageId = rowFieldId.dosage(row.key)
   const frequencyId = rowFieldId.frequency(row.key)
@@ -162,6 +165,12 @@ export function RxRowEditor({
   useEffect(() => {
     if (errors[quantityId] || errors[rowFieldId.food(row.key)]) setShowMore(true)
   }, [errors, quantityId, row.key])
+  // A value landing in the folded section after mount — a medicine default
+  // filling the food timing, a dictation update — unfolds it, for the same
+  // reason as above: a filled-in value must never sit hidden.
+  useEffect(() => {
+    if (row.quantity.value !== null || row.food !== null) setShowMore(true)
+  }, [row.quantity.value, row.food])
 
   return (
     <li
@@ -297,21 +306,24 @@ export function RxRowEditor({
               >
                 Days
               </FieldLabel>
-              <Input
-                id={rowFieldId.days(row.key)}
-                type="number"
-                min={1}
-                max={3650}
-                inputMode="numeric"
-                value={row.durationDays.value ?? ''}
-                placeholder="—"
-                invalid={Boolean(errors[rowFieldId.days(row.key)])}
-                onChange={(e) =>
-                  patch({
-                    durationDays: entered(e.target.value === '' ? null : Number(e.target.value)),
-                  })
-                }
-              />
+              <ProvenanceField provenance={row.durationDays.provenance}>
+                <Input
+                  id={rowFieldId.days(row.key)}
+                  type="number"
+                  min={1}
+                  max={3650}
+                  inputMode="numeric"
+                  value={row.durationDays.value ?? ''}
+                  placeholder="—"
+                  invalid={Boolean(errors[rowFieldId.days(row.key)])}
+                  className={provenanceControlClass(row.durationDays.provenance)}
+                  onChange={(e) =>
+                    patch({
+                      durationDays: entered(e.target.value === '' ? null : Number(e.target.value)),
+                    })
+                  }
+                />
+              </ProvenanceField>
             </div>
           </div>
 

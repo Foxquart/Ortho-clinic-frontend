@@ -838,3 +838,25 @@ sidebar, topbar, action bars, toasts. `index.css` handles the rest.
 - `text-*` on a colour token means *ink*; `text-*` on a size token means *type*.
   `text-danger` is a colour, `text-body` is a size. They coexist because the
   names never collide — keep it that way when adding tokens.
+
+---
+
+## The emphasis ladder (buttons and attention)
+
+Added 2026-08-15 after the doctor could not find "Add medicine" among a row of
+identical outlines. Emphasis is a LADDER, not a binary; every action sits on
+exactly one rung, and no two adjacent elements may occupy the same rung for
+different jobs.
+
+| Rung | Variant | When |
+|---|---|---|
+| 1 | `primary` (solid teal) | THE action of the view. One per view. On the pad that is "Save & print" and nothing else. |
+| 2 | `tonal` (teal tint fill, `bg-accent-muted` + `text-accent-muted-fg`) | Important-but-not-the-action: "Add medicine", "Continue previous", "Add advice" on its own screen when a stronger primary exists. Findable at a glance without competing with rung 1. |
+| 3 | `secondary` (neutral outline) | Ordinary actions: Cancel, Change, Edit. |
+| 4 | `ghost` / `subtle` | Actions that must exist but not attract: Discard, per-row utilities, disclosure toggles. |
+
+Text carries the same idea in three ink levels, and they must be used as levels,
+not interchangeably: `text-text` (the data), `text-text-muted` (explanation),
+`text-text-subtle` (metadata, hints, legends). If a caption reads as loud as the
+value beside it, the hierarchy is broken — fix the weight or the ink, never by
+adding decoration.

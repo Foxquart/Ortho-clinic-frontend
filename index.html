@@ -5,7 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <title>OrthoClinic</title>
+    <!-- Static floor only. The live head is composed in src/features/landing/
+         SeoHead.tsx once React mounts; these two lines are what a crawler that
+         never runs the bundle reads, so they must stay correct by hand. -->
+    <title>Dr. Sankar Deb Roy — Orthopaedic Surgeon in Agartala, Tripura</title>
+    <meta
+      name="description"
+      content="Dr. Sankar Deb Roy (also written Sankar Debroy) is an orthopaedic surgeon in Agartala, Tripura — MS Orthopaedics, 22 years in practice, AGMC &amp; GBP Hospital. Consultations in Bengali, Hindi and English."
+    />
     <script>
       // Resolve the theme before first paint so there is never a wrong-theme
       // flash. Mirrors the contract in src/styles/theme.css: an explicit choice

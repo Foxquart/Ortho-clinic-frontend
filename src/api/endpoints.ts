@@ -300,6 +300,21 @@ export const endpoints = {
     upload: '/uploads',
   },
 
+  /**
+   * Tag `advice-presets` — the doctor's reusable advice library, rendered as
+   * grouped checkboxes on the pad. Reads: any signed-in user. Writes: admin.
+   * NOTE: ships ahead of the backend deploy; a 404 here means the backend
+   * does not have the library yet and the UI hides the section.
+   */
+  advicePresets: {
+    /** GET -> `AdvicePresetResponse[]` (`?include_inactive=true` for admin UIs). */
+    list: '/advice-presets',
+    /** POST `AdvicePresetCreate` -> `AdvicePresetResponse`. [WRITE: needs CSRF, admin] */
+    create: '/advice-presets',
+    /** PATCH `AdvicePresetUpdate` / DELETE -> `MessageResponse`. [WRITE, admin] */
+    byId: (id: UUID) => `/advice-presets/${id}`,
+  },
+
   /** Tag `speech`. Requires a session — `GET /speech/config` returns 401 when signed out. */
   speech: {
     /** GET -> `SpeechConfigResponse`. Read `websocket_path` from the response for streaming; it is not a REST path in the document. */

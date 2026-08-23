@@ -90,6 +90,41 @@
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
+/* The display size for a headline that shares its row with something else.
+   `.lp-display` is tuned for three short words across the full measure; the
+   hero now runs a name, a specialty and a city down one half of a split, and
+   at 7.5rem that pushes the portrait clean off the first screen. */
+.lp-display-split {
+  font-size: clamp(2.6rem, 5.2vw, 4.6rem);
+  line-height: 0.98;
+}
+
+/* Marquee — a single track duplicated once, translated -50%. The wrapper
+   masks the ends so cards fade rather than clip. With reduced motion the
+   animation never starts and the track becomes an ordinary scroll region,
+   which is also the no-JS behaviour. */
+.lp-marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6rem, #000 calc(100% - 6rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6rem, #000 calc(100% - 6rem), transparent);
+}
+.lp-marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 1rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-marquee {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .lp-marquee-track > * {
+    scroll-snap-align: start;
+  }
+}
+
 .lp-h2 {
   font-family: 'Instrument Serif', 'Times New Roman', Georgia, serif;
   font-weight: 400;
