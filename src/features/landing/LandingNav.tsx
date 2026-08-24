@@ -143,7 +143,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
         <div className="ml-1 flex items-center gap-1.5">
           {isAuthenticated ? (
             <Link
-              to="/app"
+              to="/dashboard"
               className="text-label text-text-muted hover:text-text hidden min-h-11 items-center rounded-full px-3 font-medium transition-colors duration-fast sm:inline-flex"
             >
               Enter dashboard
@@ -244,7 +244,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
               <CtaArrow />
             </a>
             <Link
-              to={isAuthenticated ? '/app' : '/login'}
+              to={isAuthenticated ? '/dashboard' : '/login'}
               onClick={() => setOpen(false)}
               className="text-label text-text-muted inline-flex h-12 items-center justify-center rounded-full border border-border font-medium"
             >
