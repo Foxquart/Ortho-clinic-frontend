@@ -117,12 +117,22 @@ export function DashboardScreen() {
         actions={
           <>
             {/* The hours behind the public booking page live one click away,
-                because "which days am I available" should never need hunting. */}
-            <Button variant="primary" asChild iconLeft={<Clock className="size-4" />}>
+                because "which days am I available" should never need hunting —
+                but it is secondary, so it does not compete with the pad. */}
+            <Button variant="secondary" asChild iconLeft={<Clock className="size-4" />}>
               <Link to="/appointments?hours=1">Set clinic hours</Link>
             </Button>
+            {/* The one thing this app exists to do, and — since the rail no
+                longer carries a row for it — the only signposted way in. It is
+                the largest control on the screen on purpose. */}
             {can('prescriptions.write') && (
-              <Button variant="primary" asChild iconLeft={<Plus className="size-4" />}>
+              <Button
+                variant="primary"
+                size="lg"
+                asChild
+                iconLeft={<Plus className="size-5" />}
+                className="min-h-11 px-5 text-body font-semibold shadow-md"
+              >
                 <Link to="/prescriptions/new">New prescription</Link>
               </Button>
             )}

@@ -630,6 +630,11 @@
 
   --spacing: 0.25rem; /* 4px grid base — every gap is a multiple of this */
 
+  /* Height of the app shell's sticky top bar (AppShell.tsx). A token because
+     any screen that wants to be exactly one viewport tall has to subtract it,
+     and two hardcoded copies of the same number will drift. */
+  --app-header-h: 3rem;
+
   --row-height-compact: 1.75rem; /* 28px — formulary, audit log, dense picker */
   --row-height-base: 2rem; /* 32px — DEFAULT table row */
   --row-height-comfortable: 2.5rem; /* 40px — user opt-in */
@@ -752,22 +757,32 @@
 }
 
 /* `blank` is a BOX where the other two are rails, so it is identifiable by
-   silhouette alone. The hatch is what stops it reading as a disabled input:
-   a switched-off control is flat and dimmed, whereas this is full-contrast and
-   visibly striped — the visual language of "reserved, awaiting entry". It is
-   drawn at very low alpha so it never competes with the value that will
-   eventually land on top of it, and it is a `background-image`, so anything
-   setting `background-color` on the field still composites correctly. */
+   silhouette alone. The full-contrast dashed outline is what stops it reading
+   as a disabled input: a switched-off control is flat and dimmed, whereas this
+   is a crisp, deliberate outline — the visual language of "reserved, awaiting
+   entry". The fill stays transparent so it never competes with the value that
+   will eventually land on top of it, and so anything setting
+   `background-color` on the field still composites correctly. */
+/* Scroll without a visible scrollbar.
+
+   Used where a pane scrolls inside a fixed-height shell and the bar would draw
+   a hard rule down the middle of the layout. The region stays fully scrollable
+   by wheel, trackpad, touch, keyboard and programmatic scroll — only the
+   indicator is hidden, so nothing about reachability changes. `scrollbar-width`
+   covers Firefox and modern Chromium; the pseudo-element covers older WebKit. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
 @utility prov-blank {
   border: 1px dashed var(--color-provenance-blank);
   border-radius: var(--radius-sm);
   padding-left: calc(var(--spacing) * 2 - 1px);
   background-color: transparent;
-  background-image: repeating-linear-gradient(
-    -45deg,
-    color-mix(in oklab, var(--color-provenance-blank) 14%, transparent) 0 1px,
-    transparent 1px 6px
-  );
   color: var(--color-provenance-blank);
 }
 

@@ -13,7 +13,9 @@ import { Select } from '@/components/ui/Controls'
 import { Tooltip } from '@/components/ui/Menu'
 import type { MedicineResponse, Page_MedicineResponse_ } from '@/api/schema'
 import { FieldLabel, ProvenanceField } from './Provenance'
-import { RxFieldStateMic } from './RxMic'
+// Per-field mic icons hidden at user request. Import commented out with the
+// action={...} block below — restore both together.
+// import { RxFieldStateMic } from './RxMic'
 import { normaliseMedicineName } from './dictation'
 import { applyMedicineDefaults } from './medicineDefaults'
 import { isUnmatched, provenanceControlClass, rowFieldId, type RowMeta } from './padState'
@@ -368,14 +370,16 @@ export function RxRowEditor({
                 provenance={row.instructions.provenance}
                 hint="Anything the patient must know for this medicine, for example after food or with warm water. Printed with the medicine."
 
-                action={
-                  <RxFieldStateMic
-                    id={instructionsId}
-                    label={`Dictate instructions for ${row.medicineName || `medicine ${index + 1}`}`}
-                    field={row.instructions}
-                    onChange={(next) => patch({ instructions: next })}
-                  />
-                }
+                // Per-field mic icons hidden at user request. Uncomment this block
+                // and the RxFieldStateMic import above to restore it.
+                // action={
+                //   <RxFieldStateMic
+                //     id={instructionsId}
+                //     label={`Dictate instructions for ${row.medicineName || `medicine ${index + 1}`}`}
+                //     field={row.instructions}
+                //     onChange={(next) => patch({ instructions: next })}
+                //   />
+                // }
               >
                 Instructions
               </FieldLabel>

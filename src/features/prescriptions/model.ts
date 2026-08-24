@@ -349,6 +349,19 @@ export function patientIssues(patient: RxPatient): RowIssue[] {
  */
 export interface RxDraft {
   patient: RxPatient
+  /**
+   * Vitals as measured AT THIS VISIT, in the doctor's own order: BP, SpO2,
+   * heart rate, weight. Strings, not numbers — a blood pressure is written
+   * and read as `120/80`, and he may qualify it (`140/90 right arm`). Parsing
+   * it would only be able to lose information.
+   *
+   * FOLDED_INTO_NOTES until the API grows real columns — see `toApiRequest`
+   * and docs/BACKEND_HANDOVER.md §5.
+   */
+  vitalsBp: FieldState<string>
+  vitalsSpo2: FieldState<string>
+  vitalsPulse: FieldState<string>
+  vitalsWeight: FieldState<string>
   diagnosis: FieldState<string>
   chiefComplaint: FieldState<string>
   rows: RxRow[]
@@ -356,6 +369,10 @@ export interface RxDraft {
   /** No API field exists; appended to `notes` on submit under a heading. */
   investigations: FieldState<string>
   notes: FieldState<string>
+  /** FOLDED_INTO_NOTES — no API column yet. Routinely "NA" on his pad. */
+  procedure: FieldState<string>
+  /** FOLDED_INTO_NOTES — no API column yet. */
+  consult: FieldState<string>
   /** ISO `YYYY-MM-DD`. */
   followUpDate: FieldState<string>
 }
@@ -363,12 +380,18 @@ export interface RxDraft {
 export function newDraft(): RxDraft {
   return {
     patient: { ...EMPTY_PATIENT },
+    vitalsBp: blank(''),
+    vitalsSpo2: blank(''),
+    vitalsPulse: blank(''),
+    vitalsWeight: blank(''),
     diagnosis: blank(''),
     chiefComplaint: blank(''),
     rows: [],
     advice: blank(''),
     investigations: blank(''),
     notes: blank(''),
+    procedure: blank(''),
+    consult: blank(''),
     followUpDate: blank(''),
   }
 }
@@ -443,8 +466,30 @@ export function toApiRequest(draft: RxDraft): Record<string, unknown> {
     throw new Error(`Draft is not ready: ${issues.map((i) => i.message).join(', ')}`)
   }
 
-  const investigations = draft.investigations.value.trim()
-  const notes = [draft.notes.value.trim(), investigations ? `Investigations:\n${investigations}` : '']
+  /* FOLDED_INTO_NOTES. The API has no column for vitals, investigations,
+     procedure or consult (docs/BACKEND_HANDOVER.md §5). Dropping them on
+     submit would mean a doctor types a blood pressure, saves, and it is gone —
+     so until the columns exist they are appended to `notes` under headings,
+     exactly as `investigations` already was. Delete this whole block and send
+     the real fields once the migration lands. */
+  const vitals = [
+    draft.vitalsBp.value.trim() && `BP ${draft.vitalsBp.value.trim()}`,
+    draft.vitalsSpo2.value.trim() && `SpO2 ${draft.vitalsSpo2.value.trim()}`,
+    draft.vitalsPulse.value.trim() && `HR ${draft.vitalsPulse.value.trim()}`,
+    draft.vitalsWeight.value.trim() && `Wt ${draft.vitalsWeight.value.trim()}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const section = (heading: string, body: string) => (body ? `${heading}:\n${body}` : '')
+
+  const notes = [
+    draft.notes.value.trim(),
+    section('Vitals', vitals),
+    section('Investigations', draft.investigations.value.trim()),
+    section('Procedure', draft.procedure.value.trim()),
+    section('Consult', draft.consult.value.trim()),
+  ]
     .filter(Boolean)
     .join('\n\n')
 

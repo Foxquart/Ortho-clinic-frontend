@@ -100,7 +100,7 @@ export function RxAdvicePicker({
 
   return (
     <div className="flex min-w-0 flex-col">
-      <p className="mb-1 flex min-h-5 items-center text-micro uppercase text-text-subtle">
+      <p className="mb-1 flex min-h-5 items-center text-micro uppercase text-text-muted">
         Common advice
       </p>
       <div className="overflow-hidden rounded-md border border-border">

@@ -14,8 +14,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Kbd } from '@/components/ui/Badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/Surface'
-import { isEmptyDictation, parseDictation } from '@/features/speech/parser'
-import { extractDictation } from '@/features/speech/extract'
+// DICTATION-PANEL: import { isEmptyDictation, parseDictation } from '@/features/speech/parser'
+// DICTATION-PANEL: import { extractDictation } from '@/features/speech/extract'
 import type { ParsedDictation } from '@/features/speech/parser'
 import type {
   MedicineResponse,
@@ -29,7 +29,8 @@ import { RxNarrativeField } from './RxNarrativeField'
 import { RxAdvicePicker } from './RxAdvicePicker'
 import { applyMedicineDefaults, forgetAppliedDefaults } from './medicineDefaults'
 import { RxMissingSummary } from './RxMissingSummary'
-import { RxDictationPanel } from './RxDictationPanel'
+// DICTATION-PANEL: import { RxDictationPanel } from './RxDictationPanel'
+import { RxLivePreview } from './RxLivePreview'
 import { RxAllergyConflictBanner, RxAllergyRecord } from './RxAllergyGate'
 import { FieldLabel, ProvenanceField, ProvenanceLegend } from './Provenance'
 import { applyDictation, confidentMatch, takeDictationHandoff } from './dictation'
@@ -81,6 +82,26 @@ const MAX_ROWS = 50
  *     rather than trusted, and anything the parser could not place stays on
  *     screen instead of disappearing.
  */
+type VitalKey = 'vitalsBp' | 'vitalsSpo2' | 'vitalsPulse' | 'vitalsWeight'
+
+/**
+ * The four figures he writes in the top-right corner of the paper pad, in his
+ * own order. Free text rather than numbers: a blood pressure is `120/80`, and
+ * he may qualify a reading. Parsing could only lose information.
+ */
+const VITALS: {
+  key: VitalKey
+  id: string
+  label: string
+  hint: string
+  inputMode: 'text' | 'numeric' | 'decimal'
+}[] = [
+  { key: 'vitalsBp', id: FIELD_IDS.vitalsBp, label: 'BP', hint: 'Blood pressure as you write it, for example 120/80.', inputMode: 'text' },
+  { key: 'vitalsSpo2', id: FIELD_IDS.vitalsSpo2, label: 'SpO₂', hint: 'Oxygen saturation, per cent.', inputMode: 'numeric' },
+  { key: 'vitalsPulse', id: FIELD_IDS.vitalsPulse, label: 'HR', hint: 'Heart rate, beats per minute.', inputMode: 'numeric' },
+  { key: 'vitalsWeight', id: FIELD_IDS.vitalsWeight, label: 'Weight', hint: 'Weight in kilograms.', inputMode: 'decimal' },
+]
+
 export function PrescriptionPadScreen() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -89,9 +110,12 @@ export function PrescriptionPadScreen() {
   const [draft, setDraft] = useState<RxDraft>(() => newDraft())
   const [rowMeta, setRowMeta] = useState<RowMetaMap>({})
   const [quickAdd, setQuickAdd] = useState(false)
-  const [unparsed, setUnparsed] = useState<string[]>([])
-  const [transcript, setTranscript] = useState('')
-  const [placing, setPlacing] = useState(false)
+  /* The value is unread with the dictation panel commented out, but the
+     setter is not: `ingestDictation` still files unparsed lines here when a
+     dictation arrives from the /speech hand-off. */
+  const [, setUnparsed] = useState<string[]>([])
+  // DICTATION-PANEL: const [transcript, setTranscript] = useState('')
+  // DICTATION-PANEL: const [placing, setPlacing] = useState(false)
   const [acknowledgement, setAcknowledgement] = useState<{
     signature: string
     reason: string
@@ -101,7 +125,7 @@ export function PrescriptionPadScreen() {
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
 
   const patientIdParam = params.get('patientId')
-  const dictateOnArrival = params.get('dictate') === '1'
+  // DICTATION-PANEL: const dictateOnArrival = params.get('dictate') === '1'
   // `?focus=patient` is how the home screen's "Type a prescription" card asks
   // the pad to open on the one field that starts every prescription.
   const focusPatientOnArrival = params.get('focus') === 'patient'
@@ -114,7 +138,16 @@ export function PrescriptionPadScreen() {
 
   const setField = useCallback(
     (
-      key: 'diagnosis' | 'chiefComplaint' | 'advice' | 'investigations' | 'notes' | 'followUpDate',
+      key:
+        | 'diagnosis'
+        | 'chiefComplaint'
+        | 'advice'
+        | 'investigations'
+        | 'notes'
+        | 'followUpDate'
+        | 'procedure'
+        | 'consult'
+        | VitalKey,
     ) =>
       (next: FieldState<string>) =>
         setDraft((d) => ({ ...d, [key]: next })),
@@ -350,39 +383,41 @@ export function PrescriptionPadScreen() {
    * kind (unconfigured, offline, refused) falls back silently: the doctor
    * still gets what the regex can manage, and loses nothing either way.
    */
-  const placeTranscript = useCallback(async () => {
-    const text = transcript.trim()
-    if (!text || placing) return
-    setPlacing(true)
-    let parsed: ParsedDictation
-    try {
-      parsed = (await extractDictation(text)).parsed
-    } catch {
-      parsed = parseDictation(text)
-    } finally {
-      setPlacing(false)
-    }
-    if (isEmptyDictation(parsed) && parsed.unparsed.length === 0) {
-      // Nothing structured came out of it, but the doctor still said it.
-      setUnparsed((prev) => [...prev, text])
-    } else {
-      ingestDictation(parsed)
-    }
-    setTranscript('')
-  }, [ingestDictation, transcript, placing])
+  // DICTATION-PANEL: the panel was the only caller.
+  // const placeTranscript = useCallback(async () => {
+    // const text = transcript.trim()
+    // if (!text || placing) return
+    // setPlacing(true)
+    // let parsed: ParsedDictation
+    // try {
+      // parsed = (await extractDictation(text)).parsed
+    // } catch {
+      // parsed = parseDictation(text)
+    // } finally {
+      // setPlacing(false)
+    // }
+    // if (isEmptyDictation(parsed) && parsed.unparsed.length === 0) {
+      // // Nothing structured came out of it, but the doctor still said it.
+      // setUnparsed((prev) => [...prev, text])
+    // } else {
+      // ingestDictation(parsed)
+    // }
+    // setTranscript('')
+  // }, [ingestDictation, transcript, placing])
 
-  const fileDictationLine = useCallback(
-    (line: string, destination: 'advice' | 'notes') => {
-      setDraft((d) => {
-        const current = d[destination]
-        const merged = current.value.trim() ? `${current.value.trim()}\n${line}` : line
-        // Filed by hand, so it is now the doctor's text, not the machine's.
-        return { ...d, [destination]: entered(merged) }
-      })
-      setUnparsed((prev) => prev.filter((l) => l !== line))
-    },
-    [],
-  )
+  // DICTATION-PANEL: only the dictation panel filed lines into advice/notes.
+  // const fileDictationLine = useCallback(
+    // (line: string, destination: 'advice' | 'notes') => {
+      // setDraft((d) => {
+        // const current = d[destination]
+        // const merged = current.value.trim() ? `${current.value.trim()}\n${line}` : line
+        // // Filed by hand, so it is now the doctor's text, not the machine's.
+        // return { ...d, [destination]: entered(merged) }
+      // })
+      // setUnparsed((prev) => prev.filter((l) => l !== line))
+    // },
+    // [],
+  // )
 
   /* ------------------------------- allergy -------------------------------- */
 
@@ -561,8 +596,12 @@ export function PrescriptionPadScreen() {
         : 'known'
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pb-40 pt-6 sm:px-6 xl:max-w-none xl:px-10">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    /* From 1400px the page itself stops scrolling: the shell is exactly one
+       viewport tall and the form column scrolls inside it, so the preview
+       stays put instead of sliding away as he fills the pad. Below that the
+       pad is a single column and the ordinary page scroll is correct. */
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pb-40 pt-6 sm:px-6 xl:max-w-none xl:px-10 min-[1400px]:h-full min-[1400px]:overflow-hidden min-[1400px]:pb-0">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 min-[1400px]:shrink-0">
         <Button variant="ghost" size="icon-sm" asChild aria-label="Back to prescriptions">
           <Link to="/prescriptions">
             <ArrowLeft aria-hidden className="size-4" />
@@ -586,14 +625,16 @@ export function PrescriptionPadScreen() {
 
       {/*
         Below 1400px the column wrappers are `display: contents`, so every card is
-        a direct flex item of this container and the explicit `order-N`s
-        reproduce today's single-column reading order exactly. From `xl` up the
-        wrappers become real columns — patient and narrative on the left,
-        medicines and dictation on the right — so a laptop sees the whole pad
-        with far less scrolling.
+        a direct flex item of this container and the explicit `order-N`s carry
+        the single-column reading order: patient, clinical, advice, allergy,
+        medicines, dictation, notice. Medicines come AFTER the narrative form —
+        what is wrong is established before what is prescribed for it.
+
+        From 1400px up the wrappers become real columns: the entire form on the
+        left, and on the right the live preview of the printed page.
       */}
-      <div className="flex flex-col gap-4 min-[1400px]:grid min-[1400px]:grid-cols-[minmax(360px,1fr)_1.6fr] min-[1400px]:items-start min-[1400px]:gap-6">
-        <div className="contents min-[1400px]:flex min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4">
+      <div className="flex flex-col gap-4 min-[1400px]:grid min-[1400px]:min-h-0 min-[1400px]:flex-1 min-[1400px]:grid-cols-[minmax(360px,1fr)_1.6fr] min-[1400px]:items-stretch min-[1400px]:gap-6">
+        <div className="contents min-[1400px]:no-scrollbar min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-y-auto min-[1400px]:pb-28">
           {/* ---------------------------- patient ---------------------------- */}
           <Card className="order-1">
             <CardBody className="flex flex-col gap-3">
@@ -615,6 +656,32 @@ export function PrescriptionPadScreen() {
           )}
 
           {namedPatient && <RxAllergyRecord patient={draft.patient} status={allergyStatus} />}
+
+              {/* Vitals — the top-right corner of the paper pad, kept on the
+                  patient card because that is where he reads them from. */}
+              <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 sm:grid-cols-4">
+                {VITALS.map((vital) => (
+                  <div key={vital.key} className="flex min-w-0 flex-col">
+                    <FieldLabel
+                      htmlFor={vital.id}
+                      provenance={draft[vital.key].provenance}
+                      hint={vital.hint}
+                    >
+                      {vital.label}
+                    </FieldLabel>
+                    <ProvenanceField provenance={draft[vital.key].provenance}>
+                      <Input
+                        id={vital.id}
+                        inputMode={vital.inputMode}
+                        placeholder="—"
+                        value={draft[vital.key].value}
+                        className={provenanceControlClass(draft[vital.key].provenance)}
+                        onChange={(e) => setField(vital.key)(entered(e.target.value))}
+                      />
+                    </ProvenanceField>
+                  </div>
+                ))}
+              </div>
             </CardBody>
           </Card>
 
@@ -666,7 +733,7 @@ export function PrescriptionPadScreen() {
           </Card>
 
           {/* ---------------------------- advice ----------------------------- */}
-          <Card className="order-5">
+          <Card className="order-3">
             <CardBody className="grid gap-4 sm:grid-cols-2">
               <div className="flex min-w-0 flex-col gap-3">
                 {/* One tap per line of advice. Renders nothing until the
@@ -696,6 +763,26 @@ export function PrescriptionPadScreen() {
                 maxLength={2000}
               />
               <RxNarrativeField
+                id={FIELD_IDS.procedure}
+                label="Procedure"
+                labelHint="Any procedure done at this visit. Routinely NA."
+                hint="No backend field yet — saved under a heading in the notes."
+                field={draft.procedure}
+                onChange={setField('procedure')}
+                rows={2}
+                maxLength={2000}
+              />
+              <RxNarrativeField
+                id={FIELD_IDS.consult}
+                label="Consult"
+                labelHint="The consult line from the paper pad."
+                hint="No backend field yet — saved under a heading in the notes."
+                field={draft.consult}
+                onChange={setField('consult')}
+                rows={2}
+                maxLength={2000}
+              />
+              <RxNarrativeField
                 id={FIELD_IDS.notes}
                 label="Internal notes"
                 labelHint="Private notes for your own record. Never printed, never shown to the patient."
@@ -710,17 +797,9 @@ export function PrescriptionPadScreen() {
             </CardBody>
           </Card>
 
-          <p className="order-7 flex items-start gap-2 px-1 text-caption text-text-subtle">
-            <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-            Prescriptions are append-only. Once this is saved it cannot be edited or deleted — a
-            correction is a new prescription, written from this pad and printed over the old one.
-          </p>
-        </div>
-
-        <div className="contents min-[1400px]:flex min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4">
           {/* The allergy banner sits directly above the medicines, because it
               has to be read before anything is chosen, not after. */}
-          <div id="rx-allergy-conflict" tabIndex={-1} className="order-3 empty:hidden">
+          <div id="rx-allergy-conflict" tabIndex={-1} className="order-4 empty:hidden">
         <RxAllergyConflictBanner
           conflicts={conflicts}
           acknowledgedReason={acknowledgement?.signature === signature ? acknowledgement.reason : null}
@@ -731,7 +810,7 @@ export function PrescriptionPadScreen() {
           </div>
 
           {/* -------------------------- medicines ---------------------------- */}
-          <Card className="order-4">
+          <Card className="order-5">
         <CardHeader
           title="Medicines"
           description={
@@ -802,21 +881,43 @@ export function PrescriptionPadScreen() {
           </Card>
 
           {/* -------------------------- dictation ---------------------------- */}
+          {/* Dictation panel — commented out on request. The `/speech`
+              hand-off still works: `takeDictationHandoff()` is consumed in an
+              effect above and fills the pad from a dictation started there.
+              Restore by uncommenting this block and the symbols marked
+              DICTATION-PANEL below.
+
           <div className="order-6">
-            <RxDictationPanel
-              transcript={transcript}
-              placing={placing}
-              lines={unparsed}
-              autoStart={dictateOnArrival}
-              onCapture={(text) => {
-                const chunk = text.trim()
-                if (chunk) setTranscript((prev) => (prev ? `${prev} ${chunk}` : chunk))
-              }}
-              onPlace={placeTranscript}
-              onClearTranscript={() => setTranscript('')}
-              onFile={fileDictationLine}
-              onDiscard={(index) => setUnparsed((prev) => prev.filter((_, i) => i !== index))}
-            />
+          <RxDictationPanel
+          transcript={transcript}
+          placing={placing}
+          lines={unparsed}
+          autoStart={dictateOnArrival}
+          onCapture={(text) => {
+          const chunk = text.trim()
+          if (chunk) setTranscript((prev) => (prev ? `${prev} ${chunk}` : chunk))
+          }}
+          onPlace={placeTranscript}
+          onClearTranscript={() => setTranscript('')}
+          onFile={fileDictationLine}
+          onDiscard={(index) => setUnparsed((prev) => prev.filter((_, i) => i !== index))}
+          />
+          </div>
+          */}
+          <p className="order-7 flex items-start gap-2 px-1 text-caption text-text-subtle">
+            <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            Prescriptions are append-only. Once this is saved it cannot be edited or deleted — a
+            correction is a new prescription, written from this pad and printed over the old one.
+          </p>
+        </div>
+
+        <div className="contents min-[1400px]:no-scrollbar min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-y-auto min-[1400px]:pb-28">
+          {/* Live preview — Overleaf's PDF pane, minus the compile step: it
+              reads `draft` straight out of React state, so it redraws as he
+              types. Laptop only; below 1400px there is no room beside the form
+              and the pad is a single column. */}
+          <div className="hidden min-[1400px]:block">
+            <RxLivePreview draft={draft} age={age} gender={patientRecord.data?.gender ?? null} />
           </div>
         </div>
       </div>

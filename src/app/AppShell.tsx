@@ -116,12 +116,12 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const visible = (items: readonly NavItem[]) =>
     items.filter((i) => !i.requires || can(i.requires))
 
-  /* Two groups, no headings. Writing a prescription is what the app does; the
-     three below it are the records you consult while doing it. With four rows
-     total, a hairline says that better than a pair of uppercase labels would. */
-  const primary = visible(PRIMARY_NAV)
-  const writing = primary.filter((i) => i.to === '/app')
-  const records = primary.filter((i) => i.to !== '/app')
+  /* "New prescription" is deliberately NOT a sidebar row. The pad is reached
+     from the dashboard's primary action (and by `g n`, and from the command
+     palette) — a rail entry for it competed with that button and made the
+     dashboard, which is now the landing screen, look like the second choice.
+     The rows that remain are the records you consult. */
+  const records = visible(PRIMARY_NAV).filter((i) => i.to !== '/app')
 
   const initials =
     (user?.full_name ?? user?.username ?? '?')
@@ -133,7 +133,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col gap-1 p-2">
       <Link
-        to="/app"
+        to="/dashboard"
         onClick={onNavigate}
         className={cn(
           'mb-2 flex items-center gap-2 rounded-md px-2 py-2',
@@ -153,14 +153,6 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </Link>
 
       <nav aria-label="Primary" className="flex flex-col gap-1">
-        {writing.map((item) => (
-          <NavRow key={item.to} item={item} onNavigate={onNavigate} />
-        ))}
-
-        {writing.length > 0 && records.length > 0 && (
-          <hr aria-hidden className="mx-2.5 my-2 border-0 border-t border-border" />
-        )}
-
         {records.map((item) => (
           <NavRow key={item.to} item={item} onNavigate={onNavigate} />
         ))}
@@ -245,7 +237,10 @@ export function AppShell() {
   }, [location.pathname])
 
   return (
-    <div className="flex min-h-dvh bg-bg">
+    /* Exactly one viewport, never more: the page itself does not scroll. `main`
+       below is the scrollport, so the sidebar and the top bar stay put and each
+       screen decides what scrolls inside it. */
+    <div className="relative flex h-dvh overflow-hidden bg-bg">
       {/* Desktop rail */}
       <aside
         data-print-hide
@@ -272,7 +267,7 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header
           data-print-hide
-          className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-bg/80 px-3 backdrop-blur-md"
+          className="sticky top-0 z-30 flex h-[var(--app-header-h)] shrink-0 items-center gap-2 border-b border-border bg-bg/80 px-3 backdrop-blur-md"
         >
           {/* Labelled, not icon-only: the word says what the hamburger only
               implies. */}
@@ -313,7 +308,7 @@ export function AppShell() {
           <ThemeToggle />
         </header>
 
-        <main className="min-w-0 flex-1">
+        <main className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>

@@ -2,7 +2,9 @@ import { cn } from '@/lib/cn'
 import { Input, Textarea } from '@/components/ui/Input'
 import { FieldLabel, ProvenanceField } from './Provenance'
 import { provenanceControlClass } from './padState'
-import { RxFieldStateMic } from './RxMic'
+// Per-field mic icons hidden at user request. Import commented out with the
+// action={...} block below — restore both together.
+// import { RxFieldStateMic } from './RxMic'
 import { entered, type FieldState } from './model'
 
 /**
@@ -52,14 +54,16 @@ export function RxNarrativeField({
         hint={labelHint}
         htmlFor={id}
         provenance={field.provenance}
-        action={
-          <RxFieldStateMic
-            id={id}
-            label={`Dictate ${label.toLowerCase()}`}
-            field={field}
-            onChange={onChange}
-          />
-        }
+        // Per-field mic icons hidden at user request. Uncomment this block and
+        // the RxFieldStateMic import above to restore the per-field mic.
+        // action={
+        //   <RxFieldStateMic
+        //     id={id}
+        //     label={`Dictate ${label.toLowerCase()}`}
+        //     field={field}
+        //     onChange={onChange}
+        //   />
+        // }
       >
         {label}
       </FieldLabel>

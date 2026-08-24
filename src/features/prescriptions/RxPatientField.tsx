@@ -166,7 +166,7 @@ export function RxPatientField({
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col gap-1">
-        <label htmlFor={FIELD_IDS.patient} className="text-micro uppercase text-text-subtle">
+        <label htmlFor={FIELD_IDS.patient} className="text-micro uppercase text-text-muted">
           Patient
         </label>
         <Combobox<PatientSearchResult>
@@ -346,7 +346,7 @@ function QuickAddInput({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-micro uppercase text-text-subtle">
+      <label htmlFor={id} className="text-micro uppercase text-text-muted">
         {label}
       </label>
       <Input

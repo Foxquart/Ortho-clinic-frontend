@@ -262,7 +262,7 @@ function AcknowledgeDialog({
           <div className="flex flex-col gap-1">
             <label
               htmlFor="rx-allergy-reason"
-              className="text-micro uppercase text-text-subtle"
+              className="text-micro uppercase text-text-muted"
             >
               Why is this safe for this patient?
             </label>

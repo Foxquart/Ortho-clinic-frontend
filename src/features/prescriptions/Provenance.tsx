@@ -120,7 +120,7 @@ export function FieldLabel({
     <label
       htmlFor={htmlFor}
       className={cn(
-        'text-micro uppercase text-text-subtle',
+        'text-micro uppercase text-text-muted',
         hint &&
           'cursor-help underline decoration-border-strong decoration-dotted underline-offset-4',
       )}
