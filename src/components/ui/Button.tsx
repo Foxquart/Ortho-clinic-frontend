@@ -10,6 +10,7 @@ export type ButtonVariant =
   | 'ghost'
   | 'subtle'
   | 'danger'
+  | 'info'
   | 'link'
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm'
 
@@ -41,6 +42,10 @@ const VARIANTS: Record<ButtonVariant, string> = {
   ghost: 'text-text-muted hover:bg-surface-hover hover:text-text active:bg-surface-active',
   subtle: 'bg-bg-sunken text-text hover:bg-surface-active active:bg-surface-active',
   danger: 'bg-danger text-danger-fg shadow-sm hover:bg-danger-hover active:bg-danger-hover',
+  // Azure. For an action that is neither THE action nor a warning — a
+  // sideways move to a different part of the app. Distinct from `primary`
+  // at a glance without claiming to be the thing you came here to do.
+  info: 'bg-info text-info-fg shadow-sm hover:bg-info-hover active:bg-info-hover',
   link: 'text-accent underline-offset-4 hover:underline hover:text-accent-hover p-0 h-auto',
 }
 

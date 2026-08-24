@@ -150,6 +150,7 @@
   --c-danger-muted-fg: #861a1f; /* 8.1:1 on the tint */
 
   --c-info: #1563a8; /* azure. Shared with `heard` on purpose. */
+  --c-info-hover: #114f87; /* one step down, matching how danger-hover darkens. */
   --c-info-fg: #ffffff;
   --c-info-muted: #e6effa;
   --c-info-muted-fg: #0d4b82; /* 7.7:1 on the tint */
@@ -282,6 +283,7 @@
   --c-danger-muted-fg: #ff9095;
 
   --c-info: #4bc5e0; /* 8.7:1 */
+  --c-info-hover: #6fd3ea; /* lightens on dark, as danger-hover does. */
   --c-info-fg: #04191f;
   --c-info-muted: #0c2129;
   --c-info-muted-fg: #63d2e8;
@@ -475,6 +477,7 @@
   --color-danger-muted-fg: var(--c-danger-muted-fg);
 
   --color-info: var(--c-info);
+  --color-info-hover: var(--c-info-hover);
   --color-info-fg: var(--c-info-fg);
   --color-info-muted: var(--c-info-muted);
   --color-info-muted-fg: var(--c-info-muted-fg);

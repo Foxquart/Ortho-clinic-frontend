@@ -119,7 +119,7 @@ export function DashboardScreen() {
             {/* The hours behind the public booking page live one click away,
                 because "which days am I available" should never need hunting —
                 but it is secondary, so it does not compete with the pad. */}
-            <Button variant="secondary" asChild iconLeft={<Clock className="size-4" />}>
+            <Button variant="info" asChild iconLeft={<Clock className="size-4" />}>
               <Link to="/appointments?hours=1">Set clinic hours</Link>
             </Button>
             {/* The one thing this app exists to do, and — since the rail no
