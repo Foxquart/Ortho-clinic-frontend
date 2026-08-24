@@ -36,6 +36,7 @@
  */
 
 import type { PhotoKey } from './imagery'
+import googleReviewsJson from './googleReviews.json'
 
 /**
  * Draft copy renders in development so the page can be designed against a full
@@ -341,20 +342,35 @@ export interface Review {
   /**
    * Stars out of five.
    *
-   * READ THIS BEFORE TRUSTING THESE NUMBERS. We transcribed the reviews from
-   * the profile listing, which showed the author, the age and the text but not
-   * the per-review star count. The values below are assumed, not observed.
+   * RESOLVED for live-sourced entries: reviews that arrive through
+   * `googleReviews.json` (see `LIVE_REVIEWS` below) carry the real per-review
+   * rating from the Places API, so their `stars` are observed, not assumed.
    *
-   * They are also demonstrably not all correct: the profile's own average is
-   * 4.0 across nine reviews, and nine fives with the one-star we excluded
-   * would average 4.6. So at least one of the silent reviewers gave fewer than
-   * five stars and is currently being shown too generously.
+   * The hand-written entries in `REVIEWS` remain ASSUMED, not observed, and
+   * are only fallback filler. We transcribed them from the profile listing,
+   * which showed the author, the age and the text but not the per-review star
+   * count. They are also demonstrably not all correct: the profile's own
+   * average is 4.0 across nine reviews, and nine fives with the one-star we
+   * excluded would average 4.6. So at least one of the silent reviewers gave
+   * fewer than five stars and is currently being shown too generously.
    *
-   * Open the Business Profile, read the real number off each review, and
-   * correct this field. It is one line per review and it is the difference
-   * between displaying reviews and inventing them.
+   * Any hand-written entry that survives into production must still be
+   * checked against the live profile first — it is one line per review and
+   * it is the difference between displaying reviews and inventing them.
    */
   stars: number
+  /**
+   * Local path to the reviewer's profile photo
+   * (`/reviews/avatars/<slug>.jpg`), downloaded at build time by
+   * `scripts/fetch-google-reviews.ts`. Only present on live-sourced entries
+   * whose photo downloaded successfully.
+   */
+  avatar?: string
+  /**
+   * The reviewer's public Maps profile (`authorAttribution.uri`). Only
+   * present on live-sourced entries.
+   */
+  profileUrl?: string
   draft?: boolean
 }
 
@@ -399,16 +415,84 @@ export const REVIEWS: readonly Review[] = [
   { author: 'Tushnin Roy', when: '6 years ago', stars: 5 },
 ]
 
+/* ------------------------- live Google reviews --------------------------- */
+
+/**
+ * The shape of `googleReviews.json`, written at build time by
+ * `scripts/fetch-google-reviews.ts` from the Places API (New).
+ */
+interface GoogleReviewsFile {
+  fetchedAt: string
+  rating: number
+  count: number
+  placeId: string
+  reviews: Array<{
+    author: string
+    avatar: string
+    stars: number
+    text?: string
+    when: string
+    publishTime: string
+    profileUrl: string
+  }>
+}
+
+/**
+ * Live Google review data, fetched at build time. The committed
+ * `googleReviews.json` is a placeholder — empty `fetchedAt`, no reviews —
+ * until the fetch script runs with a real API key (see the script's header),
+ * which overwrites it. The placeholder exists so this static import always
+ * resolves: a missing file would break the build, an empty one just means
+ * "no live data", and the page renders the hand-written `REVIEWS` untouched.
+ */
+const liveGoogleReviews = googleReviewsJson as GoogleReviewsFile
+
+/** True only when the build-time fetch produced real data. */
+const HAS_LIVE_REVIEWS: boolean =
+  liveGoogleReviews.fetchedAt !== '' && liveGoogleReviews.reviews.length > 0
+
 /**
  * [CONFIRMED] The true aggregate, negative review included. Stated on the page
  * because a curated selection without it is not honest, and because 4.0 from a
  * named, checkable profile reads better than a suspiciously perfect five.
  *
+ * When the build-time fetch has run, the live `rating`/`userRatingCount`
+ * replace the hand-verified 4.0 / 9 — the same number from a fresher source.
+ * Without live data the hand-verified values stand unchanged.
+ *
  * On the page only — never in structured data. A practice must not mint its
  * own `aggregateRating` markup from reviews collected on someone else's
  * platform; that is a manual-action risk, not a shortcut.
  */
-export const GOOGLE_RATING = { rating: 4.0, count: 9 } as const
+export const GOOGLE_RATING: { rating: number; count: number } = HAS_LIVE_REVIEWS
+  ? { rating: liveGoogleReviews.rating, count: liveGoogleReviews.count }
+  : { rating: 4.0, count: 9 }
+
+/**
+ * The reviews the page shows. Live entries first (real stars, real relative
+ * dates, real profile photos), then the hand-written `REVIEWS` filling up to
+ * eight cards, skipping any author already present live so nobody appears
+ * twice. With no live data this is exactly `REVIEWS` — the hand-written
+ * entries are never altered and remain the provenance record.
+ */
+export const LIVE_REVIEWS: readonly Review[] = HAS_LIVE_REVIEWS
+  ? [
+      ...liveGoogleReviews.reviews.map((review): Review => ({
+        author: review.author,
+        when: review.when,
+        ...(review.text ? { text: review.text } : {}),
+        stars: review.stars,
+        ...(review.avatar ? { avatar: review.avatar } : {}),
+        ...(review.profileUrl ? { profileUrl: review.profileUrl } : {}),
+      })),
+      ...REVIEWS.filter(
+        (fallback) =>
+          !liveGoogleReviews.reviews.some(
+            (live) => live.author.toLowerCase() === fallback.author.toLowerCase(),
+          ),
+      ),
+    ].slice(0, 8)
+  : REVIEWS
 
 /* -------------------------------------------------------------------------- */
 /*  The clinic — deliberately the smallest part of the page                   */
@@ -451,6 +535,41 @@ export const CLINIC = {
   phone: null as string | null,
 } as const
 
+/* -------------------------------------------------------------------------- */
+/*  How a patient reaches him                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where the "Book an appointment" CTA sends a patient, per device.
+ *
+ * On a handheld the booking form is the wrong instrument: a patient standing
+ * in a chemist's shop with a fracture wants to reach a human, not fill in four
+ * fields. So on a coarse-pointer device under `lg` the CTA becomes WhatsApp,
+ * or a phone call if no WhatsApp number is published. On a laptop it stays the
+ * in-page booking form, which is what a laptop is good for.
+ *
+ * ## Both values are null on purpose
+ *
+ * No public listing agreed on a number, and a wrong phone number on a
+ * surgeon's website is worse than no number at all — see the note above
+ * `CLINIC`. Until the practice confirms one, `resolveBookingTarget()` falls
+ * back to the booking form on every device, which is exactly today's
+ * behaviour. Nothing here may be guessed, derived, or filled in from a
+ * directory: it has to come from the practice.
+ *
+ * `whatsapp` is an international number, digits only, no `+` and no spaces —
+ * that is the format `wa.me` requires (an Indian mobile looks like
+ * `919XXXXXXXXX`). `phone` is dialled as-is, so it should carry its `+`.
+ */
+export const CONTACT = {
+  /** [UNCONFIRMED] Digits only, country code first, no `+`. */
+  whatsapp: null as string | null,
+  /** [UNCONFIRMED] E.164, including the leading `+`. */
+  phone: CLINIC.phone,
+  /** Prefilled WhatsApp text. UI copy, not a claim about the practice. */
+  whatsappMessage: `Hello, I would like to book an appointment with ${DOCTOR.name}.`,
+} as const
+
 /**
  * Where he already exists on the web, for `sameAs` in the structured data.
  * Listing these tells Google and every AI assistant that the site, the map pin
@@ -476,6 +595,19 @@ export const PRESENCE = {
   publicationDoi: 'https://doi.org/10.18203/issn.2455-4510.IntJResOrthop20252635',
   doordarshan: 'https://www.youtube.com/watch?v=b3gISR4ovfU',
 } as const
+
+/**
+ * The outbound link to the Google profile. Until the place ID is known this
+ * is the search URL under `PRESENCE.googleBusinessProfile` — the fallback,
+ * kept deliberately. Once the build-time review fetch runs, the live place ID
+ * yields the direct Maps link instead, one redirect fewer for a patient and a
+ * cleaner `sameAs` target. No place ID is ever invented: the fallback stands
+ * until real data provides one.
+ */
+export const GOOGLE_PROFILE_URL: string =
+  HAS_LIVE_REVIEWS && liveGoogleReviews.placeId
+    ? `https://www.google.com/maps/place/?q=place_id:${liveGoogleReviews.placeId}`
+    : PRESENCE.googleBusinessProfile.url
 
 /* -------------------------------------------------------------------------- */
 /*  Launch checklist                                                          */

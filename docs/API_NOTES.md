@@ -455,3 +455,88 @@ are UUIDs in practice; the schema just doesn't say so.
 
 **Time format. (live)** `format: time` values come back as `HH:MM:SS`
 (`"16:30:00"`), not `HH:MM`. Compare and display accordingly.
+
+---
+
+## 6. Google reviews pipeline (landing page, build-time)
+
+The landing page's reviews are baked at build time, never fetched from the
+browser — the Places API key must not ship to patients' phones, and the data
+changes weekly at most.
+
+- **Script:** `scripts/fetch-google-reviews.ts`, run via `bun run fetch:reviews`.
+  Wired as a `prebuild` hook, so `bun run build` always fetches first. Vercel
+  runs the package.json `build` script as-is — `vercel.json` declares no custom
+  `buildCommand` — so the `prebuild` hook fires on deploys too.
+- **Credentials:** `GOOGLE_PLACES_API_KEY` + `GOOGLE_PLACE_ID` (how to obtain
+  them: `.env.example`). Server/build only — never `VITE_`-prefixed. With
+  either unset the script prints a skip note and exits 0; builds never break,
+  and the page renders the hand-written `REVIEWS` fallback in
+  `src/features/landing/profile.ts`.
+- **API:** Places API (New) — one call per deploy:
+  `GET https://places.googleapis.com/v1/places/{GOOGLE_PLACE_ID}` with headers
+  `X-Goog-Api-Key` and `X-Goog-FieldMask: rating,userRatingCount,reviews`.
+  **Limit: max 5 reviews returned**, most relevant first. Restrict the key to
+  the Places API only.
+- **Cost.** Billing is by field mask, at the highest SKU any requested field
+  belongs to. `reviews` is the most expensive field on the endpoint: it puts
+  the call in **Place Details Enterprise + Atmosphere** — 1,000 free calls per
+  month, then $25/1,000. (Dropping `reviews` and keeping only
+  `rating`/`userRatingCount` would fall back to plain Enterprise: 1,000 free,
+  then $20/1,000.) At one call per deploy this never leaves the free tier, but
+  it must never be called per page view. Note the free caps are per-SKU since
+  1 March 2025 — they do not pool and do not roll over, and getting a key at
+  all requires a billing card on the Cloud project.
+- **Artifacts** (both committed and human-reviewed like any content change):
+  - `src/features/landing/googleReviews.json` — normalized
+    `{ fetchedAt, rating, count, placeId, reviews[] }`, newest-first by
+    `publishTime`. The committed placeholder (empty `fetchedAt`, empty
+    `reviews`) is how the data layer detects "no live data"; the script
+    overwrites the file only after a successful fetch.
+  - `public/reviews/avatars/<slug>.jpg` — reviewer profile photos
+    (`authorAttribution.photoUri` + `=s128-c`), referenced from the JSON as
+    `/reviews/avatars/<slug>.jpg`; `avatar: ""` when a download fails.
+- **Data layer (`profile.ts`):** live reviews map into `LIVE_REVIEWS` (live
+  entries first, hand-written `REVIEWS` filling up to 8, deduped by author),
+  `GOOGLE_RATING` is overridden by the live aggregate, and
+  `GOOGLE_PROFILE_URL` becomes the direct
+  `https://www.google.com/maps/place/?q=place_id:{placeId}` link — falling back
+  to the search URL while no place ID is known.
+
+### Caching restriction — read before treating the JSON as permanent
+
+Under the Google Maps Platform Service Specific Terms, Place IDs may be stored
+indefinitely and lat/lng cached for up to 30 consecutive days, but names,
+ratings, **review content**, photos and phone numbers are meant to be requested
+and displayed live with Google Maps attribution, not warehoused.
+
+`googleReviews.json` is committed to this repo, which makes it exactly the
+kind of long-lived snapshot those terms do not contemplate for Places-sourced
+review text. This is a licensing question, not a technical one, and it is the
+strongest argument for the GBP route below: reviews of a business you own,
+fetched through GBP, are not Maps Platform content and carry no such
+restriction. Until then, treat a Places-populated JSON as short-lived and
+re-fetch it on every deploy (which the `prebuild` hook already does).
+
+### Recommended target — Google Business Profile API (not implemented)
+
+Not merely a "future upgrade": for this use case GBP is the *correct* source,
+and §8 of `docs/LANDING_POLISH_PLAN.md` scopes the integration itself out of
+the current work.
+
+| | Places API (New) | Google Business Profile API |
+|---|---|---|
+| Cost | Free at 1 call/deploy; billing card required | Free, no per-call billing |
+| Reviews returned | Max 5 | All of them |
+| Reviewer photos | `authorAttribution.photoUri` | `reviewer.profilePhotoUrl` |
+| Auth | API key | OAuth2 |
+| Caching of review text | Restricted (see above) | Own-business data, unrestricted |
+| Lead time | Minutes | ~14 days approval |
+
+Prerequisites: a verified Business Profile active 60+ days, a website listed on
+it, an owner/manager email, a Cloud project, and an approved "Application for
+Basic API Access". Approval shows up as quota in Cloud Console — 0 QPM means
+pending, 300 QPM means live.
+
+Only the fetch changes: the build-time shape, the JSON contract, `LIVE_REVIEWS`
+and the rendering all stay as they are.

@@ -10,6 +10,7 @@ import { useRef } from 'react'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import {
+  ArrowRight,
   ArrowUpRight,
   Bike,
   BookOpen,
@@ -26,6 +27,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { useBookingTarget } from './bookingTarget'
 import { scrollToAnchor } from './smoothScroll'
 
 /* -------------------------------------------------------------------------- */
@@ -37,8 +39,18 @@ import { scrollToAnchor } from './smoothScroll'
  * Additive and self-cancelling: disabled on coarse pointers and under reduced
  * motion, and it never affects layout (transform only), so the control stays
  * fully usable if the effect never runs.
+ *
+ * Exported so the nav pill's Book CTA — which is a `<button>`, not a
+ * `ScrollButton` — can share the same gate rather than reimplementing it.
+ * Pass `{ current: null }` to opt out.
+ *
+ * The hook export costs this file granular fast refresh in dev. Splitting it
+ * into its own module would fix that, but a one-function file for a fifteen-
+ * line hook that only ever pairs with the CTAs below is worse organisation
+ * than the dev-only HMR cost it buys back.
  */
-function useMagnetic(ref: React.RefObject<HTMLElement | null>): void {
+// oxlint-disable-next-line react/only-export-components
+export function useMagnetic(ref: React.RefObject<HTMLElement | null>): void {
   useGSAP(
     () => {
       const el = ref.current
@@ -98,6 +110,10 @@ function ctaClass(tone: CtaTone, size: CtaSize, className?: string): string {
     'group relative inline-flex select-none items-center justify-center gap-2 rounded-sm font-semibold whitespace-nowrap',
     'transition-[background-color,border-color,box-shadow,transform] duration-fast ease-out-quint',
     'active:scale-[0.98] motion-reduce:active:scale-100',
+    /* The landing's focus ring is an `outline`, so nothing here may set
+       `outline-none`; `focus-visible:z-10` only stops a neighbouring control
+       in a tight CTA row from painting over the 2px ring. */
+    'focus-visible:z-10',
     TONE[tone],
     SIZE[size],
     className,
@@ -133,6 +149,60 @@ export function ScrollButton({
       onClick={(e) => {
         e.preventDefault()
         scrollToAnchor(target)
+      }}
+      className={ctaClass(tone, size, className)}
+      {...rest}
+    >
+      {children}
+    </a>
+  )
+}
+
+/**
+ * The booking CTA. Same chrome as `ScrollButton`, but the destination is
+ * decided by the device: WhatsApp or a call on a phone, the in-page form on a
+ * laptop (see `bookingTarget.ts`).
+ *
+ * It renders a real `<a href>` in every case rather than intercepting a click,
+ * so long-press, "open in new tab" and "copy link" all do the obvious thing —
+ * and a patient who wants the number without placing the call can get it.
+ *
+ * `labelBase` is the visible text, repeated so the accessible name can say
+ * where the control goes ("Book an appointment on WhatsApp") while still
+ * containing the visible label, which WCAG 2.5.3 requires.
+ */
+export function BookCta({
+  labelBase,
+  tone = 'primary',
+  size = 'lg',
+  magnetic = false,
+  className,
+  children,
+  ...rest
+}: {
+  labelBase: string
+  tone?: CtaTone
+  size?: CtaSize
+  magnetic?: boolean
+  children: ReactNode
+} & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'children'>) {
+  const target = useBookingTarget()
+  const ref = useRef<HTMLAnchorElement>(null)
+  useMagnetic(magnetic ? ref : { current: null })
+
+  return (
+    <a
+      ref={ref}
+      href={target.href}
+      /* WhatsApp is a destination, so it opens away from the page; `tel:` is a
+         handoff to the dialler and must NOT open a tab, or it leaves an empty
+         one behind on some Android browsers. */
+      {...(target.channel === 'whatsapp' ? { target: '_blank', rel: 'noreferrer' } : {})}
+      {...(target.labelSuffix ? { 'aria-label': `${labelBase}${target.labelSuffix}` } : {})}
+      onClick={(e) => {
+        if (target.external) return
+        e.preventDefault()
+        scrollToAnchor('book')
       }}
       className={ctaClass(tone, size, className)}
       {...rest}
@@ -222,26 +292,66 @@ export function StarRating({ rating }: { rating: number }) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  CTA arrows                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The nudge. Every CTA on the page shares one arrow behaviour so the page has
+ * a single hover grammar instead of six hand-written `group-hover:translate`
+ * strings that drift apart. Both variants require a `group` ancestor — every
+ * `ScrollButton` and `ArrowLink` already is one.
+ *
+ * Transform only, and `motion-reduce` collapses the duration token to 1ms, so
+ * the arrow simply sits at rest under reduced motion.
+ */
+export function CtaArrow({ className }: { className?: string }) {
+  return (
+    <ArrowRight
+      aria-hidden
+      className={cn('size-4 transition-transform duration-fast group-hover:translate-x-0.5', className)}
+    />
+  )
+}
+
+/** The out-of-page variant: nudges right *and* up, toward where it points. */
+export function CtaArrowUpRight({ className }: { className?: string }) {
+  return (
+    <ArrowUpRight
+      aria-hidden
+      className={cn(
+        'size-4 transition-transform duration-fast group-hover:translate-x-0.5 group-hover:-translate-y-0.5',
+        className,
+      )}
+    />
+  )
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Tiny inline arrow link                                                    */
 /* -------------------------------------------------------------------------- */
 
 export function ArrowLink({
   href,
   children,
+  className,
+  ...rest
 }: {
   href: string
   children: ReactNode
-}) {
+} & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'children'>) {
   return (
     <a
       href={href}
-      className="group inline-flex items-center gap-1 text-label font-semibold text-[color:var(--lp-accent)] hover:text-[color:var(--lp-accent-strong)] transition-colors duration-fast"
+      className={cn(
+        'lp-link-draw group inline-flex items-center gap-1 text-label font-semibold',
+        'text-[color:var(--lp-accent)] hover:text-[color:var(--lp-accent-strong)]',
+        'transition-colors duration-fast',
+        className,
+      )}
+      {...rest}
     >
       {children}
-      <ArrowUpRight
-        aria-hidden
-        className="size-4 transition-transform duration-fast group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-      />
+      <CtaArrowUpRight />
     </a>
   )
 }

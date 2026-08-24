@@ -37,6 +37,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
 import { DOCTOR } from './profile'
 import { LandingNav } from './LandingNav'
+import { StickyBookCta } from './StickyBookCta'
 import { SeoHead } from './SeoHead'
 import { setActiveLenis } from './smoothScroll'
 import { HeroSection } from './sections/HeroSection'
@@ -55,12 +56,21 @@ export function LandingPage() {
   /* Not from the CMS. The wordmark is the doctor's name, and the name is the
      entity every search engine resolves this site against — it must not be
      able to change to whatever a half-configured clinic-settings record
-     happens to hold. */
-  const wordmark = DOCTOR.shortName
+     happens to hold.
+
+     The FULL name, not `shortName`: the wordmark and the hero headline are the
+     two places the entity is stated, and they have to agree. "Dr. Deb Roy" in
+     the nav over "Dr. Sankar Deb Roy" in the H1 reads as two different people
+     to a crawler reconciling this practice across listings. */
+  const wordmark = DOCTOR.name
 
   useGSAP(
     () => {
       const mm = gsap.matchMedia()
+      /* Restores the original textContent of every `[data-countup]` element
+         when the matchMedia context tears down — so a reduced-motion switch
+         mid-scroll leaves the true figures on screen, never a frozen partial. */
+      const countupRestores: Array<() => void> = []
       mm.add('(prefers-reduced-motion: no-preference)', () => {
         const lenis = new Lenis({ duration: 1.1, smoothWheel: true })
         setActiveLenis(lenis)
@@ -105,11 +115,64 @@ export function LandingPage() {
           })
         })
 
+        /* Image reveal — the photo wipes up from its own bottom edge rather
+           than fading in. `clip-path` is the one non-transform property we
+           animate: it is compositor-driven, it does not touch layout, and a
+           fade on a large photograph reads as a loading state rather than a
+           deliberate entrance.
+
+           `gsap.from` matters here: the resting DOM state is an unclipped
+           image, so with reduced motion or no JS the photo is simply visible. */
+        gsap.utils.toArray<HTMLElement>('[data-reveal-clip]').forEach((el) => {
+          gsap.from(el, {
+            clipPath: 'inset(0 0 100% 0)',
+            duration: 1.0,
+            ease: 'power3.out',
+            scrollTrigger: { trigger: el, start: 'top 86%', once: true },
+          })
+        })
+
+        /* Count-up numerals. The final number is the element's own text, so
+           this is progressive enhancement in the strictest sense: we read it,
+           animate a scratch object up to it, and put the exact original
+           string back on cleanup. Reduced motion and no-JS never run it and
+           the correct figure was in the markup the whole time.
+
+           The prefix/suffix capture is what lets `22+`, `4.0` and `2004` all
+           work off one hook — only the digits move. */
+        gsap.utils.toArray<HTMLElement>('[data-countup]').forEach((el) => {
+          const source = el.textContent ?? ''
+          const match = /^(\D*)(\d+(?:\.\d+)?)(\D*)$/.exec(source)
+          if (!match) return
+
+          const [, prefix, digits, suffix] = match
+          const target = Number(digits)
+          const decimals = digits.includes('.') ? digits.split('.')[1].length : 0
+          const counter = { value: 0 }
+
+          gsap.to(counter, {
+            value: target,
+            duration: 0.9,
+            ease: 'power3.out',
+            snap: { value: decimals === 0 ? 1 : 10 ** -decimals },
+            onUpdate: () => {
+              el.textContent = prefix + counter.value.toFixed(decimals) + suffix
+            },
+            scrollTrigger: { trigger: el, start: 'top 90%', once: true },
+          })
+
+          countupRestores.push(() => {
+            el.textContent = source
+          })
+        })
+
         return () => {
           gsap.ticker.remove(raf)
           lenis.destroy()
           setActiveLenis(null)
           ScrollTrigger.getAll().forEach((t) => t.kill())
+          countupRestores.forEach((restore) => restore())
+          countupRestores.length = 0
         }
       })
       return () => mm.revert()
@@ -129,12 +192,15 @@ export function LandingPage() {
         <LifeGridSection />
         <ReviewsSection />
 
-        <div data-reveal className="scroll-mt-[var(--nav-h)]">
+        {/* No `scroll-mt` here: `#book` is on the <section> inside, so this
+            wrapper is never an anchor target and an offset on it was dead. */}
+        <div data-reveal>
           <BookingSection />
         </div>
       </main>
 
       <LandingFooter />
+      <StickyBookCta />
     </div>
   )
 }

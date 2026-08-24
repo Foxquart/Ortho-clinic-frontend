@@ -12,9 +12,14 @@
  * tiles in `profile.ts` are replaced with six real things and six real
  * photographs. This is the section that most needs an afternoon with him.
  *
- * MOTION CONTRACT (see landing.css): `data-reveal` and `data-reveal-group` /
- * `data-reveal-item` are the hooks the page's GSAP reads. Hover zoom is a
- * plain CSS transform, disabled under reduced motion.
+ * MOTION CONTRACT (see landing.css): `data-reveal` and `data-reveal-clip` are
+ * the hooks the page's GSAP reads. The tiles take the clip reveal rather than
+ * the group fade — six photographs fading up together read as six images
+ * still loading, where a wipe from the bottom edge reads as a deliberate
+ * entrance, and the tiles enter at different scroll depths anyway so the
+ * cascade comes free. It is a `gsap.from`, so the resting DOM state is an
+ * unclipped tile. Hover zoom is a plain CSS transform, disabled under reduced
+ * motion.
  */
 import { img } from '@/features/landing/imagery'
 import { DraftChip } from '@/features/landing/primitives'
@@ -31,7 +36,7 @@ export function LifeGridSection() {
   if (tiles.length === 0) return null
 
   return (
-    <section id="life" className="scroll-mt-[var(--nav-h)] py-[var(--section-pad)]">
+    <section id="life" className="scroll-mt-[var(--lp-anchor-offset)] py-[var(--section-pad)]">
       <div className="mx-auto max-w-content px-5 sm:px-8">
         <div className="mb-12 md:mb-16">
           <h2 data-reveal className="lp-h2 max-w-[20ch]">
@@ -39,14 +44,11 @@ export function LifeGridSection() {
           </h2>
         </div>
 
-        <div
-          data-reveal-group
-          className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:grid-rows-[repeat(2,minmax(16rem,auto))] lg:gap-5"
-        >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:grid-rows-[repeat(2,minmax(16rem,auto))] lg:gap-5">
           {tiles.map((tile) => (
             <figure
               key={tile.key}
-              data-reveal-item
+              data-reveal-clip
               className={
                 'lp-media group relative overflow-hidden rounded-3xl ' + SPAN_CLASS[tile.span]
               }

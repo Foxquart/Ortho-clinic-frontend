@@ -81,20 +81,20 @@ const PURPOSES = [
   {
     id: 'consultation',
     title: 'A consultation',
-    detail: 'Something about your teeth or your smile.',
+    detail: 'A fracture, joint pain, a sports injury, back or neck pain.',
     prefix: 'Consultation.',
   },
   {
-    id: 'conversation',
-    title: 'A conversation',
-    detail: 'Coffee, ideas, or a question you have been carrying.',
-    prefix: 'A conversation.',
+    id: 'followup',
+    title: 'A follow-up',
+    detail: 'After surgery, a procedure, or a previous visit.',
+    prefix: 'Follow-up.',
   },
   {
-    id: 'event',
-    title: 'An event or talk',
-    detail: 'Speaking, teaching, or a community evening.',
-    prefix: 'An event or talk.',
+    id: 'opinion',
+    title: 'A second opinion',
+    detail: 'On a scan, a report, or advice you have been given.',
+    prefix: 'Second opinion.',
   },
 ] as const
 
@@ -103,17 +103,30 @@ type Purpose = (typeof PURPOSES)[number]['id']
 const REASON_COPY: Record<Purpose, { label: string; hint: string }> = {
   consultation: {
     label: 'What would you like to be seen for?',
-    hint: 'A short note helps me prepare, for example "crowded front teeth" or "thinking about aligners".',
+    hint: 'A short note helps me prepare — for example "knee pain for three months" or "a fall onto the shoulder".',
   },
-  conversation: {
-    label: 'What shall we talk about?',
-    hint: 'A sentence or two is plenty. It helps me bring the right stories.',
+  followup: {
+    label: 'What are we following up?',
+    hint: 'The surgery or visit, and how things have been since. A sentence is plenty.',
   },
-  event: {
-    label: 'Tell me about the event',
-    hint: 'The audience, the city, and what you would like the room to leave with.',
+  opinion: {
+    label: 'What would you like a second opinion on?',
+    hint: 'The scan, report, or advice in question. Bring whatever you have to the appointment.',
   },
 }
+
+/**
+ * The landing page's micro-interaction contract in one string: 200ms on the
+ * page's standard curve. The app's `ease-standard`/`duration-fast` pair (120ms)
+ * is correct inside the clinical UI but reads clipped against the landing's
+ * slower, editorial motion, so every hover/selection transition in this card
+ * shares this instead. Colour and border only — nothing here touches layout.
+ */
+const LP_TRANSITION = 'duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]'
+
+/** The one focus treatment used by every control in the card. */
+const LP_FOCUS =
+  'focus-visible:outline-focus focus-visible:outline-2 focus-visible:outline-offset-2'
 
 /** What the patient has picked so far, rendered live in the identity panel. */
 interface Selection {
@@ -352,11 +365,14 @@ export function BookingSection(): JSX.Element {
       : null
 
   return (
+    // `pb-20` rather than the symmetric `py-16`: on mobile the fixed "Book an
+    // appointment" bar only lifts once this section is in view, so the bottom
+    // of the card needs clearance for the frames where both are on screen.
     <section
       id="book"
       ref={sectionRef}
       aria-labelledby="book-heading"
-      className="bg-bg w-full scroll-mt-24 px-4 py-16 sm:px-6 sm:py-24"
+      className="bg-bg w-full scroll-mt-[var(--lp-anchor-offset)] px-4 pt-16 pb-20 sm:px-6 sm:py-24"
     >
       <header data-anim="rise" className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center">
         <Badge tone="accent">Appointments</Badge>
@@ -396,7 +412,7 @@ export function BookingSection(): JSX.Element {
                 {formError && (
                   <p
                     role="alert"
-                    className="border-danger/25 bg-danger-muted text-body text-danger rounded-md border px-3.5 py-2.5"
+                    className="border-danger/25 bg-danger-muted text-body text-danger rounded-md border px-3.5 py-2.5 break-words"
                   >
                     {formError}
                   </p>
@@ -433,8 +449,9 @@ export function BookingSection(): JSX.Element {
                                   onClick={() => chooseDate(iso)}
                                   className={cn(
                                     'min-h-tap text-label rounded-lg border px-3.5 py-2 font-medium',
-                                    'duration-fast ease-standard transition-[background-color,border-color,color]',
-                                    'focus-visible:outline-focus focus-visible:outline-2 focus-visible:outline-offset-2',
+                                    'transition-[background-color,border-color,color]',
+                                    LP_TRANSITION,
+                                    LP_FOCUS,
                                     'active:scale-[0.98] motion-reduce:active:scale-100',
                                     selected
                                       ? 'border-accent bg-accent text-accent-fg shadow-sm'
@@ -460,7 +477,9 @@ export function BookingSection(): JSX.Element {
                               min={todayIso()}
                               value={date ?? ''}
                               onChange={(event) => chooseDate(event.target.value)}
-                              className="max-w-xs"
+                              // `inputSize="lg"` is a 40px control — correct in
+                              // the clinical UI, one finger-width short here.
+                              className="min-h-tap max-w-xs"
                               iconLeft={<CalendarDays />}
                             />
                           )}
@@ -491,6 +510,7 @@ export function BookingSection(): JSX.Element {
                             type="button"
                             variant="secondary"
                             size="sm"
+                            className="min-h-tap px-4"
                             onClick={() => void slotsQuery.refetch()}
                           >
                             Try again
@@ -512,9 +532,15 @@ export function BookingSection(): JSX.Element {
                           </p>
                         )
                       ) : (
+                        // Two columns from 360px up. A single stacked column
+                        // pushed even a light eight-slot evening past the
+                        // 20rem scroller, so the patient had to scroll a list
+                        // inside a page to see the day — the one genuinely
+                        // awkward moment in the one-handed flow. Two columns
+                        // fit that same evening with no inner scroll at all.
                         <ul
                           data-lenis-prevent
-                          className="flex max-h-80 flex-col gap-2 overflow-y-auto pr-1"
+                          className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3"
                         >
                           {freeSlots.map((available) => {
                             const selected = available.start_time === slot
@@ -529,8 +555,9 @@ export function BookingSection(): JSX.Element {
                                     setFormError(null)
                                   }}
                                   className={cn(
-                                    'h-11 w-full rounded-lg border px-4 text-body font-medium tabular-nums',
-                                    'duration-fast ease-standard transition-[background-color,border-color,color]',
+                                    'h-11 w-full min-w-0 rounded-lg border px-2 text-body font-medium tabular-nums',
+                                    'transition-[background-color,border-color,color]',
+                                    LP_TRANSITION,
                                     'focus-visible:outline-focus focus-visible:outline-2 focus-visible:-outline-offset-2',
                                     'active:scale-[0.99] motion-reduce:active:scale-100',
                                     selected
@@ -556,12 +583,17 @@ export function BookingSection(): JSX.Element {
                 </>
               ) : (
                 /* Step 3: your details ------------------------------------ */
-                <div ref={detailsRef} tabIndex={-1} className="flex flex-col gap-5 outline-none">
+                /* No `outline-none` on this focus target: the landing owns one
+                   focus ring and nothing may suppress it. It only paints when
+                   the patient arrived by keyboard — exactly when they need to
+                   be told focus moved. */
+                <div ref={detailsRef} tabIndex={-1} className="flex flex-col gap-5">
                   <div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
+                      className="min-h-tap -ml-3 px-3"
                       onClick={() => {
                         setSlot(null)
                         setSlotError(null)
@@ -585,12 +617,15 @@ export function BookingSection(): JSX.Element {
                           type="button"
                           onClick={() => setPurpose(p.id)}
                           aria-pressed={purpose === p.id}
-                          className={
-                            'rounded-lg border px-3 py-2.5 text-left transition-colors duration-fast ' +
-                            (purpose === p.id
+                          className={cn(
+                            'min-h-tap rounded-lg border px-3.5 py-3 text-left',
+                            'transition-[background-color,border-color]',
+                            LP_TRANSITION,
+                            LP_FOCUS,
+                            purpose === p.id
                               ? 'border-[color:var(--lp-accent)] bg-[color:var(--lp-accent-tint)]'
-                              : 'border-border bg-surface hover:border-border-strong')
-                          }
+                              : 'border-border bg-surface hover:border-border-strong',
+                          )}
                         >
                           <span className="text-label text-text block font-semibold">{p.title}</span>
                           <span className="text-caption text-text-subtle mt-0.5 block">
@@ -623,6 +658,7 @@ export function BookingSection(): JSX.Element {
                             {...a}
                             {...form.register('patient_first_name')}
                             inputSize="lg"
+                            className="min-h-tap"
                             autoComplete="given-name"
                             maxLength={64}
                           />
@@ -638,6 +674,7 @@ export function BookingSection(): JSX.Element {
                             {...a}
                             {...form.register('patient_last_name')}
                             inputSize="lg"
+                            className="min-h-tap"
                             autoComplete="family-name"
                             maxLength={64}
                           />
@@ -657,6 +694,7 @@ export function BookingSection(): JSX.Element {
                           {...form.register('patient_phone')}
                           type="tel"
                           inputSize="lg"
+                          className="min-h-tap"
                           inputMode="tel"
                           autoComplete="tel"
                           maxLength={20}
@@ -677,6 +715,7 @@ export function BookingSection(): JSX.Element {
                           {...form.register('reason')}
                           rows={3}
                           maxLength={512}
+                          className="min-h-tap"
                           invalid={Boolean(form.formState.errors.reason)}
                         />
                       )}
@@ -688,7 +727,9 @@ export function BookingSection(): JSX.Element {
                         variant="primary"
                         size="lg"
                         loading={booking.isPending}
-                        className="w-full"
+                        // The one action the whole section exists for: 48px,
+                        // full-bleed, and the last thing a thumb has to reach.
+                        className="min-h-12 w-full"
                       >
                         Confirm booking
                       </Button>
@@ -742,8 +783,8 @@ function ClinicPanel({
         >
           {monogram(clinicName)}
         </span>
-        <div className="flex flex-col gap-0.5">
-          <p className="text-caption text-text-muted">{clinicName}</p>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <p className="text-caption text-text-muted break-words">{clinicName}</p>
           <p className="lp-serif text-text text-[1.4rem] leading-tight md:text-[1.7rem]">
             In-clinic consultation
           </p>
@@ -769,11 +810,13 @@ function ClinicPanel({
               strokeWidth={1.5}
               className="mt-0.5 size-4 shrink-0 text-[color:var(--lp-accent)]"
             />
-            <span className="text-label text-text-muted">{address}</span>
+            <span className="text-label text-text-muted min-w-0 break-words">{address}</span>
           </li>
         )}
       </ul>
-      {compactMeta && <p className="text-caption text-text-subtle md:hidden">{compactMeta}</p>}
+      {compactMeta && (
+        <p className="text-label text-text-muted break-words md:hidden">{compactMeta}</p>
+      )}
 
       {/* Live mirror of the picked date + time. `aria-live` so screen reader
           users hear the pick land without hunting for this panel. */}
@@ -785,8 +828,10 @@ function ClinicPanel({
               strokeWidth={1.5}
               className="mt-0.5 size-4 shrink-0 text-[color:var(--lp-accent)]"
             />
-            <div className="flex flex-col gap-0.5">
-              <p className="text-label text-text font-medium">{longDayLabel(selection.date)}</p>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <p className="text-label text-text font-medium break-words">
+                {longDayLabel(selection.date)}
+              </p>
               <p className="text-caption text-text-muted tabular-nums">
                 {formatTime(selection.startTime)}
                 {selection.endTime ? ` – ${formatTime(selection.endTime)}` : ''}
@@ -799,7 +844,7 @@ function ClinicPanel({
   )
 }
 
-/** `"Mehta Ortho Care"` → `"MO"`; falls back to `"OC"` for empty names. */
+/** `"Deb Roy Orthopaedics"` → `"DR"`; falls back to `"OC"` for empty names. */
 function monogram(name: string): string {
   const words = name.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word))
   const letters = words
@@ -825,8 +870,10 @@ function minutesBetween(start: string, end: string): number | null {
 
 function SlotSkeleton() {
   return (
-    <ul aria-hidden className="flex flex-col gap-2">
-      {Array.from({ length: 5 }, (_, index) => (
+    // Mirrors the real slot grid exactly, so the times do not jump columns
+    // when the query resolves.
+    <ul aria-hidden className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {Array.from({ length: 6 }, (_, index) => (
         <li
           key={index}
           className="bg-surface-hover h-11 w-full animate-pulse rounded-lg motion-reduce:animate-none"
@@ -852,7 +899,7 @@ function BookingConfirmation({
   const { appointment, patientName } = confirmation
 
   return (
-    <div ref={ref} tabIndex={-1} aria-live="polite" className="flex flex-col gap-6 outline-none">
+    <div ref={ref} tabIndex={-1} aria-live="polite" className="flex flex-col gap-6">
       <span
         aria-hidden
         className="bg-success-muted text-success grid size-12 place-items-center rounded-full [&_svg]:size-6"
@@ -878,7 +925,12 @@ function BookingConfirmation({
       </dl>
 
       <div>
-        <Button variant="secondary" size="lg" className="rounded-full" onClick={onBookAnother}>
+        <Button
+          variant="secondary"
+          size="lg"
+          className="min-h-tap rounded-full"
+          onClick={onBookAnother}
+        >
           Book another time
         </Button>
       </div>
@@ -890,7 +942,7 @@ function ConfirmationRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="border-border flex flex-col gap-0.5 border-b py-3 last:border-b-0 sm:flex-row sm:items-baseline sm:gap-6">
       <dt className="text-label text-text-muted sm:w-20 sm:shrink-0">{label}</dt>
-      <dd className="text-body text-text font-medium">{value}</dd>
+      <dd className="text-body text-text min-w-0 font-medium break-words">{value}</dd>
     </div>
   )
 }

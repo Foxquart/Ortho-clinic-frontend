@@ -12,11 +12,39 @@ import type Lenis from 'lenis'
 
 let active: Lenis | null = null
 
-/** Height the sticky nav reserves, mirrored from `--nav-h` (4rem = 64px). */
-const NAV_OFFSET = 72
+/**
+ * Where an anchor should land, in pixels.
+ *
+ * Read from `--lp-anchor-offset` on `.landing-root` rather than hardcoded, so
+ * this and every `scroll-mt-*` on the page are the same number by construction.
+ * The previous constant was 72px — exactly the nav pill's occupied height —
+ * which put a heading flush against the pill with no clearance, and it disagreed
+ * with the 96px `#book` was using in CSS.
+ */
+const FALLBACK_OFFSET = 96
+
+function anchorOffset(): number {
+  const root = document.querySelector('.landing-root')
+  if (!root) return FALLBACK_OFFSET
+  const raw = getComputedStyle(root).getPropertyValue('--lp-anchor-offset')
+  const px = Number.parseFloat(raw)
+  return Number.isFinite(px) && px > 0 ? px : FALLBACK_OFFSET
+}
 
 export function setActiveLenis(instance: Lenis | null): void {
   active = instance
+}
+
+/**
+ * The live Lenis instance, or `null`.
+ *
+ * Read it, do not cache it: it is `null` under reduced motion, and it is also
+ * `null` for the first few frames of a mount, because `LandingPage` registers
+ * it in its own layout effect and React runs a child's effects before its
+ * parent's. A caller that wants the instance at mount time has to retry.
+ */
+export function getActiveLenis(): Lenis | null {
+  return active
 }
 
 function prefersReducedMotion(): boolean {
@@ -31,11 +59,13 @@ export function scrollToAnchor(id: string): void {
   const el = document.getElementById(id)
   if (!el) return
 
+  const offset = anchorOffset()
+
   if (active && !prefersReducedMotion()) {
-    active.scrollTo(el, { offset: -NAV_OFFSET })
+    active.scrollTo(el, { offset: -offset })
     return
   }
 
-  const top = el.getBoundingClientRect().top + window.scrollY - NAV_OFFSET
+  const top = el.getBoundingClientRect().top + window.scrollY - offset
   window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
 }

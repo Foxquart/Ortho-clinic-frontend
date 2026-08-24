@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host localhost",
+    "prebuild": "bun run fetch:reviews",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
     "lint": "oxlint",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "preview": "vite preview --host localhost",
-    "seed": "bun run scripts/seed-demo.ts"
+    "seed": "bun run scripts/seed-demo.ts",
+    "fetch:reviews": "bun run scripts/fetch-google-reviews.ts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

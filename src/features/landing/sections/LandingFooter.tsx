@@ -14,10 +14,29 @@
  * legible to a crawler that does not wait for the API.
  */
 import { Link } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
 import { Monogram } from '@/features/landing/LandingNav'
-import { ScrollButton } from '@/features/landing/primitives'
+import { CtaArrow, ScrollButton } from '@/features/landing/primitives'
 import { CLINIC, DOCTOR, PRESENCE } from '@/features/landing/profile'
+
+/**
+ * Two halves of one footer-link recipe, kept apart on purpose.
+ *
+ * `LINK_ROW` is the hit area. Text links are where a footer quietly fails a
+ * phone: `text-label` sets a 13px line box, which is a ~19px target inside a
+ * 44px thumb. So every link gets a 44px minimum row on mobile and drops back
+ * to its natural height from `md` up, where a mouse is precise and the footer
+ * wants its editorial density back.
+ *
+ * `LINK_DRAW` is the underline, and it goes on an inner span rather than on
+ * the anchor — which is the whole reason these are two constants. The rule
+ * pins its rule to the bottom of its own box, so putting it on a 44px-tall
+ * anchor would float the underline a dozen pixels below the words. On the span
+ * it sits where an underline belongs, and `LINK_ROW`'s `group` drives it from
+ * the whole anchor (see the `.group:hover` trigger in landing.css) so the
+ * arrow and the padding are live too.
+ */
+const LINK_ROW = 'group inline-flex w-fit items-center min-h-11 md:min-h-0'
+const LINK_DRAW = 'lp-link-draw'
 
 const NAV_LINKS: { target: string; label: string }[] = [
   { target: 'record', label: 'The record' },
@@ -39,7 +58,10 @@ export function LandingFooter() {
         <div className="max-w-sm">
           <div className="flex items-center gap-2.5">
             <Monogram />
-            <span className="lp-serif text-2xl leading-none text-text">{DOCTOR.shortName}</span>
+            {/* Full name, matching the nav wordmark and the hero H1. This one sits
+               beside the NAP block, which is exactly where a crawler reconciles the
+               practice — the three statements of the entity must be identical. */}
+            <span className="lp-serif text-2xl leading-none text-text">{DOCTOR.name}</span>
           </div>
           <p className="mt-4 text-body leading-relaxed text-text-muted">
             {DOCTOR.specialty} in {DOCTOR.city}. Bones, joints, and the long
@@ -49,24 +71,24 @@ export function LandingFooter() {
             href={PRESENCE.doordarshan}
             target="_blank"
             rel="noreferrer"
-            className="mt-4 inline-flex items-center gap-1.5 text-label font-medium text-text-subtle transition-colors duration-fast hover:text-text"
+            className={`${LINK_ROW} mt-3 gap-1.5 text-label font-medium text-text-subtle transition-colors duration-fast hover:text-text`}
           >
-            An hour on arthritis, Doordarshan Tripura
-            <ArrowRight aria-hidden className="size-3.5" />
+            <span className={LINK_DRAW}>An hour on arthritis, Doordarshan Tripura</span>
+            <CtaArrow className="size-3.5 shrink-0" />
           </a>
         </div>
 
         {/* In-page navigation */}
-        <nav aria-label="Footer" className="flex flex-col items-start gap-1">
+        <nav aria-label="Footer" className="flex flex-col items-start gap-1 md:gap-0.5">
           {NAV_LINKS.map((link) => (
             <ScrollButton
               key={link.target}
               target={link.target}
               tone="ghost"
               size="md"
-              className="h-auto justify-start px-0 font-medium text-text-muted hover:bg-transparent hover:text-text"
+              className={`${LINK_ROW} h-auto justify-start px-0 font-medium text-text-muted hover:bg-transparent hover:text-text md:py-1`}
             >
-              {link.label}
+              <span className={LINK_DRAW}>{link.label}</span>
             </ScrollButton>
           ))}
         </nav>
@@ -84,18 +106,22 @@ export function LandingFooter() {
           {CLINIC.phone && (
             <a
               href={`tel:${CLINIC.phone.replace(/\s+/g, '')}`}
-              className="transition-colors duration-fast hover:text-text"
+              className={`${LINK_ROW} transition-colors duration-fast hover:text-text`}
             >
-              {CLINIC.phone}
+              <span className={LINK_DRAW}>{CLINIC.phone}</span>
             </a>
           )}
           <span className="text-text-subtle">{CLINIC.hours}</span>
+          {/* Stays quiet — this is the staff door, not a patient CTA — but it
+              gets the same underline draw and the same 44px row as everything
+              else. Quiet is a colour decision, not an excuse for a link you
+              cannot hit. */}
           <Link
             to="/login"
-            className="mt-2 inline-flex w-fit items-center gap-1.5 text-label font-medium text-text-subtle transition-colors duration-fast hover:text-text"
+            className={`${LINK_ROW} mt-1 gap-1.5 text-label font-medium text-text-subtle transition-colors duration-fast hover:text-text`}
           >
-            Staff sign in
-            <ArrowRight aria-hidden className="size-3.5" />
+            <span className={LINK_DRAW}>Staff sign in</span>
+            <CtaArrow className="size-3.5 shrink-0" />
           </Link>
         </div>
       </div>

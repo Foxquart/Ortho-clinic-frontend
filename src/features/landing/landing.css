@@ -1,5 +1,5 @@
 /* =============================================================================
-   Dr. Arjun Mehta — personal brand landing page
+   Dr. Sankar Deb Roy — personal brand landing page
    -----------------------------------------------------------------------------
    Direction: EDITORIAL LUXURY, LIFE-FIRST. Warm cream grounds, deep teal accent,
    Instrument Serif display over Inter, real lifestyle photography under a soft
@@ -48,6 +48,12 @@
 
   --section-pad: clamp(5.5rem, 11vw, 10rem);
   --nav-h: 4.5rem;
+  /* Where an in-page anchor should land. `--nav-h` (72px) is exactly the
+     pill's occupied height (`pt-4` + `h-14`), so scrolling to it puts a
+     heading flush against the nav with no breathing room. One token, used
+     by every `scroll-mt-*` on the page AND read by `scrollToAnchor`, so the
+     CSS and JS paths can never drift apart again. */
+  --lp-anchor-offset: calc(var(--nav-h) + 1.5rem);
 
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -93,25 +99,54 @@
 /* The display size for a headline that shares its row with something else.
    `.lp-display` is tuned for three short words across the full measure; the
    hero now runs a name, a specialty and a city down one half of a split, and
-   at 7.5rem that pushes the portrait clean off the first screen. */
+   at 7.5rem that pushes the portrait clean off the first screen.
+
+   The 2rem floor (was 2.6rem) is what buys the portrait its place above the
+   fold on a phone: at 390px the clamp lands on its minimum, and 2.6rem spent
+   153px of an 844px screen on three lines of headline. The desktop end of the
+   clamp is untouched. */
 .lp-display-split {
-  font-size: clamp(2.6rem, 5.2vw, 4.6rem);
+  font-size: clamp(2rem, 5.2vw, 4.6rem);
   line-height: 0.98;
 }
 
 /* Marquee — a single track duplicated once, translated -50%. The wrapper
    masks the ends so cards fade rather than clip. With reduced motion the
    animation never starts and the track becomes an ordinary scroll region,
-   which is also the no-JS behaviour. */
+   which is also the no-JS behaviour.
+
+   The fade width is fluid: a fixed 6rem ate ~half a 360px viewport, so a
+   whole card was permanently under the mask on a phone. It scales with the
+   viewport and only reaches 6rem on a wide desktop. */
 .lp-marquee {
+  --lp-marquee-fade: clamp(1.5rem, 6vw, 6rem);
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 6rem, #000 calc(100% - 6rem), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 6rem, #000 calc(100% - 6rem), transparent);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--lp-marquee-fade),
+    #000 calc(100% - var(--lp-marquee-fade)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--lp-marquee-fade),
+    #000 calc(100% - var(--lp-marquee-fade)),
+    transparent
+  );
 }
 .lp-marquee-track {
   display: flex;
   width: max-content;
   gap: 1rem;
+}
+/* Promotion is only worth its memory while the track is actually tweening —
+   under reduced motion the marquee is a plain scroll region. */
+@media (prefers-reduced-motion: no-preference) {
+  .lp-marquee-track {
+    will-change: transform;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .lp-marquee {
@@ -264,18 +299,126 @@ html.lenis body {
   opacity: 0.5;
 }
 
-/* Floating nav pill transition. */
+/* Floating nav pill. The surface state crossfades; the hide-on-scroll-down
+   travel is transform-only and lives on `.lp-nav-hide` so the two never share
+   a property. `LandingNav` toggles the class; it is disabled while the mobile
+   menu is open and under reduced motion (below). */
 .lp-nav-pill {
   transition:
     background-color 0.35s cubic-bezier(0.22, 1, 0.36, 1),
     border-color 0.35s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    backdrop-filter 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    backdrop-filter 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lp-nav-pill.lp-nav-hide {
+  transform: translateY(-140%);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Interaction primitives — shared by every section                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Inline text link whose rule draws in from the left on hover and on keyboard
+ * focus. A flat `currentColor` background-image, not a decorative gradient:
+ * it is the only way to animate an underline's *width* without touching a
+ * layout property, and it inherits the link's colour for free.
+ */
+.lp-link-draw {
+  position: relative;
+  padding-bottom: 0.06em;
+}
+/* The rule lives on a pseudo-element, and it scales rather than growing a
+   background, for two independent reasons.
+
+   A `background-size` transition is a PAINT property — the motion contract
+   says transform and opacity only, so `scaleX` is the compliant shape.
+
+   And `landing.css` is inside `@layer components`, so ANY Tailwind
+   `transition-*` utility on the same element (a later layer) replaces the
+   whole shorthand and silently drops the underline from the transition list.
+   A pseudo-element is unreachable from a utility class, so the draw cannot be
+   defeated by a `transition-colors` somebody adds later. */
+.lp-link-draw::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  background-color: currentColor;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lp-link-draw:hover::after,
+.lp-link-draw:focus-visible::after {
+  transform: scaleX(1);
+}
+/* Group-driven: the trigger is an ancestor `.group`, so a whole card or row
+   can drive an underline on one span inside it. Saves every call site from
+   re-declaring the effect as arbitrary utilities. */
+.group:hover .lp-link-draw::after,
+.group:focus-visible .lp-link-draw::after,
+.group:focus-within .lp-link-draw::after {
+  transform: scaleX(1);
+}
+
+/**
+ * Card hover lift. Hairline border + 4px of travel is the whole elevation
+ * language here — no shadow stacking. Fine-pointer only, so a tap on a phone
+ * never leaves a card stuck in its hover state.
+ */
+@media (hover: hover) {
+  .lp-card-lift {
+    transition:
+      transform 250ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 250ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .lp-card-lift:hover {
+    transform: translateY(-4px);
+    border-color: var(--color-border-strong);
+  }
+}
+
+/* Branded selection — the teal accent, scoped so it never leaks into the app
+   or the CMS, which keep the neutral system selection. */
+.landing-root ::selection {
+  background: var(--lp-accent);
+  color: var(--lp-accent-fg);
+}
+.landing-root::selection {
+  background: var(--lp-accent);
+  color: var(--lp-accent-fg);
+}
+
+/* One focus ring for the whole landing, on-brand and always visible. The base
+   layer already forbids the browser default; this restates it in the accent
+   so the ring reads against warm paper. `border-radius: inherit` keeps it
+   hugging pills, cards and square controls alike. */
+.landing-root :focus-visible {
+  outline: 2px solid var(--lp-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-word {
     will-change: auto;
+  }
+  /* The underline still appears — it just arrives instead of drawing. */
+  .lp-link-draw::after {
+    transition: none;
+  }
+  .lp-card-lift {
+    transition: none;
+  }
+  .lp-card-lift:hover {
+    transform: none;
+  }
+  .lp-nav-pill,
+  .lp-nav-pill.lp-nav-hide {
+    transform: none;
   }
 }
 }

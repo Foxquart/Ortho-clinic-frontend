@@ -13,13 +13,14 @@
  * assistants both weigh a third-party-anchored claim far above a self-reported
  * one, and a patient deciding who to trust does the same thing.
  *
- * MOTION CONTRACT (see landing.css): `data-reveal` and `data-reveal-group` /
- * `data-reveal-item` are the hooks the page's GSAP reads. Nothing here sets an
- * opacity baseline.
+ * MOTION CONTRACT (see landing.css): `data-reveal`, `data-reveal-group` /
+ * `data-reveal-item` and `data-reveal-clip` are the hooks the page's GSAP
+ * reads. Nothing here sets an opacity baseline, and the feature photograph's
+ * clip reveal is a `gsap.from`, so its resting DOM state is unclipped.
  */
-import { ArrowUpRight, FileText, Radio } from 'lucide-react'
+import { FileText, Radio } from 'lucide-react'
 import { img } from '@/features/landing/imagery'
-import { DraftChip } from '@/features/landing/primitives'
+import { ArrowLink, CtaArrowUpRight, DraftChip } from '@/features/landing/primitives'
 import { MEDIA, MILESTONES, PUBLICATIONS, published } from '@/features/landing/profile'
 
 export function RecordSection() {
@@ -28,7 +29,7 @@ export function RecordSection() {
   const papers = published(PUBLICATIONS)
 
   return (
-    <section id="record" className="scroll-mt-[var(--nav-h)] py-[var(--section-pad)]">
+    <section id="record" className="scroll-mt-[var(--lp-anchor-offset)] py-[var(--section-pad)]">
       <div className="mx-auto max-w-content px-5 sm:px-8">
         <div className="mb-12 md:mb-16">
           <p data-reveal className="lp-kicker mb-5">
@@ -41,9 +42,13 @@ export function RecordSection() {
 
         <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
           {/* Feature photograph */}
+          {/* `data-reveal-clip`, not a fade: a photograph this size fading up
+              reads as a slow image load. The wipe reads as an entrance. The
+              aspect ratio does the mobile work — the figure is a grid child
+              with no intrinsic width, so it can never exceed the column. */}
           <figure
-            data-reveal
-            className="lp-media relative aspect-[4/5] overflow-hidden rounded-3xl sm:aspect-auto sm:min-h-[34rem]"
+            data-reveal-clip
+            className="lp-media relative aspect-[4/5] w-full overflow-hidden rounded-3xl sm:aspect-auto sm:min-h-[34rem]"
           >
             <img
               src={img('teaching', { w: 1100, h: 1400 })}
@@ -116,6 +121,21 @@ export function RecordSection() {
                   {item.title}
                 </h3>
                 {item.note && <p className="text-body text-text-muted mt-1.5">{item.note}</p>}
+                {/* The way out of the iframe. An embed can be blocked, refuse
+                    to play, or simply be scrolled past, and a claim about an
+                    hour of state television is only worth having if it stays
+                    checkable when the player does not load. On its own line
+                    rather than wrapped around the title: the title runs to
+                    two lines on a phone, and a drawn underline across a
+                    wrapped inline box is a mess. */}
+                <ArrowLink
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 min-h-11"
+                >
+                  Open on YouTube
+                </ArrowLink>
               </div>
 
               <div className="text-caption text-text-subtle flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -161,10 +181,7 @@ export function RecordSection() {
                 <div className="text-caption text-text-subtle mt-5">{paper.citation}</div>
                 <span className="text-label mt-5 inline-flex items-center gap-1.5 font-semibold text-[color:var(--lp-accent)]">
                   Read the paper
-                  <ArrowUpRight
-                    aria-hidden
-                    className="size-4 transition-transform duration-fast group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                  />
+                  <CtaArrowUpRight />
                 </span>
               </a>
             ))}
