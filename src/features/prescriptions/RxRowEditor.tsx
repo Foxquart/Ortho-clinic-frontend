@@ -199,10 +199,16 @@ export function RxRowEditor({
         onEnter()
       }}
     >
-      <div className="flex items-start gap-2">
+      {/* A container, not a viewport consumer. This row sits in whichever column
+          the pad gives it — a ~430px form column on a laptop, full width on a
+          phone — and viewport breakpoints got that wrong in both directions:
+          at 1600px wide `lg:` fired and forced a four-column grid needing
+          ~400px of fixed track into a 428px column, which is what collapsed the
+          Medicine and Dose labels on top of each other. */}
+      <div className="@container flex items-start gap-2">
         <span
           aria-hidden
-          className="mt-6 hidden w-5 shrink-0 text-right font-mono text-caption tabular-nums text-text-subtle sm:block"
+          className="mt-6 hidden w-5 shrink-0 text-right font-mono text-caption tabular-nums text-text-subtle @xs:block"
         >
           {index + 1}
         </span>
@@ -218,8 +224,11 @@ export function RxRowEditor({
             />
           )}
 
-          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_8rem_minmax(10rem,12rem)_5rem]">
-            <div className="sm:col-span-2 lg:col-span-1">
+          {/* Three shapes, chosen by the column this row is sitting in:
+              stacked when very narrow, then medicine over dose/frequency/days,
+              then a single dense line once there is room for all four. */}
+          <div className="grid gap-2.5 @xs:grid-cols-2 @md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_4.5rem] @3xl:grid-cols-[minmax(0,1fr)_7rem_minmax(8rem,10rem)_4.5rem]">
+            <div className="@xs:col-span-2 @md:col-span-3 @3xl:col-span-1">
               <FieldLabel
                 htmlFor={rowFieldId.medicine(row.key)}
                 hint="The drug to prescribe. Click to browse your medicines, or type to search by name, generic or brand."
@@ -416,7 +425,7 @@ export function RxRowEditor({
           </div>
 
           {showMore && (
-            <div className="mt-2.5 grid gap-2.5 sm:grid-cols-[7rem_11rem]">
+            <div className="mt-2.5 grid gap-2.5 @xs:grid-cols-[6rem_minmax(0,1fr)]">
               <div>
                 <FieldLabel
                   htmlFor={quantityId}

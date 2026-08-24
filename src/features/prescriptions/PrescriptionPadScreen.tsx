@@ -633,7 +633,7 @@ export function PrescriptionPadScreen() {
         From 1400px up the wrappers become real columns: the entire form on the
         left, and on the right the live preview of the printed page.
       */}
-      <div className="flex flex-col gap-4 min-[1400px]:grid min-[1400px]:min-h-0 min-[1400px]:flex-1 min-[1400px]:grid-cols-[minmax(360px,1fr)_1.6fr] min-[1400px]:items-stretch min-[1400px]:gap-6">
+      <div className="flex flex-col gap-4 min-[1400px]:grid min-[1400px]:min-h-0 min-[1400px]:flex-1 min-[1400px]:grid-cols-[minmax(440px,1fr)_1.15fr] min-[1400px]:items-stretch min-[1400px]:gap-6">
         <div className="contents min-[1400px]:no-scrollbar min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-y-auto min-[1400px]:pb-28">
           {/* ---------------------------- patient ---------------------------- */}
           <Card className="order-1">
