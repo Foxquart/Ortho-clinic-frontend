@@ -3,6 +3,7 @@ import {
   FileText,
   Globe,
   LayoutDashboard,
+  ListChecks,
   Mic,
   Pill,
   Settings,
@@ -14,13 +15,17 @@ import type { Capability } from '@/lib/permissions'
 /**
  * The app is a digital prescription pad, so the navigation says so.
  *
- * Four rows earn a place in the sidebar: the act of prescribing, the record of
- * what was prescribed, and the two lookups that support both. Everything else —
- * the dashboard, the schedule, the public-site CMS — is real, still routed and
- * still reachable, but it is not what this software is for and it no longer
- * competes for the doctor's eye. Those live in `DEMOTED_NAV`: absent from the
- * sidebar, present in the command palette and in Settings, and still holding
- * their original `g` chords so no muscle memory breaks.
+ * A row earns a place in the sidebar only if it is part of prescribing: the act
+ * of prescribing, the record of what was prescribed, and the lookups that
+ * support both — patients, the formulary, and the advice library the doctor
+ * appends to a prescription. The advice library sits next to Medicines because
+ * it is formulary-adjacent: the same admin curates both, so it belongs beside
+ * the formulary rather than buried in Settings. Everything else — the
+ * public-site CMS — is real, still routed and still reachable, but it is not
+ * what this software is for and it no longer competes for the doctor's eye.
+ * That lives in `DEMOTED_NAV`: absent from the sidebar, present in the command
+ * palette and in Settings, and still holding its original `g` chord so no
+ * muscle memory breaks.
  *
  * Dictation is deliberately *not* a destination. It is how you write a
  * prescription, so it is an action (`PRESCRIBE_ACTIONS`), reachable from the
@@ -36,6 +41,7 @@ import type { Capability } from '@/lib/permissions'
  * | `g r` | Prescriptions (the history)                               |
  * | `g p` | Patients                                                  |
  * | `g m` | Medicines                                                 |
+ * | `g l` | Advice library                                            |
  * | `g s` | Settings                                                  |
  * | `g d` | Dashboard (demoted)                                       |
  * | `g a` | Appointments (demoted)                                    |
@@ -111,6 +117,14 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   },
   { to: '/patients', label: 'Patients', icon: Users, goKey: 'p', hint: 'Records and history' },
   { to: '/medicines', label: 'Medicines', icon: Pill, goKey: 'm', hint: 'The formulary' },
+  {
+    to: '/advice',
+    label: 'Advice library',
+    icon: ListChecks,
+    goKey: 'l',
+    requires: 'medicines.write',
+    hint: 'Saved instructions to append to a prescription',
+  },
 ] as const
 
 export const SECONDARY_NAV: readonly NavItem[] = [

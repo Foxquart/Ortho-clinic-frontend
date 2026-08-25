@@ -150,6 +150,13 @@ export const router = createBrowserRouter([
                   { path: 'appointments', element: <AppointmentsScreen /> },
                   { path: 'medicines', element: <MedicinesScreen /> },
                   {
+                    /* The advice library is formulary-adjacent: the same admin
+                       who curates medicines curates advice, so it sits beside
+                       Medicines rather than inside Settings. */
+                    element: <RequireCapability capability="medicines.write" />,
+                    children: [{ path: 'advice', element: <AdviceLibraryScreen /> }],
+                  },
+                  {
                     element: <RequireCapability capability="speech.use" />,
                     children: [{ path: 'speech', element: <SpeechScreen /> }],
                   },
@@ -159,12 +166,6 @@ export const router = createBrowserRouter([
                     children: [
                       { index: true, element: <ClinicSettingsScreen /> },
                       { path: 'account', element: <AccountScreen /> },
-                      {
-                        /* The advice library is formulary-adjacent: the same
-                           admin who curates medicines curates advice. */
-                        element: <RequireCapability capability="medicines.write" />,
-                        children: [{ path: 'advice', element: <AdviceLibraryScreen /> }],
-                      },
                       {
                         element: <RequireCapability capability="users.manage" />,
                         children: [{ path: 'users', element: <UsersScreen /> }],

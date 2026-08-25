@@ -34,7 +34,7 @@
  * iframe gives it a separate document with no scripts and no same-origin
  * access, which is also the right posture for HTML the client did not author.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FileWarning, Loader2 } from 'lucide-react'
 import { apiPost } from '@/api/http'
@@ -43,6 +43,17 @@ import { toPreviewRequest, type RxDraft } from './model'
 
 /** How long the draft must sit still before a render is asked for. */
 const PREVIEW_DEBOUNCE_MS = 350
+
+/**
+ * A4 width in CSS pixels — 210mm at the 96dpi the template is laid out for.
+ *
+ * The page is a fixed physical width; the pane beside the pad is whatever the
+ * viewport leaves over. Rather than let the page be cut off at the right edge
+ * (which hides the Instructions column and half the diet panel), the iframe is
+ * rendered at true A4 width and scaled down to fit. A print preview that crops
+ * the page is not showing you what prints.
+ */
+const A4_WIDTH_PX = 794
 
 interface PreviewResponse {
   html: string
@@ -62,6 +73,26 @@ function useSettled<T>(value: T, delayMs: number): T {
   }, [value, delayMs])
 
   return settled
+}
+
+/** Tracks a element's box, so the page can be scaled to whatever width it gets. */
+function useBoxSize(): [(node: HTMLDivElement | null) => void, { width: number; height: number }] {
+  const [box, setBox] = useState({ width: 0, height: 0 })
+  const observer = useRef<ResizeObserver | null>(null)
+
+  const ref = useCallback((node: HTMLDivElement | null) => {
+    observer.current?.disconnect()
+    if (!node) return
+    observer.current = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      setBox({ width, height })
+    })
+    observer.current.observe(node)
+  }, [])
+
+  useEffect(() => () => observer.current?.disconnect(), [])
+
+  return [ref, box]
 }
 
 export function RxLivePreview({ draft }: { draft: RxDraft }) {
@@ -89,7 +120,12 @@ export function RxLivePreview({ draft }: { draft: RxDraft }) {
   const lastGoodHtml = useRef<string | null>(null)
   if (preview.data?.html) lastGoodHtml.current = preview.data.html
 
+  const [frameRef, frame] = useBoxSize()
   const html = lastGoodHtml.current
+
+  /* Never scale UP: on a very wide pane a 794px page blown up would just be
+     blurry. Below A4 width it shrinks to fit. */
+  const scale = frame.width > 0 ? Math.min(1, frame.width / A4_WIDTH_PX) : 1
   const pending = payload !== settled || preview.isFetching
   const failed = preview.isError && html === null
 
@@ -97,7 +133,7 @@ export function RxLivePreview({ draft }: { draft: RxDraft }) {
     <aside
       data-rx-preview
       aria-label="Preview of the printed prescription"
-      className="bg-bg-sunken relative flex h-full flex-col overflow-hidden rounded-xl border border-border"
+      className="bg-bg-sunken relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-border"
     >
       <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
         <span className="text-micro uppercase text-text-muted">Prints as</span>
@@ -128,14 +164,27 @@ export function RxLivePreview({ draft }: { draft: RxDraft }) {
           />
         </div>
       ) : (
-        <iframe
-          title="Printed prescription preview"
-          srcDoc={html}
-          /* No scripts, no same-origin: the pane renders a document the client
-             did not author, and it has no reason to do anything but paint. */
-          sandbox=""
-          className="min-h-0 w-full flex-1 border-0 bg-white"
-        />
+        <div ref={frameRef} className="min-h-0 flex-1 overflow-hidden">
+          <iframe
+            title="Printed prescription preview"
+            srcDoc={html}
+            /* No scripts, no same-origin: the pane renders a document the
+               client did not author, and it has no reason to do anything but
+               paint. */
+            sandbox=""
+            /* Laid out at true A4 width and scaled to fit, so the page is
+               never cropped. The height is divided by the same factor, so
+               after scaling it fills the pane exactly and long prescriptions
+               scroll inside the frame rather than being cut off. */
+            style={{
+              width: A4_WIDTH_PX,
+              height: scale > 0 ? frame.height / scale : frame.height,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+            className="border-0 bg-white"
+          />
+        </div>
       )}
     </aside>
   )

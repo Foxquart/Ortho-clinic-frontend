@@ -16,6 +16,7 @@
 import { Link } from 'react-router-dom'
 import { Monogram } from '@/features/landing/LandingNav'
 import { CtaArrow, ScrollButton } from '@/features/landing/primitives'
+import { usePublicClinic } from '@/features/public/usePublicData'
 import { CLINIC, DOCTOR, PRESENCE } from '@/features/landing/profile'
 
 /**
@@ -46,10 +47,37 @@ const NAV_LINKS: { target: string; label: string }[] = [
 ]
 
 export function LandingFooter() {
-  /* Static, not from the CMS. A NAP block only works if it matches the Google
-     Business Profile character for character, so it is version-controlled and
-     reviewed rather than whatever the clinic-settings record currently says. */
-  const addressLines = [CLINIC.street, `${CLINIC.city}, ${CLINIC.state} ${CLINIC.postalCode}`]
+  /* CMS first, `profile.ts` as the floor.
+   *
+   * This block used to be static, on the reasoning that a NAP only works if it
+   * matches the Google Business Profile character for character and so should
+   * be reviewed rather than edited live. That reasoning is still right — but it
+   * produced a page that showed one address in the booking card (which already
+   * reads the CMS) and a different one in the footer, and an edit in clinic
+   * settings that appeared to do nothing.
+   *
+   * So the record wins when it has a value, and every field falls back to the
+   * reviewed static one when it does not. A half-configured settings record can
+   * therefore never blank the address a crawler reads, and editing the clinic
+   * name in Settings now actually changes the footer. */
+  const clinic = usePublicClinic().data
+
+  const name = clinic?.clinic_name?.trim() || CLINIC.name
+  const street = clinic?.address?.trim() || CLINIC.street
+  const postalCode = clinic?.postal_code?.trim() || CLINIC.postalCode
+  const phone = clinic?.phone?.trim() || CLINIC.phone
+
+  /* The locality line comes from ONE source or the other, never spliced.
+     `ClinicSettingsResponse` has no `state`, so pairing a CMS city with the
+     static state produced "Bengaluru, Tripura 560038" — a real address in
+     neither place. When the record names a city it owns the whole line (which
+     is also how the Business Profile writes it: "Battala, Agartala 799001");
+     otherwise the reviewed line stands intact. */
+  const locality = clinic?.city?.trim()
+    ? [clinic.city.trim(), postalCode].filter(Boolean).join(' ')
+    : `${CLINIC.city}, ${CLINIC.state} ${CLINIC.postalCode}`
+
+  const addressLines = [street, locality]
 
   return (
     <footer className="border-t border-border">
@@ -95,7 +123,7 @@ export function LandingFooter() {
 
         {/* The NAP block, and the one door back to the product */}
         <div className="flex flex-col gap-2 text-body text-text-muted">
-          <span className="text-text font-medium">{CLINIC.name}</span>
+          <span className="text-text font-medium">{name}</span>
           <address className="not-italic leading-relaxed">
             {addressLines.map((line) => (
               <span key={line} className="block">
@@ -103,12 +131,12 @@ export function LandingFooter() {
               </span>
             ))}
           </address>
-          {CLINIC.phone && (
+          {phone && (
             <a
-              href={`tel:${CLINIC.phone.replace(/\s+/g, '')}`}
+              href={`tel:${phone.replace(/\s+/g, '')}`}
               className={`${LINK_ROW} transition-colors duration-fast hover:text-text`}
             >
-              <span className={LINK_DRAW}>{CLINIC.phone}</span>
+              <span className={LINK_DRAW}>{phone}</span>
             </a>
           )}
           <span className="text-text-subtle">{CLINIC.hours}</span>

@@ -16,7 +16,6 @@ interface SettingsTab {
 const TABS: readonly SettingsTab[] = [
   { to: '/settings', label: 'Clinic', end: true },
   { to: '/settings/account', label: 'Your account' },
-  { to: '/settings/advice', label: 'Advice library', requires: 'medicines.write' },
   { to: '/settings/users', label: 'Users', requires: 'users.manage' },
   { to: '/settings/audit', label: 'Audit log', requires: 'audit.read' },
   { to: '/settings/site', label: 'Public site', requires: 'portfolio.manage' },

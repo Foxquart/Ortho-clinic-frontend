@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CalendarCheck, Lock, Printer, Stethoscope } from 'lucide-react'
+import { ArrowLeft, CalendarCheck, FileDown, Lock, Printer, Stethoscope } from 'lucide-react'
 import { API_BASE_URL, apiGet, resolveApiUrl } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
@@ -63,6 +63,54 @@ export function PrescriptionDetailScreen() {
   const printUrl = resolveApiUrl(
     `${API_BASE_URL}${endpoints.prescriptions.printView(prescriptionId)}`,
   )
+
+  /* "Download PDF" is the browser's own print-to-PDF, because that is the only
+     honest way to get one: the API has no PDF endpoint, it renders the A4 sheet
+     as HTML and nothing else. So the print view is opened and the print dialog
+     raised on top of it, where the doctor picks "Save as PDF" as the
+     destination. No PDF library is pulled in to fake it, and nothing is
+     labelled a PDF that is really an HTML file. */
+  const openPrintDialog = () => {
+    /* `noopener` is deliberately NOT passed here, unlike the Print button.
+       With it the browser returns `null` instead of a window handle, and the
+       handle is exactly what is needed to call `print()` on the new tab. The
+       URL is our own API, assembled from `API_BASE_URL` rather than from
+       anything a user typed, so the reverse-tabnabbing that `noopener` guards
+       against has no way in. */
+    const printWindow = window.open(printUrl, '_blank')
+
+    if (!printWindow) {
+      /* A popup blocker (or a browser withholding the handle) left nothing to
+         drive. Open the tab the same way Print does so the sheet still appears;
+         the doctor presses Cmd/Ctrl+P from there. */
+      window.open(printUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+
+    const raisePrintDialog = () => {
+      /* Cross-origin guard. `API_BASE_URL` is `/api/v1` in dev — same origin,
+         via the Vite proxy — but `VITE_API_URL` can point the API at another
+         origin in production, and there the browser throws a SecurityError the
+         moment we touch the opened window. Swallowing it degrades to exactly
+         the Print behaviour: the sheet is open in its own tab and Cmd/Ctrl+P
+         still saves it as a PDF. */
+      try {
+        printWindow.focus()
+        printWindow.print()
+      } catch {
+        // Cross-origin print view — the doctor prints from the tab itself.
+      }
+    }
+
+    try {
+      /* The dialog must not open over a half-rendered page, so it waits for the
+         document's own `load`. (`once` so a re-print in that tab is the user's
+         business, not ours.) */
+      printWindow.addEventListener('load', raisePrintDialog, { once: true })
+    } catch {
+      // Same cross-origin case, thrown one step earlier on `addEventListener`.
+    }
+  }
 
   if (rxQuery.isError) {
     return (
@@ -149,6 +197,17 @@ export function PrescriptionDetailScreen() {
                 New prescription for this patient
               </Button>
             )}
+            {/* Sits beside Print rather than competing with it: same sheet,
+                same dialog, different destination. Kept `secondary` so the one
+                filled button in this header stays Print. */}
+            <Button
+              variant="secondary"
+              onClick={openPrintDialog}
+              iconLeft={<FileDown className="size-4" />}
+              title="Opens the print view and your browser's print dialog. Choose Save as PDF as the destination."
+            >
+              Download PDF
+            </Button>
             {/* The API renders the A4 sheet itself; a new tab hands the doctor
                 the browser's own print dialog in one click. */}
             <Button

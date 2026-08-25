@@ -924,7 +924,7 @@ export function PrescriptionPadScreen() {
               scrolls. `min-h-0` is what lets a flex child shrink below its
               content height — without it the iframe collapses to its intrinsic
               size and the page is cut off under the letterhead. */}
-          <div className="hidden min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:flex-1">
+          <div className="hidden min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:flex-1 min-[1400px]:flex-col">
             <RxLivePreview draft={draft} />
           </div>
         </div>
