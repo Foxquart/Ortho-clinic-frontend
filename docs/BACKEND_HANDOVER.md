@@ -80,7 +80,21 @@ curl -s -b <session> <base>/api/v1/advice-presets | jq length        # 13 on fre
 
 ---
 
-## 5. Prescription pad — new clinical fields (frontend is being built against this)
+## 5. Prescription pad — new clinical fields ✅ DELIVERED 2026-08-25
+
+> **Status: built and shipped by the backend.** All seven columns exist, plus
+> advice presets, per-medicine defaults and configurable vital reference
+> ranges. See the Frontend Integration Spec §4.4–4.6 and §4.8 for the live
+> contract — it supersedes the proposal below.
+>
+> The frontend no longer folds anything into `notes`: `toApiRequest` in
+> `src/features/prescriptions/model.ts` sends `vitals_bp`, `vitals_spo2`,
+> `vitals_pulse_bpm`, `vitals_weight_kg`, `procedure`, `consult` and
+> `investigations` as real fields. No `FOLDED_INTO_NOTES` markers remain.
+>
+> Kept below as the record of what was asked for and why.
+
+### Original proposal
 
 Source of truth: the doctor's own handwritten pad (photo supplied 2026-08-24).
 Its field order is **Patient + vitals → C/O → Clinical note → Diagnosis →

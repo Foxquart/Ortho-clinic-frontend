@@ -355,8 +355,10 @@ export interface RxDraft {
    * and read as `120/80`, and he may qualify it (`140/90 right arm`). Parsing
    * it would only be able to lose information.
    *
-   * FOLDED_INTO_NOTES until the API grows real columns — see `toApiRequest`
-   * and docs/BACKEND_HANDOVER.md §5.
+   * Sent as real columns (`vitals_bp`, `vitals_spo2`, `vitals_pulse_bpm`,
+   * `vitals_weight_kg`) — they live on the PRESCRIPTION, not the patient,
+   * because a printed prescription must show what was measured at that visit
+   * and must not change when the patient is weighed again.
    */
   vitalsBp: FieldState<string>
   vitalsSpo2: FieldState<string>
@@ -366,12 +368,12 @@ export interface RxDraft {
   chiefComplaint: FieldState<string>
   rows: RxRow[]
   advice: FieldState<string>
-  /** No API field exists; appended to `notes` on submit under a heading. */
+  /** Sent as `investigations` — a real column since 2026-08-25. */
   investigations: FieldState<string>
   notes: FieldState<string>
-  /** FOLDED_INTO_NOTES — no API column yet. Routinely "NA" on his pad. */
+  /** Sent as `procedure`. Routinely "NA" on his pad. */
   procedure: FieldState<string>
-  /** FOLDED_INTO_NOTES — no API column yet. */
+  /** Sent as `consult` — the "Comment" line on the paper pad. */
   consult: FieldState<string>
   /** ISO `YYYY-MM-DD`. */
   followUpDate: FieldState<string>
@@ -460,38 +462,96 @@ export function allergyConflicts(
  * three required fields for a walk-in. Like `toApiItem`, this throws rather
  * than inventing anything — call `canSubmitDraft` first.
  */
+/**
+ * The same draft, shaped for `POST /prescriptions/preview` — the server-side
+ * render of the very template that prints.
+ *
+ * Everything `toApiRequest` refuses, this one allows. A draft is incomplete by
+ * definition and the preview is most useful when the pad is half filled, so
+ * there is no `draftIssues` gate, no medicine is required, and a row with a
+ * blank dose or frequency is sent as-is rather than throwing.
+ *
+ * `patient_id` matters more than it looks: the server reads the patient from
+ * the database and the printed vitals line lives inside the patient block, so
+ * sending only inline details silently drops the vitals from the preview.
+ * Send the id whenever there is one.
+ */
+export function toPreviewRequest(draft: RxDraft): Record<string, unknown> {
+  const text = (field: FieldState<string>): string | null => field.value.trim() || null
+  const wholeNumber = (raw: string): number | null => {
+    const digits = raw.match(/\d+/)?.[0]
+    return digits ? Number(digits) : null
+  }
+  const weightKg = (raw: string): string | null => {
+    const n = Number.parseFloat(raw.replace(/[^\d.]/g, ''))
+    return Number.isFinite(n) ? n.toFixed(2) : null
+  }
+
+  return {
+    ...(draft.patient.id
+      ? { patient_id: draft.patient.id }
+      : {
+          patient: {
+            first_name: draft.patient.firstName.trim() || null,
+            last_name: draft.patient.lastName.trim() || null,
+            phone: draft.patient.phone.trim() || null,
+          },
+        }),
+    diagnosis: text(draft.diagnosis),
+    chief_complaint: text(draft.chiefComplaint),
+    advice: text(draft.advice),
+    notes: text(draft.notes),
+    investigations: text(draft.investigations),
+    procedure: text(draft.procedure),
+    consult: text(draft.consult),
+    vitals_bp: text(draft.vitalsBp),
+    vitals_spo2: wholeNumber(draft.vitalsSpo2.value),
+    vitals_pulse_bpm: wholeNumber(draft.vitalsPulse.value),
+    vitals_weight_kg: weightKg(draft.vitalsWeight.value),
+    follow_up_date: text(draft.followUpDate),
+    /* A row with neither an id nor a typed name is dropped server-side rather
+       than printed as an empty line, so unfilled rows cost nothing here. */
+    items: draft.rows.map((row) => ({
+      medicine_id: row.medicineId,
+      medicine_name: row.medicineName || null,
+      dosage: row.dosage.value.trim() || null,
+      frequency: row.frequency.value.trim() || null,
+      duration_days: row.durationDays.value,
+      quantity: row.quantity.value,
+      instructions: buildInstructions(row),
+    })),
+  }
+}
+
 export function toApiRequest(draft: RxDraft): Record<string, unknown> {
   const issues = draftIssues(draft)
   if (issues.length > 0) {
     throw new Error(`Draft is not ready: ${issues.map((i) => i.message).join(', ')}`)
   }
 
-  /* FOLDED_INTO_NOTES. The API has no column for vitals, investigations,
-     procedure or consult (docs/BACKEND_HANDOVER.md §5). Dropping them on
-     submit would mean a doctor types a blood pressure, saves, and it is gone —
-     so until the columns exist they are appended to `notes` under headings,
-     exactly as `investigations` already was. Delete this whole block and send
-     the real fields once the migration lands. */
-  const vitals = [
-    draft.vitalsBp.value.trim() && `BP ${draft.vitalsBp.value.trim()}`,
-    draft.vitalsSpo2.value.trim() && `SpO2 ${draft.vitalsSpo2.value.trim()}`,
-    draft.vitalsPulse.value.trim() && `HR ${draft.vitalsPulse.value.trim()}`,
-    draft.vitalsWeight.value.trim() && `Wt ${draft.vitalsWeight.value.trim()}`,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  /* Vitals go to the API as numbers, but the pad holds them as text — a
+     doctor types "98%" or "72 bpm" as readily as a bare figure. Strip anything
+     that is not part of the number, and send `null` rather than a guess when
+     what is left does not parse: a wrong SpO2 on a prescription is worse than
+     an absent one, and the API would reject it anyway (422). `vitals_bp` is
+     the exception and is passed through untouched — "140/90 (right arm)" is
+     legitimate and must survive. */
+  const wholeNumber = (raw: string): number | null => {
+    /* First integer run, NOT "strip every non-digit": stripping turns "98.6"
+       into 986, which the API's 0-100 bound would reject as a 422 round-trip.
+       Matching the run yields 98 and keeps the error client-side. */
+    const digits = raw.match(/\d+/)?.[0]
+    return digits ? Number(digits) : null
+  }
 
-  const section = (heading: string, body: string) => (body ? `${heading}:\n${body}` : '')
+  /* Decimal(5,2) on the wire. Sent as a string so no float rounding can creep
+     into a clinical figure. */
+  const weightKg = (raw: string): string | null => {
+    const n = Number.parseFloat(raw.replace(/[^\d.]/g, ''))
+    return Number.isFinite(n) ? n.toFixed(2) : null
+  }
 
-  const notes = [
-    draft.notes.value.trim(),
-    section('Vitals', vitals),
-    section('Investigations', draft.investigations.value.trim()),
-    section('Procedure', draft.procedure.value.trim()),
-    section('Consult', draft.consult.value.trim()),
-  ]
-    .filter(Boolean)
-    .join('\n\n')
+  const text = (field: FieldState<string>): string | null => field.value.trim() || null
 
   return {
     ...(draft.patient.id
@@ -503,11 +563,20 @@ export function toApiRequest(draft: RxDraft): Record<string, unknown> {
             phone: draft.patient.phone.trim(),
           },
         }),
-    diagnosis: draft.diagnosis.value.trim() || null,
-    chief_complaint: draft.chiefComplaint.value.trim() || null,
-    advice: draft.advice.value.trim() || null,
-    notes: notes || null,
-    follow_up_date: draft.followUpDate.value.trim() || null,
+    diagnosis: text(draft.diagnosis),
+    chief_complaint: text(draft.chiefComplaint),
+    /* Newline-delimited on purpose: the print template splits `advice` on
+       newlines and numbers it (1) (2) (3), which is what the pad writes. */
+    advice: text(draft.advice),
+    notes: text(draft.notes),
+    investigations: text(draft.investigations),
+    procedure: text(draft.procedure),
+    consult: text(draft.consult),
+    vitals_bp: text(draft.vitalsBp),
+    vitals_spo2: wholeNumber(draft.vitalsSpo2.value),
+    vitals_pulse_bpm: wholeNumber(draft.vitalsPulse.value),
+    vitals_weight_kg: weightKg(draft.vitalsWeight.value),
+    follow_up_date: text(draft.followUpDate),
     items: draft.rows.map(toApiItem),
   }
 }

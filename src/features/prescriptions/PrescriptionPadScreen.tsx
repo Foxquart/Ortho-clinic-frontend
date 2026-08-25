@@ -95,8 +95,10 @@ const VITALS: {
   label: string
   hint: string
   inputMode: 'text' | 'numeric' | 'decimal'
+  /** Mirrors the API column width, so a long qualifier is stopped here, not by a 422. */
+  maxLength?: number
 }[] = [
-  { key: 'vitalsBp', id: FIELD_IDS.vitalsBp, label: 'BP', hint: 'Blood pressure as you write it, for example 120/80.', inputMode: 'text' },
+  { key: 'vitalsBp', id: FIELD_IDS.vitalsBp, label: 'BP', hint: 'Blood pressure as you write it, for example 120/80. Qualifiers are fine — "140/90 (right arm)".', inputMode: 'text', maxLength: 32 },
   { key: 'vitalsSpo2', id: FIELD_IDS.vitalsSpo2, label: 'SpO₂', hint: 'Oxygen saturation, per cent.', inputMode: 'numeric' },
   { key: 'vitalsPulse', id: FIELD_IDS.vitalsPulse, label: 'HR', hint: 'Heart rate, beats per minute.', inputMode: 'numeric' },
   { key: 'vitalsWeight', id: FIELD_IDS.vitalsWeight, label: 'Weight', hint: 'Weight in kilograms.', inputMode: 'decimal' },
@@ -673,6 +675,7 @@ export function PrescriptionPadScreen() {
                       <Input
                         id={vital.id}
                         inputMode={vital.inputMode}
+                        maxLength={vital.maxLength}
                         placeholder="—"
                         value={draft[vital.key].value}
                         className={provenanceControlClass(draft[vital.key].provenance)}
@@ -756,7 +759,7 @@ export function PrescriptionPadScreen() {
                 id={FIELD_IDS.investigations}
                 label="Investigations"
                 labelHint="Tests to order, for example an X-ray or blood work. Saved with the prescription notes."
-                hint="No backend field yet — saved under a heading in the notes."
+                hint="Printed under Investigations."
                 field={draft.investigations}
                 onChange={setField('investigations')}
                 rows={4}
@@ -766,7 +769,7 @@ export function PrescriptionPadScreen() {
                 id={FIELD_IDS.procedure}
                 label="Procedure"
                 labelHint="Any procedure done at this visit. Routinely NA."
-                hint="No backend field yet — saved under a heading in the notes."
+                hint="Printed under Procedure."
                 field={draft.procedure}
                 onChange={setField('procedure')}
                 rows={2}
@@ -776,7 +779,7 @@ export function PrescriptionPadScreen() {
                 id={FIELD_IDS.consult}
                 label="Consult"
                 labelHint="The consult line from the paper pad."
-                hint="No backend field yet — saved under a heading in the notes."
+                hint="Printed under Consult."
                 field={draft.consult}
                 onChange={setField('consult')}
                 rows={2}
@@ -911,13 +914,18 @@ export function PrescriptionPadScreen() {
           </p>
         </div>
 
-        <div className="contents min-[1400px]:no-scrollbar min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-y-auto min-[1400px]:pb-28">
+        <div className="contents min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-hidden min-[1400px]:pb-28">
           {/* Live preview — Overleaf's PDF pane, minus the compile step: it
               reads `draft` straight out of React state, so it redraws as he
               types. Laptop only; below 1400px there is no room beside the form
               and the pad is a single column. */}
-          <div className="hidden min-[1400px]:block">
-            <RxLivePreview draft={draft} age={age} gender={patientRecord.data?.gender ?? null} />
+          {/* Fills the column: the A4 page scrolls inside the iframe, so the
+              pane is exactly as tall as the viewport allows and never itself
+              scrolls. `min-h-0` is what lets a flex child shrink below its
+              content height — without it the iframe collapses to its intrinsic
+              size and the page is cut off under the letterhead. */}
+          <div className="hidden min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:flex-1">
+            <RxLivePreview draft={draft} />
           </div>
         </div>
       </div>

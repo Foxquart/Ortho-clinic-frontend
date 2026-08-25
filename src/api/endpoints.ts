@@ -224,6 +224,20 @@ export const endpoints = {
     print: (id: UUID) => `/prescriptions/${id}/print`,
     /** GET -> `text/html` (NOT JSON) — open directly in a tab for the browser print dialog. */
     printView: (id: UUID) => `/prescriptions/${id}/print/view`,
+    /**
+     * POST (`PrescriptionPreviewRequest`) -> `{ html }` [WRITE: needs CSRF]
+     *
+     * Renders an UNSAVED draft through the same Jinja template the real print
+     * uses, so the on-screen preview cannot drift from the printed page. It is
+     * a POST because the draft is the payload, but it writes nothing: no
+     * number is allocated, no audit row is written, nothing is committed, and
+     * `prescription_number` renders as `DRAFT`.
+     *
+     * Unlike `create`, the request has no minimums — `items` defaults to `[]`
+     * and `dosage`/`frequency` are optional — because a draft is incomplete by
+     * definition and the preview matters most when the pad is half filled.
+     */
+    preview: '/prescriptions/preview',
   },
 
   /** Tag `appointments`. */
