@@ -250,14 +250,6 @@ export function SiteFooter({
             © {new Date().getFullYear()} {clinic?.clinic_name ?? ''}
             {registration ? ` · Reg. ${registration}` : ''}
           </p>
-          <p>
-            <Link
-              to="/login"
-              className="hover:text-text rounded-sm underline-offset-4 hover:underline"
-            >
-              Clinic staff sign in
-            </Link>
-          </p>
         </div>
       </Container>
     </footer>

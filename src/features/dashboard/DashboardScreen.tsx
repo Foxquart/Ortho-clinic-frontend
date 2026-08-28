@@ -1,10 +1,9 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import {
-  ArrowUpRight,
   CalendarClock,
   Clock,
-  CalendarDays,
   FileText,
   Pill,
   Plus,
@@ -12,110 +11,94 @@ import {
 } from 'lucide-react'
 import { apiGet } from '@/api/http'
 import { qk } from '@/lib/query'
-import { cn } from '@/lib/cn'
-import { formatRelativeDay, formatTime, formatAgo, humanizeEnum } from '@/lib/format'
+import { formatAgo } from '@/lib/format'
 import { useAuth } from '@/app/AuthProvider'
 import { Button } from '@/components/ui/Button'
-import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Card, CardHeader, PageHeader } from '@/components/ui/Surface'
-import { EmptyState, ErrorState, Skeleton } from '@/components/ui/Feedback'
+import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback'
+import {
+  PersonRow,
+  RecordLink,
+  RowChevron,
+  StatFigure,
+} from './dashboardParts'
+import { NextPatient, TodaySchedule, useTodayAppointments } from './TodayPanel'
 import type { DashboardSummaryResponse } from '@/api/schema'
-import type {
-  DashboardRecentAppointment,
-  DashboardRecentPrescription,
-} from '@/api/derived'
+import type { DashboardRecentPrescription } from '@/api/derived'
 
-const STATUS_TONE: Record<string, BadgeTone> = {
-  scheduled: 'info',
-  confirmed: 'accent',
-  in_progress: 'warning',
-  completed: 'success',
-  cancelled: 'neutral',
-  no_show: 'danger',
-}
+/*
+ * THE DASHBOARD
+ * =============
+ * One surgeon, one day. This is a cockpit, not an analytics console: there is
+ * no second doctor to compare against, no throughput to manage, and no
+ * revenue — so there is no KPI grid either. The screen answers three questions
+ * in this order and then stops:
+ *
+ *   1. What is happening today?          -> the Today band, full width, top
+ *   2. Who has been booked, and where?   -> Recent appointments, the wide column
+ *   3. What have I written?              -> Recent prescriptions, the narrow one
+ *
+ * and then, quietly, at the very bottom and in a sunken well rather than on a
+ * card: how big the records are. `total_patients` is a lifetime figure. It used
+ * to sit at exactly the same visual rank as `appointments_today`, which is the
+ * number the doctor actually opened the screen for. Three tiers now separate
+ * them — 32px accent-chipped figures on a raised card, 24px neutral-chipped
+ * figures in a sunken strip, and nothing in between.
+ *
+ * WHAT IS DELIBERATELY NOT HERE
+ * -----------------------------
+ * `GET /dashboard/summary` returns five integers and two five-row lists. It
+ * returns no time series, no ratings, no outcomes and no per-hour data, so
+ * there is no chart, no trend arrow and no sparkline on this screen. Every
+ * number rendered below is a number the API actually sent.
+ *
+ * In particular `recent_appointments` is ordered by `created_at desc` — it is
+ * the five most recently BOOKED appointments, not today's schedule in time
+ * order. It is therefore labelled "Recent appointments" and never "Today's
+ * schedule", and each row carries its own day so a row for next Tuesday cannot
+ * be mistaken for a row for this morning.
+ */
 
-function StatTile({
-  label,
-  value,
-  icon,
-  to,
-  loading,
-  emphasis = false,
-}: {
-  label: string
-  value: number | undefined
-  icon: React.ReactNode
-  to: string
-  loading: boolean
-  emphasis?: boolean
-}) {
-  return (
-    <Link
-      to={to}
-      className={cn(
-        'group flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm',
-        'transition-[border-color,transform] duration-fast ease-standard',
-        'hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-        'active:scale-[0.995] motion-reduce:active:scale-100',
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <span
-          aria-hidden
-          className={cn(
-            'grid size-7 place-items-center rounded-lg [&_svg]:size-4',
-            emphasis ? 'bg-accent-muted text-accent' : 'bg-surface-raised text-text-subtle',
-          )}
-        >
-          {icon}
-        </span>
-        <ArrowUpRight
-          aria-hidden
-          className="size-4 text-text-subtle opacity-0 transition-opacity duration-fast group-hover:opacity-100"
-        />
-      </div>
-      <div>
-        {loading ? (
-          <Skeleton className="h-8 w-14" />
-        ) : (
-          <p
-            data-numeric
-            className="text-display font-semibold leading-none tracking-tight text-text"
-          >
-            {value ?? 0}
-          </p>
-        )}
-        <p className="mt-1.5 text-caption text-text-muted">{label}</p>
-      </div>
-    </Link>
-  )
+/** `Thursday, 27 August 2026` — the anchor for a screen entirely about today. */
+function today(): string {
+  return format(new Date(), 'EEEE, d MMMM yyyy')
 }
 
 export function DashboardScreen() {
-  const { user, can } = useAuth()
+  const { can } = useAuth()
 
   const summary = useQuery({
     queryKey: qk.dashboard.summary(),
     queryFn: () => apiGet<DashboardSummaryResponse>('/dashboard/summary'),
   })
 
+  /* The day itself comes from the appointments endpoint, not from the summary:
+     `recent_appointments` is ordered by booking time, which is the wrong axis
+     for a screen about today. See TodayPanel. */
+  const todayAppointments = useTodayAppointments()
+  const todayLoading = todayAppointments.isPending
+
   const data = summary.data
   const loading = summary.isPending
 
-  const appointments = (data?.recent_appointments ?? []) as unknown as DashboardRecentAppointment[]
   const prescriptions = (data?.recent_prescriptions ?? []) as unknown as DashboardRecentPrescription[]
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-  const firstName = (user?.full_name ?? user?.username ?? '').split(/\s+/)[0]
+  /* "Sir", not the account name. One surgeon uses this, and being greeted by
+     your own login — "Good morning, Administrator" — reads as software talking
+     to a database row rather than to a person. */
+  const address = 'Sir'
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:gap-8">
       <PageHeader
-        title={firstName ? `${greeting}, ${firstName}` : greeting}
-        description="Today at a glance."
+        title={`${greeting}, ${address}`}
+        description={today()}
         actions={
-          <>
+          /* Wrapped so the pair can fold onto a second line on a phone rather
+             than shrinking the primary control. */
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {/* The hours behind the public booking page live one click away,
                 because "which days am I available" should never need hunting —
                 but it is secondary, so it does not compete with the pad. */}
@@ -136,162 +119,152 @@ export function DashboardScreen() {
                 <Link to="/prescriptions/new">New prescription</Link>
               </Button>
             )}
-          </>
+          </div>
         }
       />
 
-      {summary.isError && <ErrorState error={summary.error} onRetry={() => summary.refetch()} />}
+      {summary.isError ? (
+        /* One honest failure instead of five zeros. A dashboard that renders
+           `0 / 0 / 0` when the request failed is worse than one that renders
+           nothing, because zeros look like an answer. */
+        <ErrorState error={summary.error} onRetry={() => summary.refetch()} />
+      ) : (
+        <>
+          {/* ---------------------------------------------------------------
+              THE DAY, and everything else in service of it.
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatTile
-          label="Appointments today"
-          value={data?.appointments_today}
-          icon={<CalendarDays />}
-          to="/appointments"
-          loading={loading}
-          emphasis
-        />
-        <StatTile
-          label="Upcoming"
-          value={data?.appointments_upcoming}
-          icon={<CalendarClock />}
-          to="/appointments"
-          loading={loading}
-        />
-        <StatTile
-          label="Prescriptions today"
-          value={data?.prescriptions_today}
-          icon={<FileText />}
-          to="/prescriptions"
-          loading={loading}
-        />
-        <StatTile
-          label="Patients"
-          value={data?.total_patients}
-          icon={<Users />}
-          to="/patients"
-          loading={loading}
-        />
-        <StatTile
-          label="Medicines"
-          value={data?.total_medicines}
-          icon={<Pill />}
-          to="/medicines"
-          loading={loading}
-        />
-      </div>
+              An asymmetric split rather than stacked full-width bands: the
+              left column is the clinic in progress, the right is reference.
+              Equal columns would say the two matter equally. They do not.
+              --------------------------------------------------------------- */}
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:gap-8">
+            {/* ---------------- the day ---------------- */}
+            <div className="flex min-w-0 flex-col gap-6">
+              <NextPatient appointments={todayAppointments.data} loading={todayLoading} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader
-            title="Recent appointments"
-            action={
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/appointments">View all</Link>
-              </Button>
-            }
-          />
-          {loading ? (
-            <div className="flex flex-col gap-px p-2">
-              {Array.from({ length: 4 }, (_, i) => (
-                <div key={i} className="flex h-10 items-center gap-3 px-2">
-                  <Skeleton className="h-3 flex-1" />
-                  <Skeleton className="h-4 w-16 rounded-full" />
+              <Card className="overflow-hidden">
+                <CardHeader
+                  title="Today's schedule"
+                  description={
+                    todayLoading
+                      ? 'Loading the day…'
+                      : `${todayAppointments.data?.length ?? 0} booked · in time order`
+                  }
+                  action={
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to="/appointments">Open schedule</Link>
+                    </Button>
+                  }
+                />
+                <div className="px-3 pb-3 sm:px-4 sm:pb-4">
+                  <TodaySchedule appointments={todayAppointments.data} loading={todayLoading} />
                 </div>
-              ))}
+              </Card>
             </div>
-          ) : appointments.length === 0 ? (
-            <EmptyState
-              icon={<CalendarDays />}
-              title="No appointments yet"
-              description="Booked appointments will appear here."
-              action={
-                can('appointments.write') && (
-                  <Button variant="secondary" size="sm" asChild>
-                    <Link to="/appointments">Open schedule</Link>
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {appointments.map((a) => (
-                <li key={a.id}>
-                  <Link
+
+            {/* ---------------- reference ---------------- */}
+            <div className="flex min-w-0 flex-col gap-6">
+              {/* Two figures, not three: "appointments today" is the schedule
+                  beside it counted twice, so it lives in that card's
+                  description instead of competing as a tile. */}
+              <Card className="overflow-hidden">
+                <div className="grid grid-cols-2 divide-x divide-border">
+                  <StatFigure
+                    label="Upcoming"
+                    value={data?.appointments_upcoming}
+                    hint="Today and later"
+                    zeroHint="Nothing booked ahead"
+                    icon={<CalendarClock />}
                     to="/appointments"
-                    className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-fast hover:bg-surface-raised focus-visible:bg-surface-raised focus-visible:outline-none"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-body text-text">
-                      {a.patient_name}
-                    </span>
-                    <span className="shrink-0 text-caption text-text-muted" data-numeric>
-                      {formatRelativeDay(a.date)} · {formatTime(a.time)}
-                    </span>
-                    <Badge tone={STATUS_TONE[a.status] ?? 'neutral'} dot>
-                      {humanizeEnum(a.status)}
-                    </Badge>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Recent prescriptions"
-            action={
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/prescriptions">View all</Link>
-              </Button>
-            }
-          />
-          {loading ? (
-            <div className="flex flex-col gap-px p-2">
-              {Array.from({ length: 4 }, (_, i) => (
-                <div key={i} className="flex h-10 items-center gap-3 px-2">
-                  <Skeleton className="h-3 flex-1" />
-                  <Skeleton className="h-3 w-20" />
+                    loading={loading}
+                  />
+                  <StatFigure
+                    label="Prescriptions"
+                    value={data?.prescriptions_today}
+                    hint="Written today"
+                    zeroHint="None written yet"
+                    icon={<FileText />}
+                    to="/prescriptions"
+                    loading={loading}
+                  />
                 </div>
-              ))}
+              </Card>
+
+              <Card className="overflow-hidden">
+                <CardHeader
+                  title="Recent prescriptions"
+                  description="The last five you wrote."
+                  action={
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to="/prescriptions">View all</Link>
+                    </Button>
+                  }
+                />
+                {loading ? (
+                  <SkeletonRows rows={5} />
+                ) : prescriptions.length === 0 ? (
+                  <EmptyState
+                    title="Nothing written yet"
+                    description="Prescriptions you write will appear here."
+                  />
+                ) : (
+                  <ul className="divide-y divide-border border-t border-border">
+                    {prescriptions.map((rx) => (
+                      <PersonRow
+                        key={rx.id}
+                        to={`/prescriptions/${rx.id}`}
+                        name={rx.patient_name ?? 'Unknown patient'}
+                        meta={
+                          <>
+                            <span className="numeric">{rx.prescription_number}</span>
+                            {rx.created_at && <> · {formatAgo(rx.created_at)}</>}
+                          </>
+                        }
+                        trailing={<RowChevron />}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </Card>
+
+              {/* Context, and the quietest thing here: a sunken well rather
+                  than a card, at the foot of the reference column. It also
+                  stops the right rail ending 400px short of the schedule and
+                  leaving a hole in the composition. */}
+    <section
+                aria-labelledby="dashboard-records"
+                className={
+                  'flex flex-col gap-3 rounded-xl border border-border bg-bg-sunken px-5 py-4'
+                }
+              >
+                <h2 id="dashboard-records" className="text-micro uppercase text-text-subtle">
+                  In your records
+                </h2>
+                {/* Left-aligned, hard against its own heading. Spread across the
+                    full 1100px the label and its two numbers stop reading as one
+                    group — and a group is the only reason this strip exists. */}
+                <div className="flex flex-col gap-2">
+                  <RecordLink
+                    label="Patients"
+                    value={data?.total_patients}
+                    icon={<Users />}
+                    to="/patients"
+                    loading={loading}
+                  />
+                  <RecordLink
+                    label="Medicines in the formulary"
+                    value={data?.total_medicines}
+                    icon={<Pill />}
+                    to="/medicines"
+                    loading={loading}
+                  />
+                </div>
+              </section>
             </div>
-          ) : prescriptions.length === 0 ? (
-            <EmptyState
-              icon={<FileText />}
-              title="No prescriptions yet"
-              description="Everything you write will be listed here."
-              action={
-                can('prescriptions.write') && (
-                  <Button variant="primary" size="sm" asChild>
-                    <Link to="/prescriptions/new">Write one</Link>
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {prescriptions.map((p) => (
-                <li key={p.id}>
-                  <Link
-                    to={`/prescriptions/${p.id}`}
-                    className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-fast hover:bg-surface-raised focus-visible:bg-surface-raised focus-visible:outline-none"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-body text-text">
-                      {p.patient_name}
-                    </span>
-                    <span className="shrink-0 font-mono text-caption text-text-subtle">
-                      {p.prescription_number}
-                    </span>
-                    <span className="w-24 shrink-0 text-right text-caption text-text-muted">
-                      {formatAgo(p.created_at)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
+          </div>
+
+        </>
+      )}
     </div>
   )
 }

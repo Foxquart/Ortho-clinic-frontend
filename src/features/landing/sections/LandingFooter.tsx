@@ -13,7 +13,6 @@
  * `profile.ts` as the fallback, so the footer is never blank and the address is
  * legible to a crawler that does not wait for the API.
  */
-import { Link } from 'react-router-dom'
 import { Monogram } from '@/features/landing/LandingNav'
 import { CtaArrow, ScrollButton } from '@/features/landing/primitives'
 import { usePublicClinic } from '@/features/public/usePublicData'
@@ -121,7 +120,8 @@ export function LandingFooter() {
           ))}
         </nav>
 
-        {/* The NAP block, and the one door back to the product */}
+        {/* The NAP block. No staff door here: the sign-in link is gone from
+            every public surface — see LandingNav for why. */}
         <div className="flex flex-col gap-2 text-body text-text-muted">
           <span className="text-text font-medium">{name}</span>
           <address className="not-italic leading-relaxed">
@@ -140,17 +140,6 @@ export function LandingFooter() {
             </a>
           )}
           <span className="text-text-subtle">{CLINIC.hours}</span>
-          {/* Stays quiet — this is the staff door, not a patient CTA — but it
-              gets the same underline draw and the same 44px row as everything
-              else. Quiet is a colour decision, not an excuse for a link you
-              cannot hit. */}
-          <Link
-            to="/login"
-            className={`${LINK_ROW} mt-1 gap-1.5 text-label font-medium text-text-subtle transition-colors duration-fast hover:text-text`}
-          >
-            <span className={LINK_DRAW}>Staff sign in</span>
-            <CtaArrow className="size-3.5 shrink-0" />
-          </Link>
         </div>
       </div>
 

@@ -32,6 +32,7 @@ import { formatDate, formatRelativeDay, fullName, patientAge } from '@/lib/forma
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { useAuth } from '@/app/AuthProvider'
 import { Button } from '@/components/ui/Button'
+import { PatientAvatar } from './PatientAvatar'
 import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
 import { Card, PageHeader } from '@/components/ui/Surface'
@@ -405,16 +406,23 @@ export function PatientListScreen() {
                   return (
                     <TR key={patient.id} onClick={() => navigate(`/patients/${patient.id}`)}>
                       <TD className="py-2.5">
-                        {/* items-start, or the allergy chip stretches to the
-                            full column width and reads as a banner. */}
-                        <div className="flex min-w-0 flex-col items-start gap-1">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <span className="truncate text-body font-semibold text-text">
-                              {fullName(patient.first_name, patient.last_name)}
+                        <div className="flex min-w-0 items-center gap-3">
+                          <PatientAvatar
+                            name={fullName(patient.first_name, patient.last_name)}
+                            gender={patient.gender}
+                            size="sm"
+                          />
+                          {/* items-start, or the allergy chip stretches to the
+                              full column width and reads as a banner. */}
+                          <div className="flex min-w-0 flex-col items-start gap-1">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="truncate text-body font-semibold text-text">
+                                {fullName(patient.first_name, patient.last_name)}
+                              </span>
+                              {!patient.is_active && <Badge tone="neutral">Inactive</Badge>}
                             </span>
-                            {!patient.is_active && <Badge tone="neutral">Inactive</Badge>}
-                          </span>
-                          <AllergyChip allergies={patient.allergies} />
+                            <AllergyChip allergies={patient.allergies} />
+                          </div>
                         </div>
                       </TD>
                       <TD numeric>

@@ -141,19 +141,17 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
 
         {/* Actions */}
         <div className="ml-1 flex items-center gap-1.5">
-          {isAuthenticated ? (
+          {/* Signed-in only. There is deliberately no sign-in link on the
+              public page: a patient reading a surgeon's site should never be
+              asked whether they need an account — they don't. Staff reach
+              /login by bookmark. This slot is the way back for someone who
+              already has a session and wandered onto the front door. */}
+          {isAuthenticated && (
             <Link
               to="/dashboard"
               className="text-label text-text-muted hover:text-text hidden min-h-11 items-center rounded-full px-3 font-medium transition-colors duration-fast sm:inline-flex"
             >
               Enter dashboard
-            </Link>
-          ) : (
-            <Link
-              to="/login"
-              className="text-label text-text-muted hover:text-text hidden min-h-11 items-center rounded-full px-3 font-medium transition-colors duration-fast sm:inline-flex"
-            >
-              Staff sign in
             </Link>
           )}
 
@@ -243,13 +241,16 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
               Book
               <CtaArrow />
             </a>
-            <Link
-              to={isAuthenticated ? '/dashboard' : '/login'}
-              onClick={() => setOpen(false)}
-              className="text-label text-text-muted inline-flex h-12 items-center justify-center rounded-full border border-border font-medium"
-            >
-              {isAuthenticated ? 'Enter dashboard' : 'Staff sign in'}
-            </Link>
+            {/* Same rule as the pill: signed-in only, never a sign-in door. */}
+            {isAuthenticated && (
+              <Link
+                to="/dashboard"
+                onClick={() => setOpen(false)}
+                className="text-label text-text-muted inline-flex h-12 items-center justify-center rounded-full border border-border font-medium"
+              >
+                Enter dashboard
+              </Link>
+            )}
           </div>
         </div>
       </div>

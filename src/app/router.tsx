@@ -105,7 +105,12 @@ export const router = createBrowserRouter([
     children: [
       {
         /* The public landing page — the front door. Single page, no app shell,
-           reachable signed in or out. Staff sign in from here into /app. */
+           reachable signed in or out. It carries NO link to /login: patients
+           never need an account, and a sign-in control on a surgeon's site
+           only invites the question. Staff go to /login directly (bookmark /
+           home-screen shortcut); once they have a session the nav pill offers
+           "Enter dashboard". RequireAuth still redirects here-to-/login for
+           anyone who lands on a guarded route unauthenticated. */
         index: true,
         element: (
           <Suspense fallback={null}>
