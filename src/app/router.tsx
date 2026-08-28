@@ -133,9 +133,8 @@ const appRoutes = {
         {
           element: <LazyBoundary />,
           children: [
-            /* The app home (prescription pad's front door) lives at /app. On
-               the staff surface `/` redirects here; there is no landing page
-               on this hostname to occupy the root. */
+            /* The prescription pad's own front door. Reachable, but not where
+               `/` lands — the staff surface opens on the dashboard. */
             { path: 'app', element: <PrescribeHome /> },
             { path: 'dashboard', element: <DashboardScreen /> },
             { path: 'patients', element: <PatientListScreen /> },
@@ -193,12 +192,14 @@ const appRoutes = {
 /**
  * staff.<domain> — the app, and nothing else.
  *
- * `/` sends you to the pad rather than rendering a landing page. Unauthenticated,
- * RequireAuth turns that into /login, so opening the bare hostname is the whole
- * sign-in journey: one bookmark, no path to remember.
+ * `/` opens the dashboard rather than rendering a landing page — the same
+ * place LoginScreen sends you after a successful sign-in, so the bare hostname
+ * and the login redirect agree. Unauthenticated, RequireAuth turns it into
+ * /login, which makes opening the bare hostname the whole sign-in journey:
+ * one bookmark, no path to remember.
  */
 const staffRoutes = [
-  { index: true, element: <Navigate to="/app" replace /> },
+  { index: true, element: <Navigate to="/dashboard" replace /> },
   { path: '/login', element: <LoginScreen /> },
   appRoutes,
 ]
