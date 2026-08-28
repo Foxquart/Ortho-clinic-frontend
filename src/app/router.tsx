@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, Outlet } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { AuthProvider } from './AuthProvider'
 import { AppShell } from './AppShell'
 import { RequireAuth, RequireCapability } from './RequireAuth'
 import { RouteError, NotFound } from './RouteError'
 import { LoginScreen } from '@/features/auth/LoginScreen'
+import { IS_STAFF, staffUrl } from './surface'
 
 /* Screens are split per route: the prescription pad and the speech lab are the
    two heavy ones and neither should be in the login bundle. */
@@ -93,105 +94,147 @@ function LazyBoundary() {
 function Root() {
   return (
     <AuthProvider>
+      {/* index.html carries the marketing title and description as the floor
+          for crawlers that never run the bundle. On the staff hostname that is
+          the wrong document entirely: React 19 hoists these, so they replace it
+          as soon as the app mounts. The noindex is belt-and-braces next to the
+          X-Robots-Tag in vercel.json — that header is what a non-rendering
+          crawler sees, this is what a rendering one sees. */}
+      {IS_STAFF && (
+        <>
+          <title>OrthoClinic — staff</title>
+          <meta name="description" content="Clinical workspace. Staff access only." />
+          <meta name="robots" content="noindex, nofollow" />
+        </>
+      )}
       <Outlet />
     </AuthProvider>
   )
 }
 
+/**
+ * Hard navigation to another origin. A react-router <Navigate> cannot cross
+ * hostnames — it would rewrite the path in place and land on a route that does
+ * not exist on this surface.
+ */
+function ExternalRedirect({ to }: { to: string }) {
+  window.location.replace(to)
+  return null
+}
+
+/* Everything behind authentication. Identical on both surfaces in structure;
+   only the staff surface ever mounts it. */
+const appRoutes = {
+  element: <RequireAuth />,
+  children: [
+    {
+      element: <AppShell />,
+      children: [
+        {
+          element: <LazyBoundary />,
+          children: [
+            /* The app home (prescription pad's front door) lives at /app. On
+               the staff surface `/` redirects here; there is no landing page
+               on this hostname to occupy the root. */
+            { path: 'app', element: <PrescribeHome /> },
+            { path: 'dashboard', element: <DashboardScreen /> },
+            { path: 'patients', element: <PatientListScreen /> },
+            { path: 'patients/:patientId', element: <PatientDetailScreen /> },
+            { path: 'prescriptions', element: <PrescriptionListScreen /> },
+            {
+              element: <RequireCapability capability="prescriptions.write" />,
+              children: [{ path: 'prescriptions/new', element: <PrescriptionPadScreen /> }],
+            },
+            {
+              path: 'prescriptions/:prescriptionId',
+              element: <PrescriptionDetailScreen />,
+            },
+            { path: 'appointments', element: <AppointmentsScreen /> },
+            { path: 'medicines', element: <MedicinesScreen /> },
+            {
+              /* The advice library is formulary-adjacent: the same admin
+                 who curates medicines curates advice, so it sits beside
+                 Medicines rather than inside Settings. */
+              element: <RequireCapability capability="medicines.write" />,
+              children: [{ path: 'advice', element: <AdviceLibraryScreen /> }],
+            },
+            {
+              element: <RequireCapability capability="speech.use" />,
+              children: [{ path: 'speech', element: <SpeechScreen /> }],
+            },
+            {
+              path: 'settings',
+              element: <SettingsLayout />,
+              children: [
+                { index: true, element: <ClinicSettingsScreen /> },
+                { path: 'account', element: <AccountScreen /> },
+                {
+                  element: <RequireCapability capability="users.manage" />,
+                  children: [{ path: 'users', element: <UsersScreen /> }],
+                },
+                {
+                  element: <RequireCapability capability="audit.read" />,
+                  children: [{ path: 'audit', element: <AuditLogScreen /> }],
+                },
+                {
+                  element: <RequireCapability capability="portfolio.manage" />,
+                  children: [{ path: 'site', element: <SiteCmsScreen /> }],
+                },
+              ],
+            },
+            { path: '*', element: <NotFound /> },
+          ],
+        },
+      ],
+    },
+  ],
+}
+
+/**
+ * staff.<domain> — the app, and nothing else.
+ *
+ * `/` sends you to the pad rather than rendering a landing page. Unauthenticated,
+ * RequireAuth turns that into /login, so opening the bare hostname is the whole
+ * sign-in journey: one bookmark, no path to remember.
+ */
+const staffRoutes = [
+  { index: true, element: <Navigate to="/app" replace /> },
+  { path: '/login', element: <LoginScreen /> },
+  appRoutes,
+]
+
+/**
+ * The public hostname — the patient-facing site. No login screen is mounted
+ * here at all, so there is nothing to find and nothing to link to. A stale
+ * bookmark to /login is forwarded to the staff host rather than 404'd.
+ */
+const publicRoutes = [
+  {
+    index: true,
+    element: (
+      <Suspense fallback={null}>
+        <LandingPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/site/*',
+    element: (
+      <Suspense fallback={null}>
+        <PublicSite />
+      </Suspense>
+    ),
+  },
+  { path: '/login', element: <ExternalRedirect to={staffUrl('/login')} /> },
+  /* One page and a CMS section: anything else is a typo or a dead inbound
+     link, and the landing page is a better answer than an app-shell 404. */
+  { path: '*', element: <Navigate to="/" replace /> },
+]
+
 export const router = createBrowserRouter([
   {
     element: <Root />,
     errorElement: <RouteError />,
-    children: [
-      {
-        /* The public landing page — the front door. Single page, no app shell,
-           reachable signed in or out. It carries NO link to /login: patients
-           never need an account, and a sign-in control on a surgeon's site
-           only invites the question. Staff go to /login directly (bookmark /
-           home-screen shortcut); once they have a session the nav pill offers
-           "Enter dashboard". RequireAuth still redirects here-to-/login for
-           anyone who lands on a guarded route unauthenticated. */
-        index: true,
-        element: (
-          <Suspense fallback={null}>
-            <LandingPage />
-          </Suspense>
-        ),
-      },
-      { path: '/login', element: <LoginScreen /> },
-      {
-        path: '/site/*',
-        element: (
-          <Suspense fallback={null}>
-            <PublicSite />
-          </Suspense>
-        ),
-      },
-      {
-        element: <RequireAuth />,
-        children: [
-          {
-            element: <AppShell />,
-            children: [
-              {
-                element: <LazyBoundary />,
-                children: [
-                  /* The app home (prescription pad's front door) lives at /app;
-                     `/` is the public landing. The dashboard keeps its own
-                     screen and its (absent) guard, one level down. */
-                  { path: 'app', element: <PrescribeHome /> },
-                  { path: 'dashboard', element: <DashboardScreen /> },
-                  { path: 'patients', element: <PatientListScreen /> },
-                  { path: 'patients/:patientId', element: <PatientDetailScreen /> },
-                  { path: 'prescriptions', element: <PrescriptionListScreen /> },
-                  {
-                    element: <RequireCapability capability="prescriptions.write" />,
-                    children: [{ path: 'prescriptions/new', element: <PrescriptionPadScreen /> }],
-                  },
-                  {
-                    path: 'prescriptions/:prescriptionId',
-                    element: <PrescriptionDetailScreen />,
-                  },
-                  { path: 'appointments', element: <AppointmentsScreen /> },
-                  { path: 'medicines', element: <MedicinesScreen /> },
-                  {
-                    /* The advice library is formulary-adjacent: the same admin
-                       who curates medicines curates advice, so it sits beside
-                       Medicines rather than inside Settings. */
-                    element: <RequireCapability capability="medicines.write" />,
-                    children: [{ path: 'advice', element: <AdviceLibraryScreen /> }],
-                  },
-                  {
-                    element: <RequireCapability capability="speech.use" />,
-                    children: [{ path: 'speech', element: <SpeechScreen /> }],
-                  },
-                  {
-                    path: 'settings',
-                    element: <SettingsLayout />,
-                    children: [
-                      { index: true, element: <ClinicSettingsScreen /> },
-                      { path: 'account', element: <AccountScreen /> },
-                      {
-                        element: <RequireCapability capability="users.manage" />,
-                        children: [{ path: 'users', element: <UsersScreen /> }],
-                      },
-                      {
-                        element: <RequireCapability capability="audit.read" />,
-                        children: [{ path: 'audit', element: <AuditLogScreen /> }],
-                      },
-                      {
-                        element: <RequireCapability capability="portfolio.manage" />,
-                        children: [{ path: 'site', element: <SiteCmsScreen /> }],
-                      },
-                    ],
-                  },
-                  { path: '*', element: <NotFound /> },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
+    children: IS_STAFF ? staffRoutes : publicRoutes,
   },
 ])

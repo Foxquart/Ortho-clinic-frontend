@@ -21,9 +21,9 @@
  * oversight.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/app/AuthProvider'
+import { staffUrl } from '@/app/surface'
 import { CtaArrow, useMagnetic } from './primitives'
 import { useBookingTarget } from './bookingTarget'
 import { scrollToAnchor } from './smoothScroll'
@@ -143,16 +143,21 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
         <div className="ml-1 flex items-center gap-1.5">
           {/* Signed-in only. There is deliberately no sign-in link on the
               public page: a patient reading a surgeon's site should never be
-              asked whether they need an account — they don't. Staff reach
-              /login by bookmark. This slot is the way back for someone who
-              already has a session and wandered onto the front door. */}
+              asked whether they need an account — they don't. Staff live on
+              staff.<domain>, which is its own bookmark.
+
+              A plain <a>, not a <Link>: the app is a different origin, and
+              react-router would try to resolve /dashboard against this one.
+              This only renders when the session cookie is readable from the
+              public host too, so it quietly disappears rather than misleading
+              anyone if the cookie is scoped to the staff host alone. */}
           {isAuthenticated && (
-            <Link
-              to="/dashboard"
+            <a
+              href={staffUrl('/dashboard')}
               className="text-label text-text-muted hover:text-text hidden min-h-11 items-center rounded-full px-3 font-medium transition-colors duration-fast sm:inline-flex"
             >
               Enter dashboard
-            </Link>
+            </a>
           )}
 
           <a
@@ -243,13 +248,13 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
             </a>
             {/* Same rule as the pill: signed-in only, never a sign-in door. */}
             {isAuthenticated && (
-              <Link
-                to="/dashboard"
+              <a
+                href={staffUrl('/dashboard')}
                 onClick={() => setOpen(false)}
                 className="text-label text-text-muted inline-flex h-12 items-center justify-center rounded-full border border-border font-medium"
               >
                 Enter dashboard
-              </Link>
+              </a>
             )}
           </div>
         </div>
