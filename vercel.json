@@ -3,7 +3,6 @@
   "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }],
   "headers": [
     {
-      "//": "The app hostname is public DNS and must never be indexed. Header, not a meta tag, so it also reaches crawlers that never run the bundle. Keep this host in step with VITE_STAFF_ORIGIN.",
       "source": "/(.*)",
       "has": [{ "type": "host", "value": "ortho-dash.foxquart.com" }],
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
