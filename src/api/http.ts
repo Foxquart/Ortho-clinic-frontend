@@ -84,6 +84,23 @@ export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promi
   return data
 }
 
+/**
+ * A binary GET — file downloads (the prescription PDF). It goes through the
+ * same instance as everything else on purpose: `withCredentials` is what makes
+ * the session cookie ride along, and this API authenticates by cookie rather
+ * than by a bearer header. That is also why a download here cannot be a plain
+ * `<a href>` or a bare `fetch` — neither is guaranteed to carry the cookie to a
+ * cross-origin `VITE_API_URL`, so both work in dev and 401 in production.
+ *
+ * A failure still arrives as an `ApiError` from the response interceptor; note
+ * its `message` falls back to the generic per-status text, because an error
+ * body on a blob request comes back as a Blob rather than parsed JSON.
+ */
+export async function apiGetBlob(url: string, config?: AxiosRequestConfig): Promise<Blob> {
+  const { data } = await http.get<Blob>(url, { ...config, responseType: 'blob' })
+  return data
+}
+
 export async function apiPost<T>(
   url: string,
   body?: unknown,

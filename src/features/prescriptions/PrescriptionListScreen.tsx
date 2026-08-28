@@ -124,8 +124,14 @@ export function PrescriptionListScreen() {
   const isEmpty = Boolean(list.data) && rows.length === 0
   const isUnfilteredEmpty = isEmpty && !patientId
 
+  /* One destination, quoted by both renders below. The table row navigates on
+     click because a `<tr>` cannot contain an anchor that spans it; the phone
+     card is a real `<Link>`, which is strictly better where it is possible —
+     long-press, "open in new tab" and the status bar preview all come free. */
+  const hrefFor = (rx: PrescriptionResponse) => `/prescriptions/${rx.id}`
+
   return (
-    <div className="max-w-content flex flex-col gap-4 px-6 pt-5 pb-8">
+    <div className="max-w-content flex flex-col gap-4 px-4 py-6 sm:px-6">
       <PageHeader
         title="Prescriptions"
         description={
@@ -142,10 +148,13 @@ export function PrescriptionListScreen() {
              the primary action there, and one view gets one primary button. */
           canWrite &&
           !isUnfilteredEmpty && (
+            /* Full width below `sm`: it is the only action on the screen, and a
+               phone has no pointer to aim with. */
             <Button
               variant="primary"
               onClick={() => navigate(newHref)}
               iconLeft={<Plus className="size-4" />}
+              className="w-full sm:w-auto"
             >
               New prescription
             </Button>
@@ -207,75 +216,147 @@ export function PrescriptionListScreen() {
           )
         ) : (
           <>
-            <Table>
-              <THead>
-                <TH
-                  width="10.5rem"
-                  sort={sortFor('prescription_number')}
-                  onSort={() => toggleSort('prescription_number')}
-                >
-                  Number
-                </TH>
-                <TH>Patient</TH>
-                <TH>Diagnosis</TH>
-                <TH width="5rem" align="right">
-                  Items
-                </TH>
-                <TH
-                  width="9rem"
-                  align="right"
-                  sort={sortFor('follow_up_date')}
-                  onSort={() => toggleSort('follow_up_date')}
-                >
-                  Follow-up
-                </TH>
-                <TH
-                  width="9rem"
-                  align="right"
-                  sort={sortFor('created_at')}
-                  onSort={() => toggleSort('created_at')}
-                >
-                  Created
-                </TH>
-              </THead>
-              <tbody>
-                {rows.map((rx) => (
-                  <TR key={rx.id} onClick={() => navigate(`/prescriptions/${rx.id}`)}>
-                    <TD className="text-label text-text font-mono whitespace-nowrap">
-                      {rx.prescription_number}
-                      {rx.status !== 'active' && (
-                        <Badge tone="danger" className="ml-2 font-sans">
-                          Voided
-                        </Badge>
-                      )}
-                    </TD>
-                    <TD className="text-body text-text max-w-0 truncate">
+            {/* ---------------------------------------------------------------
+                PHONE: a stacked card list, not a sideways table.
+
+                Six columns need about 500px. On a 320–390px phone that made the
+                doctor drag a list of his own prescriptions sideways to find out
+                whose it was — the patient's name, the one thing the list is FOR,
+                sat in the second column and was the first thing off-screen. So
+                under `sm` the same row data is re-laid out vertically, in the
+                order a person actually asks for it: which prescription, whose,
+                what for, and then the numbers.
+
+                There is deliberately no mobile sort control. Sorting only ever
+                lived in the table header, and the list arrives `created_at desc`
+                — newest first, which is the only order that makes sense on a
+                phone, where the doctor is looking for something he wrote this
+                morning rather than auditing a year. A sort UI here would be a
+                second control surface to maintain for a case that does not
+                exist; the sorted view is still reachable as a URL and still
+                renders correctly from `sm` up.
+                --------------------------------------------------------------- */}
+            <ul className="divide-border divide-y sm:hidden">
+              {rows.map((rx) => (
+                <li key={rx.id}>
+                  <Link
+                    to={hrefFor(rx)}
+                    className="min-h-tap duration-fast ease-standard hover:bg-surface-hover focus-visible:bg-surface-hover flex flex-col gap-1 px-4 py-3 transition-colors focus-visible:outline-offset-[-2px]"
+                  >
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-label text-text-muted font-mono">
+                        {rx.prescription_number}
+                      </span>
+                      {rx.status !== 'active' && <Badge tone="danger">Voided</Badge>}
+                    </span>
+
+                    <span className="text-body text-text truncate font-medium">
                       {rx.patient_name || 'Unnamed patient'}
-                    </TD>
-                    <TD className="text-label text-text-muted max-w-0 truncate">
-                      {rx.diagnosis ?? <span className="text-text-subtle">—</span>}
-                    </TD>
-                    <TD align="right" numeric className="text-label text-text-muted">
-                      {rx.items.length}
-                    </TD>
-                    <TD
-                      align="right"
-                      numeric
-                      className="text-label text-text-muted whitespace-nowrap"
-                    >
-                      {rx.follow_up_date ? (
-                        formatDate(rx.follow_up_date)
-                      ) : (
-                        <span className="text-text-subtle">—</span>
+                    </span>
+
+                    {rx.diagnosis && (
+                      <span className="text-label text-text-muted line-clamp-2">
+                        {rx.diagnosis}
+                      </span>
+                    )}
+
+                    {/* The three table columns that were furthest off-screen,
+                        folded into one quiet line. Separated by middots rather
+                        than laid out on a sub-grid: they are context, and a grid
+                        would give them back the rank the table gave them. */}
+                    <span className="text-caption text-text-subtle flex flex-wrap items-center gap-x-1.5">
+                      <span data-numeric>
+                        {rx.items.length} {rx.items.length === 1 ? 'item' : 'items'}
+                      </span>
+                      {rx.follow_up_date && (
+                        <>
+                          <span aria-hidden>·</span>
+                          <span data-numeric>follow-up {formatDate(rx.follow_up_date)}</span>
+                        </>
                       )}
-                    </TD>
-                    <TD align="right" className="text-caption text-text-subtle whitespace-nowrap">
-                      <span title={formatDateTime(rx.created_at)}>{formatAgo(rx.created_at)}</span>
-                    </TD>
-                  </TR>
-                ))}
-              </tbody>
-            </Table>
+                      <span aria-hidden>·</span>
+                      <span>{formatAgo(rx.created_at)}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            {/* From `sm` up the table is untouched — same columns, same sort.
+                Hidden on the WRAPPER rather than on the `<table>`, so the
+                scroll region the primitive builds is not left behind as an
+                empty focus stop on a phone. */}
+            <div className="hidden sm:block">
+              <Table label="Prescriptions">
+                <THead>
+                  <TH
+                    width="10.5rem"
+                    sort={sortFor('prescription_number')}
+                    onSort={() => toggleSort('prescription_number')}
+                  >
+                    Number
+                  </TH>
+                  <TH>Patient</TH>
+                  <TH>Diagnosis</TH>
+                  <TH width="5rem" align="right">
+                    Items
+                  </TH>
+                  <TH
+                    width="9rem"
+                    align="right"
+                    sort={sortFor('follow_up_date')}
+                    onSort={() => toggleSort('follow_up_date')}
+                  >
+                    Follow-up
+                  </TH>
+                  <TH
+                    width="9rem"
+                    align="right"
+                    sort={sortFor('created_at')}
+                    onSort={() => toggleSort('created_at')}
+                  >
+                    Created
+                  </TH>
+                </THead>
+                <tbody>
+                  {rows.map((rx) => (
+                    <TR key={rx.id} onClick={() => navigate(hrefFor(rx))}>
+                      <TD className="text-label text-text font-mono whitespace-nowrap">
+                        {rx.prescription_number}
+                        {rx.status !== 'active' && (
+                          <Badge tone="danger" className="ml-2 font-sans">
+                            Voided
+                          </Badge>
+                        )}
+                      </TD>
+                      <TD className="text-body text-text max-w-0 truncate">
+                        {rx.patient_name || 'Unnamed patient'}
+                      </TD>
+                      <TD className="text-label text-text-muted max-w-0 truncate">
+                        {rx.diagnosis ?? <span className="text-text-subtle">—</span>}
+                      </TD>
+                      <TD align="right" numeric className="text-label text-text-muted">
+                        {rx.items.length}
+                      </TD>
+                      <TD
+                        align="right"
+                        numeric
+                        className="text-label text-text-muted whitespace-nowrap"
+                      >
+                        {rx.follow_up_date ? (
+                          formatDate(rx.follow_up_date)
+                        ) : (
+                          <span className="text-text-subtle">—</span>
+                        )}
+                      </TD>
+                      <TD align="right" className="text-caption text-text-subtle whitespace-nowrap">
+                        <span title={formatDateTime(rx.created_at)}>{formatAgo(rx.created_at)}</span>
+                      </TD>
+                    </TR>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
             <Pagination
               page={list.data?.page ?? page}
               pages={list.data?.pages ?? 1}

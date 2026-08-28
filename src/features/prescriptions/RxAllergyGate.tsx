@@ -3,6 +3,8 @@ import { AlertTriangle, ShieldAlert, ShieldCheck, ShieldQuestion } from 'lucide-
 import { Button } from '@/components/ui/Button'
 import { DialogContent, DialogRoot } from '@/components/ui/Dialog'
 import { Textarea } from '@/components/ui/Input'
+import { cn } from '@/lib/cn'
+import { TAP_TARGET } from './Provenance'
 import type { AllergyConflict, RxPatient } from './model'
 
 /* -------------------------------------------------------------------------- */
@@ -138,7 +140,7 @@ export function RxAllergyConflictBanner({
                   <button
                     type="button"
                     onClick={() => onFocusRow(conflict.rowKey)}
-                    className="rounded-sm text-left text-body underline decoration-allergy-fg/40 underline-offset-4 hover:decoration-allergy-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-allergy-fg"
+                    className="flex min-h-tap items-center rounded-sm text-left text-body underline decoration-allergy-fg/40 underline-offset-4 hover:decoration-allergy-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-allergy-fg lg:min-h-0"
                   >
                     <strong className="font-semibold">{conflict.medicineName}</strong> — patient is
                     recorded as allergic to “{conflict.allergy}”
@@ -161,7 +163,10 @@ export function RxAllergyConflictBanner({
                   variant="ghost"
                   size="sm"
                   onClick={onRevoke}
-                  className="mt-1.5 -ml-2 text-allergy-fg hover:bg-allergy-fg/15 hover:text-allergy-fg"
+                  className={cn(
+                    TAP_TARGET,
+                    'mt-1.5 -ml-2 text-allergy-fg hover:bg-allergy-fg/15 hover:text-allergy-fg',
+                  )}
                 >
                   Withdraw the override
                 </Button>
@@ -172,7 +177,10 @@ export function RxAllergyConflictBanner({
                   variant="secondary"
                   size="sm"
                   onClick={() => setDialogOpen(true)}
-                  className="border-allergy-fg/40 bg-allergy-fg/10 text-allergy-fg hover:bg-allergy-fg/20"
+                  className={cn(
+                    TAP_TARGET,
+                    'border-allergy-fg/40 bg-allergy-fg/10 text-allergy-fg hover:bg-allergy-fg/20',
+                  )}
                 >
                   Prescribe anyway…
                 </Button>
@@ -234,19 +242,27 @@ function AcknowledgeDialog({
         description="This is written into the prescription's internal notes with your name on it."
         size="md"
         footer={
-          <>
-            <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          /* "Record override and continue" is 200px of button. On a phone the
+             pair stacks rather than shrinking the label to an ellipsis — the
+             one control in this app whose exact words are the safeguard. */
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="secondary"
+              className={TAP_TARGET}
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button
               variant="danger"
               disabled={!ready}
+              className={TAP_TARGET}
               onClick={() => onConfirm(reason.trim())}
               iconLeft={<ShieldAlert className="size-4" />}
             >
               Record override and continue
             </Button>
-          </>
+          </div>
         }
       >
         <div className="flex flex-col gap-3">

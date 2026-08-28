@@ -64,7 +64,9 @@ export function TagInput({
       <div
         onClick={() => inputRef.current?.focus()}
         className={cn(
-          'flex min-h-8.5 w-full flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1.5',
+          // 44px on a phone, the usual 34px at a desk: this box is tapped to
+          // focus it, so it is a touch target and not just a container.
+          'flex min-h-tap w-full flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1.5 sm:min-h-8.5',
           'transition-[border-color,box-shadow] duration-fast ease-standard',
           'hover:border-border-strong',
           'focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25',
@@ -85,7 +87,9 @@ export function TagInput({
                 e.stopPropagation()
                 removeAt(index)
               }}
-              className="grid size-4 place-items-center rounded-xs opacity-80 transition-opacity duration-instant hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current"
+              // 16px is not a target a fingertip can hit, and removing the
+              // wrong allergen is a mistake worth preventing.
+              className="grid size-6 place-items-center rounded-xs opacity-80 transition-opacity duration-instant hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current sm:size-4"
             >
               <X aria-hidden className="size-3" />
             </button>
@@ -133,7 +137,9 @@ export function TagInput({
               type="button"
               onClick={() => add(c)}
               className={cn(
-                'inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5',
+                // The one-tap shortcuts are the whole point of this row, so on
+                // a phone they are 44px tall rather than a 20px pill.
+                'inline-flex min-h-tap items-center gap-1 rounded-full border border-border px-3 sm:min-h-0 sm:px-2 sm:py-0.5',
                 'text-caption text-text-muted transition-colors duration-fast ease-standard',
                 'hover:border-border-strong hover:text-text',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',

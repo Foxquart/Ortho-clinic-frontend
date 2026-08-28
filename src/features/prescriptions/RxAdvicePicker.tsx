@@ -116,7 +116,7 @@ export function RxAdvicePicker({
                 aria-expanded={open}
                 onClick={() => setToggled((t) => ({ ...t, [group.name]: !open }))}
                 className={cn(
-                  'flex min-h-10 w-full items-center gap-2 px-2.5 text-left',
+                  'flex min-h-tap w-full items-center gap-2 px-2.5 text-left lg:min-h-10',
                   'transition-colors duration-instant ease-standard hover:bg-surface-hover',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/35',
                 )}
@@ -154,7 +154,7 @@ export function RxAdvicePicker({
                         />
                         <label
                           htmlFor={id}
-                          className="flex min-h-10 min-w-0 flex-1 cursor-pointer items-center text-body text-text"
+                          className="flex min-h-tap min-w-0 flex-1 cursor-pointer items-center text-body text-text lg:min-h-10"
                         >
                           {preset.label}
                         </label>

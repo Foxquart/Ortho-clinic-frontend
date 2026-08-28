@@ -19,6 +19,21 @@ const COPY: Record<Provenance, { label: string; explain: string }> = {
 }
 
 /**
+ * Minimum touch target, applied to a pad control the doctor actually taps.
+ *
+ * Every control here is 26–32px tall, which is right under a mouse and about
+ * half of what a thumb needs. The shared primitives are not the place to fix
+ * that — they are used on screens that are not touch-first — so the pad grows
+ * its own controls to the 44px `--spacing-tap` token and hands the height back
+ * at `lg`, leaving the laptop pad unchanged to the pixel. `lg` and not `sm`
+ * because a tablet held in one hand is a touchscreen at 900px too.
+ */
+export const TAP_TARGET = 'min-h-tap lg:min-h-0'
+
+/** {@link TAP_TARGET} for a square icon button, which is width-bound as well. */
+export const TAP_ICON = 'min-h-tap min-w-tap lg:min-h-0 lg:min-w-0'
+
+/**
  * The visual treatment for where a value came from.
  *
  * Shape carries the meaning, not hue: a solid rail, a dotted rail, a dashed

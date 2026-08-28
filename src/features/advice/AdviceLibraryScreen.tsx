@@ -79,6 +79,14 @@ function updatePresetBody(values: PresetFormValues): AdvicePresetUpdate {
   }
 }
 
+/**
+ * The two fields in this dialog are 32px tall — right under a mouse, eight
+ * pixels short of what a fingertip needs. Raised from the form root rather than
+ * field by field so a field added later inherits it; above `sm` the original
+ * density returns.
+ */
+const TOUCH_FIELDS = 'max-sm:[&_input]:min-h-tap max-sm:[&_textarea]:min-h-tap'
+
 function AdvicePresetDialog({
   open,
   onOpenChange,
@@ -157,13 +165,18 @@ function AdvicePresetDialog({
         }
         footer={
           <>
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button
+              variant="ghost"
+              className="min-h-tap sm:min-h-0"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button
               type="submit"
               form={formId}
               variant="primary"
+              className="min-h-tap sm:min-h-0"
               loading={pending}
               disabled={editing && !isDirty}
             >
@@ -172,7 +185,7 @@ function AdvicePresetDialog({
           </>
         }
       >
-        <form id={formId} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        <form id={formId} noValidate onSubmit={onSubmit} className={cn('flex flex-col gap-4', TOUCH_FIELDS)}>
           {errors.root?.message && (
             <p
               role="alert"
@@ -283,11 +296,15 @@ function PresetRow({
       {inactive && <Badge tone="neutral">Inactive</Badge>}
 
       {/* Labelled, never icon-only: the action must be readable at a glance,
-          without a hover or a guess. */}
+          without a hover or a guess. Three 26px buttons in a row is a mouse
+          target trio; below `sm` each is raised to the 44px tap minimum, which
+          also puts real space between "Deactivate" and "Delete" on the one
+          screen where a thumb is doing the aiming. */}
       <span className="flex shrink-0 items-center gap-1">
         <Button
           variant="ghost"
           size="sm"
+          className="min-h-tap sm:min-h-0"
           aria-label={`Edit advice: ${preset.label}`}
           onClick={() => onEdit(preset)}
         >
@@ -297,6 +314,7 @@ function PresetRow({
           <Button
             variant="ghost"
             size="sm"
+            className="min-h-tap sm:min-h-0"
             loading={busy}
             aria-label={`Deactivate advice: ${preset.label}`}
             onClick={() => onToggleActive(preset)}
@@ -308,6 +326,7 @@ function PresetRow({
           <Button
             variant="tonal"
             size="sm"
+            className="min-h-tap sm:min-h-0"
             loading={busy}
             aria-label={`Reactivate advice: ${preset.label}`}
             onClick={() => onToggleActive(preset)}
@@ -318,7 +337,7 @@ function PresetRow({
         <Button
           variant="ghost"
           size="sm"
-          className="text-danger hover:bg-danger-muted hover:text-danger"
+          className="text-danger hover:bg-danger-muted hover:text-danger min-h-tap sm:min-h-0"
           aria-label={`Delete advice: ${preset.label}`}
           onClick={() => onDelete(preset)}
         >
@@ -418,7 +437,15 @@ export function AdviceLibraryScreen() {
         actions={
           !backendMissing &&
           !view.isError && (
-            <Button variant="primary" iconLeft={<Plus className="size-4" />} onClick={openCreate}>
+            /* Curating the library is the only reason this screen is opened,
+               so on a phone its one action takes the whole line at full tap
+               height rather than sitting as a 32px chip under the title. */
+            <Button
+              variant="primary"
+              iconLeft={<Plus className="size-4" />}
+              className="min-h-tap w-full sm:min-h-0 sm:w-auto"
+              onClick={openCreate}
+            >
               Add advice
             </Button>
           )

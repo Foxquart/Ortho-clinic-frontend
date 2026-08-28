@@ -150,6 +150,25 @@
     transform: translateX(100%);
   }
 }
+/* The drawer rises from the bottom edge rather than sliding in from the side:
+   it is the shape a phone already uses for "look at this, then put it back",
+   and the thumb that opens it is at the bottom of the screen already. */
+@keyframes sheet-in-bottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes sheet-out-bottom {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
 @keyframes menu-in {
   from {
     opacity: 0;

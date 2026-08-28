@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, History, Lock, Plus, Printer, Save } from 'lucide-react'
+import { ArrowLeft, Eye, History, Lock, Plus, Printer, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { API_BASE_URL, apiGet, apiPost, resolveApiUrl } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Kbd } from '@/components/ui/Badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/Surface'
+import { DialogRoot, DrawerContent } from '@/components/ui/Dialog'
 // DICTATION-PANEL: import { isEmptyDictation, parseDictation } from '@/features/speech/parser'
 // DICTATION-PANEL: import { extractDictation } from '@/features/speech/extract'
 import type { ParsedDictation } from '@/features/speech/parser'
@@ -32,7 +33,7 @@ import { RxMissingSummary } from './RxMissingSummary'
 // DICTATION-PANEL: import { RxDictationPanel } from './RxDictationPanel'
 import { RxLivePreview } from './RxLivePreview'
 import { RxAllergyConflictBanner, RxAllergyRecord } from './RxAllergyGate'
-import { FieldLabel, ProvenanceField, ProvenanceLegend } from './Provenance'
+import { FieldLabel, ProvenanceField, ProvenanceLegend, TAP_ICON, TAP_TARGET } from './Provenance'
 import { applyDictation, confidentMatch, takeDictationHandoff } from './dictation'
 import {
   FIELD_IDS,
@@ -125,6 +126,27 @@ export function PrescriptionPadScreen() {
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+
+  /* How much room the fixed action bar is taking, so the column beneath it can
+     give exactly that much back.
+
+     The bar's height is not a constant on a narrow screen: what is in it is
+     the list of everything still blocking the print, and that is one line on a
+     finished draft and five rows on a freshly opened one. The pad used to
+     reserve a flat 10rem, which was right for the single-row laptop bar and
+     left the last medicine sitting behind a 272px bar at 390px. Measuring is
+     the only version of this that is correct in every state; from 1400px the
+     columns scroll inside the shell and carry their own padding instead. */
+  const [barHeight, setBarHeight] = useState(0)
+  const barObserver = useRef<ResizeObserver | null>(null)
+  const barRef = useCallback((node: HTMLDivElement | null) => {
+    barObserver.current?.disconnect()
+    if (!node) return
+    barObserver.current = new ResizeObserver(() => setBarHeight(node.offsetHeight))
+    barObserver.current.observe(node)
+  }, [])
+  useEffect(() => () => barObserver.current?.disconnect(), [])
 
   const patientIdParam = params.get('patientId')
   // DICTATION-PANEL: const dictateOnArrival = params.get('dictate') === '1'
@@ -602,9 +624,15 @@ export function PrescriptionPadScreen() {
        viewport tall and the form column scrolls inside it, so the preview
        stays put instead of sliding away as he fills the pad. Below that the
        pad is a single column and the ordinary page scroll is correct. */
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pb-40 pt-6 sm:px-6 xl:max-w-none xl:px-10 min-[1400px]:h-full min-[1400px]:overflow-hidden min-[1400px]:pb-0">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pt-6 sm:px-6 xl:max-w-none xl:px-10 min-[1400px]:h-full min-[1400px]:overflow-hidden">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 min-[1400px]:shrink-0">
-        <Button variant="ghost" size="icon-sm" asChild aria-label="Back to prescriptions">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          asChild
+          className={TAP_ICON}
+          aria-label="Back to prescriptions"
+        >
           <Link to="/prescriptions">
             <ArrowLeft aria-hidden className="size-4" />
           </Link>
@@ -678,7 +706,7 @@ export function PrescriptionPadScreen() {
                         maxLength={vital.maxLength}
                         placeholder="—"
                         value={draft[vital.key].value}
-                        className={provenanceControlClass(draft[vital.key].provenance)}
+                        className={cn(TAP_TARGET, provenanceControlClass(draft[vital.key].provenance))}
                         onChange={(e) => setField(vital.key)(entered(e.target.value))}
                       />
                     </ProvenanceField>
@@ -727,7 +755,7 @@ export function PrescriptionPadScreen() {
                 min={todayIso()}
                 value={draft.followUpDate.value}
                 invalid={Boolean(serverErrors[FIELD_IDS.followUp])}
-                className={provenanceControlClass(draft.followUpDate.provenance)}
+                className={cn(TAP_TARGET, provenanceControlClass(draft.followUpDate.provenance))}
                 onChange={(e) => setField('followUpDate')(entered(e.target.value))}
               />
             </ProvenanceField>
@@ -822,16 +850,29 @@ export function PrescriptionPadScreen() {
               : `${draft.rows.filter((r) => r.medicineId).length} of ${draft.rows.length} matched · maximum ${MAX_ROWS}`
           }
           action={
-            <div className="flex items-center gap-2">
+            /* `CardHeader` wraps its action onto a second line but keeps it
+               `shrink-0`, so a non-wrapping pair of buttons sets the card's
+               min-content width and pushes the page sideways — 418px of
+               content in a 320px viewport, which is exactly what these two
+               were doing. Capping the group against the viewport is what
+               gives `flex-wrap` below something to wrap at: max-width clamps
+               a flex item's intrinsic contribution, `shrink-0` does not stop
+               it. 6rem covers the page and card gutters either side with
+               room for a classic scrollbar. */
+            <div className="flex max-w-[calc(100vw-6rem)] flex-wrap items-center gap-2 sm:max-w-none">
               {lastPrescription && (
                 <Button
                   variant="primary"
                   size="sm"
+                  className={TAP_TARGET}
                   onClick={carryOverPrevious}
                   iconLeft={<History className="size-4" />}
                 >
                   Continue previous
-                  <span className="text-text-subtle">
+                  {/* Which prescription, and when — worth the width on a
+                      laptop, and the first thing to go on a phone, where the
+                      button itself is already the whole idea. */}
+                  <span className="hidden text-text-subtle sm:inline">
                     ({lastPrescription.items.length} · {formatDate(lastPrescription.created_at)})
                   </span>
                 </Button>
@@ -840,6 +881,7 @@ export function PrescriptionPadScreen() {
                 id={FIELD_IDS.addMedicine}
                 variant="primary"
                 size="sm"
+                className={TAP_TARGET}
                 onClick={addRowAndFocus}
                 iconLeft={<Plus className="size-4" />}
                 disabled={draft.rows.length >= MAX_ROWS}
@@ -858,7 +900,12 @@ export function PrescriptionPadScreen() {
               <p className="mt-1 text-caption text-text-muted">
                 Add one, dictate them, or carry over the last visit&rsquo;s.
               </p>
-              <Button variant="primary" size="sm" className="mt-3" onClick={addRowAndFocus}>
+              <Button
+                variant="primary"
+                size="sm"
+                className={cn(TAP_TARGET, 'mt-3')}
+                onClick={addRowAndFocus}
+              >
                 Add the first medicine
               </Button>
             </div>
@@ -912,13 +959,23 @@ export function PrescriptionPadScreen() {
             Prescriptions are append-only. Once this is saved it cannot be edited or deleted — a
             correction is a new prescription, written from this pad and printed over the old one.
           </p>
+
+          {/* Reserves the fixed action bar's measured height. `order-8` because
+              every card in this column is explicitly ordered and an unordered
+              child would sort to the front. */}
+          <div
+            aria-hidden
+            style={{ height: barHeight }}
+            className="order-8 shrink-0 min-[1400px]:hidden"
+          />
         </div>
 
         <div className="contents min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-hidden min-[1400px]:pb-28">
           {/* Live preview — Overleaf's PDF pane, minus the compile step: it
               reads `draft` straight out of React state, so it redraws as he
               types. Laptop only; below 1400px there is no room beside the form
-              and the pad is a single column. */}
+              and the pad is a single column — see the "Preview" button in the
+              action bar, which is where the page goes on a narrow screen. */}
           {/* Fills the column: the A4 page scrolls inside the iframe, so the
               pane is exactly as tall as the viewport allows and never itself
               scrolls. `min-h-0` is what lets a flex child shrink below its
@@ -932,11 +989,18 @@ export function PrescriptionPadScreen() {
 
       {/* ---------------------------- action bar ---------------------------- */}
       <div
+        ref={barRef}
         data-print-hide
         className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg/85 backdrop-blur-md"
       >
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-6 xl:max-w-none xl:px-10">
-          <div className="min-w-0 flex-1">
+        {/* One row on a laptop, exactly as before. On a phone the blockers
+            get the full width — squeezed into a 120px column beside three
+            buttons they were unreadable, and they are the reason the bar
+            exists — and the buttons take the row below. `sm:contents` is what
+            dissolves the mobile button group again above `sm`, so the desktop
+            bar is the same flex row it always was. */}
+        <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2 sm:px-6 xl:max-w-none xl:px-10">
+          <div className="min-w-0 sm:flex-1">
             <RxMissingSummary
               issues={issues}
               draft={draft}
@@ -947,25 +1011,44 @@ export function PrescriptionPadScreen() {
             />
           </div>
 
-          <Button
-            variant="secondary"
-            onClick={() => void submit(false)}
-            loading={submitting}
-            iconLeft={<Save className="size-4" />}
-          >
-            Save
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 sm:contents">
+            {/* The preview's narrow-screen home. Hidden from 1400px up, where
+                the page is already sitting open beside the form.
 
-          <Button
-            variant="primary"
-            onClick={() => void submit(true)}
-            loading={submitting}
-            iconLeft={<Printer className="size-4" />}
-            aria-describedby={ready ? undefined : 'rx-blocked-hint'}
-            className={cn(!ready && 'opacity-60')}
-          >
-            Save &amp; print
-          </Button>
+                "Preview prescription", not "Preview": in a bar that also says
+                Save and Save & print, a bare verb leaves the doctor to work out
+                what is being previewed. It is the widest label in the row and
+                that is the correct trade. */}
+            <Button
+              variant="secondary"
+              onClick={() => setPreviewOpen(true)}
+              iconLeft={<Eye className="size-4" />}
+              className={cn(TAP_TARGET, 'basis-full sm:flex-none min-[1400px]:hidden')}
+            >
+              Preview prescription
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={() => void submit(false)}
+              loading={submitting}
+              iconLeft={<Save className="size-4" />}
+              className={cn(TAP_TARGET, 'flex-1 basis-24 sm:flex-none')}
+            >
+              Save
+            </Button>
+
+            <Button
+              variant="primary"
+              onClick={() => void submit(true)}
+              loading={submitting}
+              iconLeft={<Printer className="size-4" />}
+              aria-describedby={ready ? undefined : 'rx-blocked-hint'}
+              className={cn(TAP_TARGET, 'flex-1 basis-40 sm:flex-none', !ready && 'opacity-60')}
+            >
+              Save &amp; print
+            </Button>
+          </div>
           {!ready && (
             <span id="rx-blocked-hint" className="sr-only">
               Blocked: fill in everything listed as still needed.
@@ -973,6 +1056,56 @@ export function PrescriptionPadScreen() {
           )}
         </div>
       </div>
+
+      {/*
+        The preview, on a screen with no room beside the form.
+
+        An A4 page is 794px wide and the pad's form column is not compressible
+        much below 380 — there is no viewport under about 1400px where both
+        fit, which is why the pane is `hidden` below that breakpoint. The
+        question was only ever what replaces it, and the two candidates were a
+        Write/Preview segmented switch and an explicit control that opens the
+        page over the pad. This is the second one, for three reasons:
+
+         1. **The preview is a check, not a companion.** Beside the form it is
+            free — it costs no attention and no gesture, so it can be
+            continuous. On a phone it costs the whole screen, and something
+            that costs the whole screen should be asked for. Once. Just before
+            printing. That is a button, not a mode.
+         2. **A mode strands you.** The form is ~2500px tall on a phone. A tab
+            that swaps the form out for the page has to put the doctor back
+            where he was when he swaps back, and the one thing the action bar
+            does — name a missing field and jump to it — cannot work while the
+            fields are not rendered. The drawer closes on Escape or a tap
+            outside and the form is still exactly where he left it, still
+            scrolled to the same row.
+         3. **It costs no permanent chrome.** A segmented switch is a strip of
+            the screen given up on every screen forever, on the device with the
+            least screen to give. The button lives in a bar that was already
+            there, next to Save & print, which is precisely when a doctor wants
+            to look at the page.
+
+        A bottom DRAWER at 80% of the viewport rather than a centred dialog.
+        The remaining 20% is not wasted space — it is the pad still visible
+        behind the page, which is what makes this read as "look at it" rather
+        than "you have left the form". It also puts the whole page within reach
+        of the thumb that opened it, and `dvh` rather than `vh` so the bottom
+        edge does not slide under a phone's address bar when that bar is up.
+
+        `zoomable` because fit-to-width lands near 40% at this size: enough to
+        see the shape of the page, not enough to read a dose off it, so the
+        drawer also offers true A4 and lets the doctor pan.
+      */}
+      <DialogRoot open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DrawerContent
+          title="Prescription preview"
+          description="Live from the pad. Nothing is saved yet."
+        >
+          <div className="h-full">
+            <RxLivePreview draft={draft} zoomable />
+          </div>
+        </DrawerContent>
+      </DialogRoot>
     </div>
   )
 }

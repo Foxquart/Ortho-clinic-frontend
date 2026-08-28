@@ -9,12 +9,31 @@ import { Button } from './Button'
 export function Table({
   children,
   className,
+  label,
 }: {
   children: React.ReactNode
   className?: string
+  /** Names the scroll region for screen readers and keyboard users. */
+  label?: string
 }) {
   return (
-    <div className="scrollbar-subtle w-full overflow-x-auto">
+    /* A table wide enough to need scrolling is a scroll region, and a scroll
+       region that only a mouse wheel can reach is not reachable at all: the
+       `tabIndex`/`role` pair is what lets a keyboard put focus in here and use
+       the arrow keys. `overscroll-x-contain` stops a swipe that runs off the
+       end of the columns from turning into a browser back-gesture — the single
+       most annoying thing a wide table can do on a phone.
+
+       Note this makes the table SCROLL on a narrow screen; it does not make it
+       READABLE there. Screens whose table is the main event (the prescription's
+       medicines, the prescription list) render a stacked card list under `sm`
+       instead and only mount this from `sm` up. */
+    <div
+      role={label ? 'region' : undefined}
+      aria-label={label}
+      tabIndex={label ? 0 : undefined}
+      className="scrollbar-subtle w-full min-w-0 overflow-x-auto overscroll-x-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+    >
       <table className={cn('w-full border-collapse text-body', className)}>{children}</table>
     </div>
   )
@@ -188,7 +207,7 @@ export function Pagination({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-4 border-t border-border px-3 py-2',
+        'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border px-3 py-2',
         className,
       )}
     >

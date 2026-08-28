@@ -96,30 +96,35 @@ export function DashboardScreen() {
         title={`${greeting}, ${address}`}
         description={today()}
         actions={
-          /* Wrapped so the pair can fold onto a second line on a phone rather
-             than shrinking the primary control. */
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          /* No wrapper of its own any more: `PageHeader` now supplies the
+             wrapping flex row, and it is full-width below `sm`. A nested
+             `justify-end` div inside that container did nothing but shove both
+             buttons against the right edge of a phone. */
+          <>
             {/* The hours behind the public booking page live one click away,
                 because "which days am I available" should never need hunting —
-                but it is secondary, so it does not compete with the pad. */}
+                but it is secondary, so it does not compete with the pad — and
+                it keeps its natural width on a phone for exactly that reason. */}
             <Button variant="info" asChild iconLeft={<Clock className="size-4" />}>
               <Link to="/appointments?hours=1">Set clinic hours</Link>
             </Button>
             {/* The one thing this app exists to do, and — since the rail no
                 longer carries a row for it — the only signposted way in. It is
-                the largest control on the screen on purpose. */}
+                the largest control on the screen on purpose, and on a phone
+                that means the full width of the screen: it takes its own line
+                and there is nothing else on it to mis-hit. */}
             {can('prescriptions.write') && (
               <Button
                 variant="primary"
                 size="lg"
                 asChild
                 iconLeft={<Plus className="size-5" />}
-                className="min-h-11 px-5 text-body font-semibold shadow-md"
+                className="w-full min-h-11 px-5 text-body font-semibold shadow-md sm:w-auto"
               >
                 <Link to="/prescriptions/new">New prescription</Link>
               </Button>
             )}
-          </div>
+          </>
         }
       />
 
@@ -168,7 +173,15 @@ export function DashboardScreen() {
                   beside it counted twice, so it lives in that card's
                   description instead of competing as a tile. */}
               <Card className="overflow-hidden">
-                <div className="grid grid-cols-2 divide-x divide-border">
+                {/* Side by side from `sm` up, stacked below it. Two columns of
+                    a 320px screen leave each figure about 120px of content, and
+                    the label — the word that says what the number counts — was
+                    the part that lost: "Prescriptions" truncated to "Pre…" next
+                    to a 32px numeral, which is a number with no meaning. Each
+                    figure's phone arrangement is already the short horizontal
+                    one (label left, figure right, ~72px tall), so stacking them
+                    costs one row of height and buys back both labels. */}
+                <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                   <StatFigure
                     label="Upcoming"
                     value={data?.appointments_upcoming}
@@ -231,7 +244,7 @@ export function DashboardScreen() {
                   than a card, at the foot of the reference column. It also
                   stops the right rail ending 400px short of the schedule and
                   leaving a hole in the composition. */}
-    <section
+              <section
                 aria-labelledby="dashboard-records"
                 className={
                   'flex flex-col gap-3 rounded-xl border border-border bg-bg-sunken px-5 py-4'

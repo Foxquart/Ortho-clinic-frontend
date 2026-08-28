@@ -225,6 +225,21 @@ export const endpoints = {
     /** GET -> `text/html` (NOT JSON) — open directly in a tab for the browser print dialog. */
     printView: (id: UUID) => `/prescriptions/${id}/print/view`,
     /**
+     * GET -> `application/pdf` as an attachment (`Content-Disposition:
+     * attachment; filename="RX-000001.pdf"`). The same A4 sheet `printView`
+     * serves, run through a server-side renderer, so the doctor gets a file
+     * rather than a tab he has to print himself.
+     *
+     * Fetch it as a blob through the shared axios instance (`apiGetBlob`),
+     * never with a plain `<a href>`: this API authenticates by cookie, and a
+     * bare navigation to a cross-origin `VITE_API_URL` would not carry it.
+     *
+     * Answers 503 `{ detail }` when the deployment has no renderer installed.
+     * That is an expected answer, not a fault — callers should fall back to
+     * `printView` rather than surface an error.
+     */
+    pdf: (id: UUID) => `/prescriptions/${id}/pdf`,
+    /**
      * POST (`PrescriptionPreviewRequest`) -> `{ html }` [WRITE: needs CSRF]
      *
      * Renders an UNSAVED draft through the same Jinja template the real print

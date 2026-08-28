@@ -12,7 +12,7 @@ import { Combobox } from '@/components/ui/Combobox'
 import { Select } from '@/components/ui/Controls'
 import { Tooltip } from '@/components/ui/Menu'
 import type { MedicineResponse, Page_MedicineResponse_ } from '@/api/schema'
-import { FieldLabel, ProvenanceField } from './Provenance'
+import { FieldLabel, ProvenanceField, TAP_ICON, TAP_TARGET } from './Provenance'
 // Per-field mic icons hidden at user request. Import commented out with the
 // action={...} block below — restore both together.
 // import { RxFieldStateMic } from './RxMic'
@@ -227,6 +227,14 @@ export function RxRowEditor({
           {/* Three shapes, chosen by the column this row is sitting in:
               stacked when very narrow, then medicine over dose/frequency/days,
               then a single dense line once there is room for all four. */}
+          {/* Dose, Frequency and Days each bottom-align their control inside
+              the row rather than top-align it. Their labels carry a provenance
+              tag and the narrow Days track cannot hold "Days · Carried over"
+              on one line, so on a tablet that one label wrapped and dropped
+              its input half a row below the other two — on every medicine
+              "Continue previous" brings across. Aligned from the bottom, the
+              label may be one line or two and the three fields still read as
+              one line of the prescription. */}
           <div className="grid gap-2.5 @xs:grid-cols-2 @md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_4.5rem] @3xl:grid-cols-[minmax(0,1fr)_7rem_minmax(8rem,10rem)_4.5rem]">
             <div className="@xs:col-span-2 @md:col-span-3 @3xl:col-span-1">
               <FieldLabel
@@ -246,7 +254,7 @@ export function RxRowEditor({
                 getKey={(m) => m.id}
                 getLabel={(m) => m.name}
                 invalid={has('medicine')}
-                className={cn(!row.medicineId && 'border-dashed border-provenance-blank')}
+                className={cn(TAP_TARGET, !row.medicineId && 'border-dashed border-provenance-blank')}
                 placeholder={unmatched ? `“${meta.spokenName}” — not matched` : '—'}
                 searchPlaceholder="Brand or generic name…"
                 emptyMessage={
@@ -264,7 +272,7 @@ export function RxRowEditor({
               )}
             </div>
 
-            <div>
+            <div className="flex flex-col justify-end">
               <FieldLabel
                 htmlFor={dosageId}
                 provenance={row.dosage.provenance}
@@ -281,13 +289,13 @@ export function RxRowEditor({
                   placeholder="—"
                   maxLength={128}
                   autoComplete="off"
-                  className={provenanceControlClass(row.dosage.provenance)}
+                  className={cn(TAP_TARGET, provenanceControlClass(row.dosage.provenance))}
                   onChange={(e) => patch({ dosage: entered(e.target.value) })}
                 />
               </ProvenanceField>
             </div>
 
-            <div>
+            <div className="flex flex-col justify-end">
               <FieldLabel
                 htmlFor={frequencyId}
                 provenance={row.frequency.provenance}
@@ -303,13 +311,13 @@ export function RxRowEditor({
                   placeholder='1-0-1, or "before bed"'
                   maxLength={128}
                   autoComplete="off"
-                  className={provenanceControlClass(row.frequency.provenance)}
+                  className={cn(TAP_TARGET, provenanceControlClass(row.frequency.provenance))}
                   onChange={(e) => patch({ frequency: entered(e.target.value) })}
                 />
               </ProvenanceField>
             </div>
 
-            <div>
+            <div className="flex flex-col justify-end">
               <FieldLabel
                 htmlFor={rowFieldId.days(row.key)}
                 provenance={row.durationDays.provenance}
@@ -327,7 +335,7 @@ export function RxRowEditor({
                   value={row.durationDays.value ?? ''}
                   placeholder="—"
                   invalid={Boolean(errors[rowFieldId.days(row.key)])}
-                  className={provenanceControlClass(row.durationDays.provenance)}
+                  className={cn(TAP_TARGET, provenanceControlClass(row.durationDays.provenance))}
                   onChange={(e) =>
                     patch({
                       durationDays: entered(e.target.value === '' ? null : Number(e.target.value)),
@@ -357,7 +365,7 @@ export function RxRowEditor({
                     patch({ frequency: entered(preset.value), prn: preset.value === 'SOS' })
                   }
                   className={cn(
-                    'inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-label',
+                    'inline-flex min-h-tap items-center gap-1.5 rounded-full border px-3 text-label lg:min-h-10',
                     'transition-colors duration-instant ease-standard',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35',
                     active
@@ -372,8 +380,12 @@ export function RxRowEditor({
             })}
           </div>
 
-          <div className="mt-2.5 flex flex-wrap items-end gap-2.5">
-            <div className="min-w-0 flex-1">
+          {/* Instructions and the More toggle share a line the moment there is
+              one to share. In a phone-width column there is not: a 44px field
+              with a button parked in its last 70px is a field you cannot read
+              what you typed into, so the toggle drops below and sits left. */}
+          <div className="mt-2.5 flex flex-col gap-2 @xs:flex-row @xs:flex-wrap @xs:items-end @xs:gap-2.5">
+            <div className="min-w-0 @xs:flex-1">
               <FieldLabel
                 htmlFor={instructionsId}
                 provenance={row.instructions.provenance}
@@ -399,7 +411,7 @@ export function RxRowEditor({
                   maxLength={2000}
                   placeholder="—"
                   invalid={Boolean(errors[instructionsId])}
-                  className={provenanceControlClass(row.instructions.provenance)}
+                  className={cn(TAP_TARGET, provenanceControlClass(row.instructions.provenance))}
                   onChange={(e) => patch({ instructions: entered(e.target.value) })}
                 />
               </ProvenanceField>
@@ -409,6 +421,7 @@ export function RxRowEditor({
               variant="ghost"
               size="sm"
               aria-expanded={showMore}
+              className={cn(TAP_TARGET, 'self-start @xs:self-auto')}
               onClick={() => setShowMore((v) => !v)}
               iconRight={
                 <ChevronDown
@@ -442,6 +455,7 @@ export function RxRowEditor({
                   value={row.quantity.value ?? ''}
                   placeholder="—"
                   invalid={Boolean(errors[quantityId])}
+                  className={TAP_TARGET}
                   onChange={(e) =>
                     patch({
                       quantity: entered(e.target.value === '' ? null : Number(e.target.value)),
@@ -479,6 +493,7 @@ export function RxRowEditor({
                   options={FOOD_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
                   placeholder="—"
                   aria-label="Food timing"
+                  className={TAP_TARGET}
                 />
               </div>
             </div>
@@ -507,7 +522,7 @@ export function RxRowEditor({
         <Button
           variant="ghost"
           size="icon-sm"
-          className="shrink-0"
+          className={cn('shrink-0', TAP_ICON)}
           disabled={!canRemove}
           aria-label={row.medicineName ? `Remove ${row.medicineName}` : `Remove item ${index + 1}`}
           onClick={onRemove}
@@ -588,9 +603,9 @@ function UnmatchedNotice({
               type="button"
               onClick={() => onChoose(medicine)}
               className={cn(
-                'inline-flex items-baseline gap-1.5 rounded-sm border border-border-field bg-surface px-2 py-0.5',
+                'inline-flex min-h-tap items-center gap-1.5 rounded-sm border border-border-field bg-surface px-2.5',
                 'text-caption text-text transition-colors duration-instant ease-standard',
-                'hover:border-accent hover:bg-accent-muted',
+                'hover:border-accent hover:bg-accent-muted lg:min-h-0 lg:items-baseline lg:px-2 lg:py-0.5',
               )}
             >
               {medicine.name}
@@ -599,7 +614,13 @@ function UnmatchedNotice({
               )}
             </button>
           ))}
-          <Button variant="ghost" size="sm" onClick={onSearch} iconLeft={<Search className="size-3.5" />}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={TAP_TARGET}
+            onClick={onSearch}
+            iconLeft={<Search className="size-3.5" />}
+          >
             Search
           </Button>
         </div>

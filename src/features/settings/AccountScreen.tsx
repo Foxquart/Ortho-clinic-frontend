@@ -107,7 +107,10 @@ export function AccountScreen() {
           <form
             noValidate
             onSubmit={handleSubmit((values) => changePassword.mutate(values))}
-            className="flex max-w-sm flex-col gap-4"
+            /* The three password fields are 32px tall — right under a mouse and
+               short of a fingertip. Raised from the form root rather than field
+               by field; above `sm` the original density returns. */
+            className="flex max-w-sm flex-col gap-4 max-sm:[&_input]:min-h-tap"
           >
             <Field label="Current password" error={errors.current_password?.message} required>
               {(a) => (
@@ -151,6 +154,7 @@ export function AccountScreen() {
               <Button
                 type="submit"
                 variant="primary"
+                className="min-h-tap w-full sm:min-h-0 sm:w-auto"
                 loading={changePassword.isPending}
                 disabled={!isDirty}
               >

@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { Wand2 } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { apiPatch, apiPost } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
@@ -30,6 +31,18 @@ const ROLE_OPTIONS: readonly SelectOption<UserRole>[] = USER_ROLES.map((role) =>
   label: ROLE_LABEL[role],
   description: ROLE_DESCRIPTION[role],
 }))
+
+/**
+ * Every field and the role select are 32px tall — right under a mouse, eight
+ * pixels short of what a fingertip needs. Raised once from each form root
+ * rather than field by field, so a field added later inherits it; above `sm`
+ * the original density returns.
+ */
+const TOUCH_FIELDS = 'max-sm:[&_input]:min-h-tap max-sm:[&_[role=combobox]]:min-h-tap'
+
+/* The wand sits beside a text field, so it has to grow in both directions or it
+   becomes a 44x32 lozenge next to a 44px input. */
+const TOUCH_ICON = 'min-h-tap min-w-tap sm:min-h-0 sm:min-w-0'
 
 /* --------------------------------- Create --------------------------------- */
 
@@ -105,10 +118,13 @@ export function CreateUserSheet({
         footer={
           <>
             <DialogClose asChild>
-              <Button variant="ghost">Cancel</Button>
+              <Button variant="ghost" className="min-h-tap sm:min-h-0">
+                Cancel
+              </Button>
             </DialogClose>
             <Button
               variant="primary"
+              className="min-h-tap sm:min-h-0"
               loading={create.isPending}
               onClick={handleSubmit((v) => create.mutate(v))}
             >
@@ -120,7 +136,7 @@ export function CreateUserSheet({
         <form
           noValidate
           onSubmit={handleSubmit((v) => create.mutate(v))}
-          className="flex flex-col gap-4"
+          className={cn('flex flex-col gap-4', TOUCH_FIELDS)}
         >
           <Field label="Full name" error={errors.full_name?.message} required>
             {(a) => <Input {...a} {...register('full_name')} autoFocus />}
@@ -168,6 +184,7 @@ export function CreateUserSheet({
                 <Button
                   variant="secondary"
                   size="icon"
+                  className={TOUCH_ICON}
                   aria-label="Suggest a password"
                   onClick={() => setValue('password', suggestPassword(), { shouldValidate: true })}
                 >
@@ -275,10 +292,13 @@ export function EditUserSheet({
         footer={
           <>
             <DialogClose asChild>
-              <Button variant="ghost">Cancel</Button>
+              <Button variant="ghost" className="min-h-tap sm:min-h-0">
+                Cancel
+              </Button>
             </DialogClose>
             <Button
               variant="primary"
+              className="min-h-tap sm:min-h-0"
               loading={update.isPending}
               disabled={!isDirty}
               onClick={handleSubmit((v) => update.mutate(v))}
@@ -291,7 +311,7 @@ export function EditUserSheet({
         <form
           noValidate
           onSubmit={handleSubmit((v) => update.mutate(v))}
-          className="flex flex-col gap-4"
+          className={cn('flex flex-col gap-4', TOUCH_FIELDS)}
         >
           <Field label="Username" hint="Usernames cannot be changed after the account is created.">
             {(a) => <Input {...a} value={user.username} readOnly disabled className="font-mono" />}

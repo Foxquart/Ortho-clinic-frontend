@@ -236,7 +236,13 @@ export function TodaySchedule({
             <Link
               to="/appointments"
               className={cn(
-                'group grid grid-cols-[3.75rem_1rem_minmax(0,1fr)_auto] items-center gap-x-3',
+                /* 4.25rem, not 3.75: a two-digit hour — "10:00 am", and every
+                   afternoon row — needed 66px and wrapped onto a second line in
+                   60, which made those rows twice as tall as the morning ones
+                   and turned the rail into a ragged column. The 8px comes off
+                   the patient name, which truncates gracefully; a time does
+                   not. */
+                'group grid grid-cols-[4.25rem_1rem_minmax(0,1fr)_auto] items-center gap-x-3',
                 'rounded-lg py-2.5 pr-3 sm:grid-cols-[4.5rem_1rem_minmax(0,1fr)_auto]',
                 'transition-colors duration-fast hover:bg-surface-hover',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
@@ -244,7 +250,7 @@ export function TodaySchedule({
             >
               <span
                 className={cn(
-                  'numeric text-right text-label tabular-nums',
+                  'numeric text-right text-label tabular-nums whitespace-nowrap',
                   phase === 'done' ? 'text-text-subtle' : 'text-text font-medium',
                 )}
               >

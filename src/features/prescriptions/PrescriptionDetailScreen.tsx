@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { ArrowLeft, CalendarCheck, FileDown, Lock, Printer, Stethoscope } from 'lucide-react'
-import { API_BASE_URL, apiGet, resolveApiUrl } from '@/api/http'
+import { API_BASE_URL, apiGet, apiGetBlob, resolveApiUrl } from '@/api/http'
+import { errorMessage, toApiError } from '@/api/errors'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
 import { cn } from '@/lib/cn'
@@ -36,6 +39,10 @@ export function PrescriptionDetailScreen() {
   const { prescriptionId = '' } = useParams<{ prescriptionId: string }>()
   const navigate = useNavigate()
   const { can } = useAuth()
+  /* Rendering the PDF is a server round trip that can take a second. Without
+     this the button looks dead and gets clicked three more times, which is
+     three more renders the server has to do. */
+  const [isDownloading, setIsDownloading] = useState(false)
 
   const rxQuery = useQuery({
     queryKey: qk.prescriptions.detail(prescriptionId),
@@ -64,12 +71,28 @@ export function PrescriptionDetailScreen() {
     `${API_BASE_URL}${endpoints.prescriptions.printView(prescriptionId)}`,
   )
 
-  /* "Download PDF" is the browser's own print-to-PDF, because that is the only
-     honest way to get one: the API has no PDF endpoint, it renders the A4 sheet
-     as HTML and nothing else. So the print view is opened and the print dialog
-     raised on top of it, where the doctor picks "Save as PDF" as the
-     destination. No PDF library is pulled in to fake it, and nothing is
-     labelled a PDF that is really an HTML file. */
+  /* "Download PDF" has two paths, and which one runs is the server's answer,
+     not a guess made here.
+
+     The real one is `prescriptions.pdf`: the API renders the same A4 sheet to
+     a PDF and returns it as an attachment, so the doctor gets a file. It is
+     fetched as a blob through the shared axios instance rather than linked to
+     with an `<a href>`, because this API authenticates by COOKIE — a bare
+     navigation (or a `fetch` without credentials) to a cross-origin
+     `VITE_API_URL` would arrive signed out and 401. The blob is then handed to
+     a synthesised `<a download>`, which is the only way to name the file
+     ourselves.
+
+     The fallback is `openPrintDialog` below — the behaviour this button used
+     to have, in full. The renderer is an optional server-side dependency, so a
+     deployment can legitimately answer 503; on those the doctor must not be
+     left holding an error. The print view still exists on every deployment, so
+     it is opened with the print dialog raised on top of it and the doctor
+     picks "Save as PDF" as the destination. Slower and one dialog longer, but
+     it always produces the same sheet.
+
+     Nothing here fakes a PDF: no client-side PDF library is pulled in, and
+     nothing that is really HTML is ever labelled `.pdf`. */
   const openPrintDialog = () => {
     /* `noopener` is deliberately NOT passed here, unlike the Print button.
        With it the browser returns `null` instead of a window handle, and the
@@ -112,9 +135,63 @@ export function PrescriptionDetailScreen() {
     }
   }
 
+  const downloadPdf = async () => {
+    if (isDownloading) return
+    setIsDownloading(true)
+
+    /* Declared out here so the `finally` can revoke it whichever way the try
+       block exits. An object URL that is never revoked pins the entire PDF in
+       memory for the life of the tab. */
+    let objectUrl: string | null = null
+
+    try {
+      const blob = await apiGetBlob(endpoints.prescriptions.pdf(prescriptionId))
+      objectUrl = URL.createObjectURL(blob)
+
+      /* The filename is derived from the prescription number we already have,
+         NOT parsed out of `Content-Disposition`. Cross-origin that header is
+         invisible to JavaScript unless the API lists it in CORS
+         `expose_headers`, so reading it would work in dev and silently produce
+         "download" in production — the one place nobody would see it. */
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = `${(rx?.prescription_number ?? 'prescription').replace(/[^\w.-]+/g, '-')}.pdf`
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      // No success toast: the file landing in the downloads shelf IS the feedback.
+    } catch (error) {
+      const status = toApiError(error).status
+
+      /* 503 is the documented "this deployment has no renderer" answer. 404 is
+         treated the same way on purpose: the prescription itself demonstrably
+         exists — we are rendering it — so a 404 from this path means the route
+         is missing, i.e. a backend that predates the PDF endpoint. Both mean
+         "the server cannot make the file", and neither is the doctor's
+         problem, so both fall through to the print view. */
+      if (status === 503 || status === 404) {
+        toast.info(
+          "PDF isn't available on this server — opening the print view, choose Save as PDF",
+        )
+        openPrintDialog()
+      } else {
+        toast.error(errorMessage(error))
+      }
+    } finally {
+      if (objectUrl) {
+        /* Revoked on the next task rather than in this one. `click()` only
+           queues the download; revoking in the same tick can pull the blob out
+           from under it before the browser has read it. */
+        const url = objectUrl
+        setTimeout(() => URL.revokeObjectURL(url), 0)
+      }
+      setIsDownloading(false)
+    }
+  }
+
   if (rxQuery.isError) {
     return (
-      <div className="max-w-content flex flex-col gap-4 px-6 pt-5 pb-8">
+      <div className="max-w-content flex flex-col gap-4 px-4 pt-5 pb-8 sm:px-6">
         <ErrorState error={rxQuery.error} onRetry={() => rxQuery.refetch()} />
         <div>
           <Button
@@ -131,7 +208,7 @@ export function PrescriptionDetailScreen() {
 
   if (!rx) {
     return (
-      <div className="max-w-content flex flex-col gap-4 px-6 pt-5 pb-8">
+      <div className="max-w-content flex flex-col gap-4 px-4 pt-5 pb-8 sm:px-6">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-7 w-56" />
@@ -168,7 +245,7 @@ export function PrescriptionDetailScreen() {
   ].filter(Boolean)
 
   return (
-    <div className="max-w-content flex flex-col gap-4 px-6 pt-5 pb-8">
+    <div className="max-w-content flex flex-col gap-4 px-4 pt-5 pb-8 sm:px-6">
       <PageHeader
         breadcrumb={
           <Link
@@ -186,25 +263,34 @@ export function PrescriptionDetailScreen() {
           </span>
         }
         actions={
+          /* `w-full sm:w-auto` on every one of them: below `sm` these stack as
+             three full-width bars rather than three shrunken ones squeezed onto
+             a phone's line. The reader is a 50–60 year old surgeon holding the
+             phone one-handed — a wide target he can hit without looking beats a
+             tidy row he has to aim at. From `sm` up they go back to being a
+             right-aligned row of natural-width buttons. */
           <>
             {/* Prescriptions are append-only: no edit, no delete, no void. The
                 only forward action is writing a new one for the same patient. */}
             {can('prescriptions.write') && patientId && (
               <Button
                 variant="secondary"
+                className="min-h-tap w-full sm:min-h-0 sm:w-auto"
                 onClick={() => navigate(`/prescriptions/new?patientId=${patientId}`)}
               >
                 New prescription for this patient
               </Button>
             )}
             {/* Sits beside Print rather than competing with it: same sheet,
-                same dialog, different destination. Kept `secondary` so the one
-                filled button in this header stays Print. */}
+                different destination. Kept `secondary` so the one filled button
+                in this header stays Print. */}
             <Button
               variant="secondary"
-              onClick={openPrintDialog}
+              className="min-h-tap w-full sm:min-h-0 sm:w-auto"
+              loading={isDownloading}
+              onClick={() => void downloadPdf()}
               iconLeft={<FileDown className="size-4" />}
-              title="Opens the print view and your browser's print dialog. Choose Save as PDF as the destination."
+              title="Downloads this prescription as a PDF file."
             >
               Download PDF
             </Button>
@@ -212,6 +298,7 @@ export function PrescriptionDetailScreen() {
                 the browser's own print dialog in one click. */}
             <Button
               variant="primary"
+              className="min-h-tap w-full sm:min-h-0 sm:w-auto"
               onClick={() => window.open(printUrl, '_blank', 'noopener,noreferrer')}
               iconLeft={<Printer className="size-4" />}
             >
@@ -226,8 +313,8 @@ export function PrescriptionDetailScreen() {
           oversight, and the doctor would keep hunting. */}
       <p className="text-caption text-text-subtle flex items-start gap-2">
         <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-        This prescription is a signed record: it cannot be edited or deleted. To correct it,
-        write a new prescription for the same patient and hand that one over instead.
+        This prescription is a signed record: it cannot be edited or deleted. To correct it, write a
+        new prescription for the same patient and hand that one over instead.
       </p>
 
       <RxAllergyBannerView
@@ -251,7 +338,17 @@ export function PrescriptionDetailScreen() {
             )}
           </div>
           {patientId && (
-            <Button variant="ghost" size="sm" onClick={() => navigate(`/patients/${patientId}`)}>
+            /* On a phone this wraps onto its own line under the name, where a
+               ghost button's own padding would leave its label indented 12px
+               past everything above it. The negative margin pulls the LABEL
+               back into the card's text column; from `sm` up it is back on the
+               right of the row, where the padding is correct again. */
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-h-tap -ml-2.5 sm:ml-0 sm:min-h-0"
+              onClick={() => navigate(`/patients/${patientId}`)}
+            >
               Patient record
             </Button>
           )}

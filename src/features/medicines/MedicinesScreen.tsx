@@ -73,6 +73,119 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 }
 
+/* A ref callback, not a hook: it is handed to whichever of the two renders is
+   mounted at this width, and a module-level function keeps a stable identity so
+   React does not detach and re-attach it on every re-render. */
+function scrollHighlightIntoView(node: HTMLElement | null) {
+  node?.scrollIntoView({
+    block: 'center',
+    behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+  })
+}
+
+/**
+ * The phone rendering of one formulary entry. Not a narrowed table — a table
+ * with seven columns on a 320px screen scrolls sideways, which means the
+ * strength and the row actions sit past the right edge where nobody looks. The
+ * card puts the name on line one and folds form/strength/brand into a single
+ * quiet meta line, so the whole entry is legible without a horizontal swipe.
+ *
+ * The name block is the tap target and opens the editor — the same thing the
+ * "Edit" button does in the table — with the activate toggle as a separate
+ * rectangle beside it, far enough away (gap-2, its own bounds) that a thumb
+ * aiming at the name does not retire a medicine by accident.
+ */
+function MedicineCard({
+  medicine,
+  canWrite,
+  highlighted,
+  onEdit,
+  onDeactivate,
+  onReactivate,
+}: {
+  medicine: MedicineResponse
+  canWrite: boolean
+  highlighted: boolean
+  onEdit: (medicine: MedicineResponse) => void
+  onDeactivate: (medicine: MedicineResponse) => void
+  onReactivate: (medicine: MedicineResponse) => void
+}) {
+  const inactive = !medicine.is_active
+  const meta = [
+    humanizeEnum(medicine.dosage_form),
+    medicine.strength?.trim() || null,
+    medicine.brand_name?.trim() || null,
+    medicine.category?.trim() || null,
+  ].filter(Boolean)
+  const defaults = defaultsSummary(medicine)
+
+  const identity = (
+    <>
+      <span className="flex items-center gap-2">
+        <span className={cn('min-w-0 truncate font-semibold', inactive && 'text-text-subtle')}>
+          {medicine.name}
+        </span>
+        {inactive && <Badge tone="neutral">Inactive</Badge>}
+      </span>
+      {medicine.generic_name && (
+        <span className="text-label text-text-subtle block truncate">{medicine.generic_name}</span>
+      )}
+      <span className="text-caption text-text-muted block truncate">{meta.join(' · ')}</span>
+      {defaults && (
+        <span className="text-caption text-text-muted block truncate font-mono">{defaults}</span>
+      )}
+    </>
+  )
+
+  return (
+    <li
+      ref={highlighted ? scrollHighlightIntoView : undefined}
+      className={cn(
+        'border-border duration-slow ease-standard flex items-center gap-2 border-b px-4 transition-colors last:border-b-0',
+        highlighted && 'bg-accent-muted',
+      )}
+    >
+      {canWrite ? (
+        <button
+          type="button"
+          onClick={() => onEdit(medicine)}
+          aria-label={`Edit ${medicine.name}`}
+          className="min-h-tap duration-fast ease-standard hover:bg-surface-hover focus-visible:outline-focus -mx-2 flex min-w-0 flex-1 flex-col justify-center gap-0.5 rounded-md px-2 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2"
+        >
+          {identity}
+        </button>
+      ) : (
+        <span className="min-h-tap flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2.5">
+          {identity}
+        </span>
+      )}
+
+      {canWrite &&
+        (medicine.is_active ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-h-tap shrink-0"
+            aria-label={`Deactivate ${medicine.name}`}
+            onClick={() => onDeactivate(medicine)}
+          >
+            Deactivate
+          </Button>
+        ) : (
+          <Button
+            variant="tonal"
+            size="sm"
+            className="min-h-tap shrink-0"
+            aria-label={`Reactivate ${medicine.name}`}
+            onClick={() => onReactivate(medicine)}
+          >
+            Reactivate
+          </Button>
+        ))}
+    </li>
+  )
+}
+
 function MedicineRow({
   medicine,
   canWrite,
@@ -90,15 +203,6 @@ function MedicineRow({
 }) {
   const inactive = !medicine.is_active
 
-  // Attaches only on the highlighted row, so the deep-linked medicine brings
-  // itself into view the moment it renders.
-  const scrollIntoView = useCallback((node: HTMLSpanElement | null) => {
-    node?.scrollIntoView({
-      block: 'center',
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-    })
-  }, [])
-
   return (
     <TR
       className={cn(
@@ -109,7 +213,12 @@ function MedicineRow({
       )}
     >
       <TD className="py-2.5">
-        <span ref={highlighted ? scrollIntoView : undefined} className="flex items-center gap-2">
+        {/* Attaches only on the highlighted row, so the deep-linked medicine
+            brings itself into view the moment it renders. */}
+        <span
+          ref={highlighted ? scrollHighlightIntoView : undefined}
+          className="flex items-center gap-2"
+        >
           <span className="max-w-[28rem] min-w-0">
             <span className="block truncate font-semibold">{medicine.name}</span>
             {medicine.generic_name && (
@@ -332,6 +441,72 @@ export function MedicinesScreen() {
     return ''
   }, [debouncedQuery, filtering, searching, view.matchedTotal, view.total])
 
+  /* Hoisted out of the table body: the same three empty states have to serve
+     the phone card list and the desktop table, and an EmptyState duplicated
+     into two renders is an EmptyState that drifts. */
+  const emptyState = searching ? (
+    <EmptyState
+      icon={<Search />}
+      title={`Nothing matches “${debouncedQuery}”`}
+      description={
+        filtering
+          ? 'Search covers name, generic and brand, and forgives spelling. Your filters may be hiding the match.'
+          : 'Search covers name, generic and brand, and forgives spelling.'
+      }
+      action={
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {canWrite && (
+            <Button
+              variant="primary"
+              size="sm"
+              iconLeft={<Plus className="size-4" />}
+              onClick={() => openCreate(debouncedQuery)}
+            >
+              Add “{debouncedQuery}”
+            </Button>
+          )}
+          {filtering && (
+            <Button variant="secondary" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => setQuery('')}>
+            Clear search
+          </Button>
+        </div>
+      }
+    />
+  ) : filtering ? (
+    <EmptyState
+      icon={<Pill />}
+      title="No medicines match these filters"
+      description="Nothing in the formulary has that combination of form and status."
+      action={
+        <Button variant="secondary" size="sm" onClick={clearFilters}>
+          Clear filters
+        </Button>
+      }
+    />
+  ) : (
+    <EmptyState
+      icon={<Pill />}
+      title="The formulary is empty"
+      description="No medicines have been added yet — the catalogue has not been seeded. Until one exists, the prescription pad has nothing to offer."
+      action={
+        canWrite && (
+          <Button
+            variant="primary"
+            size="sm"
+            iconLeft={<Plus className="size-4" />}
+            onClick={() => openCreate()}
+          >
+            Add the first medicine
+          </Button>
+        )
+      }
+    />
+  )
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6">
       <PageHeader
@@ -339,9 +514,13 @@ export function MedicinesScreen() {
         description="Every medicine the pad can prescribe from."
         actions={
           canWrite && (
+            /* Adding a medicine is the only reason an admin opens this screen
+               with intent, so on a phone the button takes the whole line and a
+               full 44px rather than sitting as a 32px chip beside the title. */
             <Button
               variant="primary"
               iconLeft={<Plus className="size-4" />}
+              className="min-h-tap w-full sm:min-h-0 sm:w-auto"
               onClick={() => openCreate()}
             >
               Add medicine
@@ -350,6 +529,9 @@ export function MedicinesScreen() {
         }
       />
 
+      {/* Already a wrapping row; what it lacked was height. Every control here
+          is 32px, which is a comfortable mouse target and a poor thumb one, so
+          below `sm` each one is raised to the 44px tap minimum. */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-56 flex-1 sm:max-w-sm">
           <Field label="Search the formulary" className="[&>label]:sr-only">
@@ -372,6 +554,7 @@ export function MedicinesScreen() {
                 autoComplete="off"
                 spellCheck={false}
                 placeholder="Search name, generic or brand…"
+                className="min-h-tap sm:min-h-0"
                 iconLeft={<Search />}
                 slotRight={
                   query ? (
@@ -395,7 +578,7 @@ export function MedicinesScreen() {
           onChange={setDosageForm}
           options={DOSAGE_FORM_OPTIONS}
           aria-label="Filter by dosage form"
-          className="w-auto min-w-36"
+          className="min-h-tap w-auto min-w-36 sm:min-h-0"
         />
 
         <SegmentedControl<StatusFilter>
@@ -403,10 +586,13 @@ export function MedicinesScreen() {
           value={status}
           onChange={setStatus}
           options={STATUS_OPTIONS}
+          /* The segments are 28px each and the control has no size that reaches
+             44, so the tap height is raised on the segments themselves. */
+          className="max-sm:[&>button]:min-h-tap"
         />
 
         {filtering && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
+          <Button variant="ghost" size="sm" className="min-h-tap sm:min-h-0" onClick={clearFilters}>
             Clear filters
           </Button>
         )}
@@ -434,131 +620,99 @@ export function MedicinesScreen() {
             </div>
           )}
 
-          <Table>
-            <THead>
-              <TH>Medicine</TH>
-              <TH className="hidden md:table-cell">Brand</TH>
-              <TH width="7rem">Form</TH>
-              <TH width="7rem">Strength</TH>
-              <TH className="hidden lg:table-cell">Category</TH>
-              <TH className="hidden xl:table-cell">Defaults</TH>
-              <TH className="hidden 2xl:table-cell">Manufacturer</TH>
-              {canWrite && (
-                <TH align="right">
-                  <span className="sr-only">Actions</span>
-                </TH>
-              )}
-            </THead>
-            <tbody>
-              {view.isPending
-                ? Array.from({ length: 8 }, (_, index) => (
-                    <TR key={index}>
-                      <TD>
-                        <Skeleton className="h-3 w-40" />
-                      </TD>
-                      <TD className="hidden md:table-cell">
-                        <Skeleton className="h-3 w-24" />
-                      </TD>
-                      <TD>
-                        <Skeleton className="h-3 w-14" />
-                      </TD>
-                      <TD>
-                        <Skeleton className="h-3 w-12" />
-                      </TD>
-                      <TD className="hidden lg:table-cell">
-                        <Skeleton className="h-3 w-20" />
-                      </TD>
-                      <TD className="hidden xl:table-cell">
-                        <Skeleton className="h-3 w-28" />
-                      </TD>
-                      <TD className="hidden 2xl:table-cell">
-                        <Skeleton className="h-3 w-24" />
-                      </TD>
-                      {canWrite && <TD />}
-                    </TR>
-                  ))
-                : view.rows.map((medicine) => (
-                    <MedicineRow
-                      key={medicine.id}
-                      medicine={medicine}
-                      canWrite={canWrite}
-                      highlighted={highlighted === medicine.id}
-                      onEdit={openEdit}
-                      onDeactivate={askDeactivate}
-                      onReactivate={reactivate}
-                    />
-                  ))}
+          {/* Twin renders of the same `view.rows`, one query behind both. Below
+              `sm` the formulary is a stacked card list; from `sm` up the dense
+              table comes back untouched, because on a desk the seven columns
+              are the fastest way to compare two medicines. */}
+          <ul className="sm:hidden">
+            {view.isPending
+              ? Array.from({ length: 8 }, (_, index) => (
+                  <li
+                    key={index}
+                    className="border-border flex flex-col gap-1.5 border-b px-4 py-3 last:border-b-0"
+                  >
+                    <Skeleton className="h-3.5 w-40" />
+                    <Skeleton className="h-3 w-28" />
+                  </li>
+                ))
+              : view.rows.map((medicine) => (
+                  <MedicineCard
+                    key={medicine.id}
+                    medicine={medicine}
+                    canWrite={canWrite}
+                    highlighted={highlighted === medicine.id}
+                    onEdit={openEdit}
+                    onDeactivate={askDeactivate}
+                    onReactivate={reactivate}
+                  />
+                ))}
+            {!view.isPending && view.rows.length === 0 && <li>{emptyState}</li>}
+          </ul>
 
-              {!view.isPending && view.rows.length === 0 && (
-                <tr>
-                  <td colSpan={columnCount}>
-                    {searching ? (
-                      <EmptyState
-                        icon={<Search />}
-                        title={`Nothing matches “${debouncedQuery}”`}
-                        description={
-                          filtering
-                            ? 'Search covers name, generic and brand, and forgives spelling. Your filters may be hiding the match.'
-                            : 'Search covers name, generic and brand, and forgives spelling.'
-                        }
-                        action={
-                          <div className="flex flex-wrap items-center justify-center gap-2">
-                            {canWrite && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                iconLeft={<Plus className="size-4" />}
-                                onClick={() => openCreate(debouncedQuery)}
-                              >
-                                Add “{debouncedQuery}”
-                              </Button>
-                            )}
-                            {filtering && (
-                              <Button variant="secondary" size="sm" onClick={clearFilters}>
-                                Clear filters
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="sm" onClick={() => setQuery('')}>
-                              Clear search
-                            </Button>
-                          </div>
-                        }
+          <div className="hidden sm:block">
+            <Table label="Formulary">
+              <THead>
+                <TH>Medicine</TH>
+                <TH className="hidden md:table-cell">Brand</TH>
+                <TH width="7rem">Form</TH>
+                <TH width="7rem">Strength</TH>
+                <TH className="hidden lg:table-cell">Category</TH>
+                <TH className="hidden xl:table-cell">Defaults</TH>
+                <TH className="hidden 2xl:table-cell">Manufacturer</TH>
+                {canWrite && (
+                  <TH align="right">
+                    <span className="sr-only">Actions</span>
+                  </TH>
+                )}
+              </THead>
+              <tbody>
+                {view.isPending
+                  ? Array.from({ length: 8 }, (_, index) => (
+                      <TR key={index}>
+                        <TD>
+                          <Skeleton className="h-3 w-40" />
+                        </TD>
+                        <TD className="hidden md:table-cell">
+                          <Skeleton className="h-3 w-24" />
+                        </TD>
+                        <TD>
+                          <Skeleton className="h-3 w-14" />
+                        </TD>
+                        <TD>
+                          <Skeleton className="h-3 w-12" />
+                        </TD>
+                        <TD className="hidden lg:table-cell">
+                          <Skeleton className="h-3 w-20" />
+                        </TD>
+                        <TD className="hidden xl:table-cell">
+                          <Skeleton className="h-3 w-28" />
+                        </TD>
+                        <TD className="hidden 2xl:table-cell">
+                          <Skeleton className="h-3 w-24" />
+                        </TD>
+                        {canWrite && <TD />}
+                      </TR>
+                    ))
+                  : view.rows.map((medicine) => (
+                      <MedicineRow
+                        key={medicine.id}
+                        medicine={medicine}
+                        canWrite={canWrite}
+                        highlighted={highlighted === medicine.id}
+                        onEdit={openEdit}
+                        onDeactivate={askDeactivate}
+                        onReactivate={reactivate}
                       />
-                    ) : filtering ? (
-                      <EmptyState
-                        icon={<Pill />}
-                        title="No medicines match these filters"
-                        description="Nothing in the formulary has that combination of form and status."
-                        action={
-                          <Button variant="secondary" size="sm" onClick={clearFilters}>
-                            Clear filters
-                          </Button>
-                        }
-                      />
-                    ) : (
-                      <EmptyState
-                        icon={<Pill />}
-                        title="The formulary is empty"
-                        description="No medicines have been added yet — the catalogue has not been seeded. Until one exists, the prescription pad has nothing to offer."
-                        action={
-                          canWrite && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              iconLeft={<Plus className="size-4" />}
-                              onClick={() => openCreate()}
-                            >
-                              Add the first medicine
-                            </Button>
-                          )
-                        }
-                      />
-                    )}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </Table>
+                    ))}
+
+                {!view.isPending && view.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={columnCount}>{emptyState}</td>
+                  </tr>
+                )}
+              </tbody>
+            </Table>
+          </div>
 
           {view.paginated && !view.isPending && (
             <Pagination

@@ -43,6 +43,11 @@ export function WeekView({
   }
 
   return (
+    /* Never seven columns until `xl`. Below `sm` this is a single stack — the
+       week read as a scrolling agenda, one day card after another, which is the
+       only shape a 320px screen can hold. The day view is still the default on
+       arrival, so nobody lands here by accident; this is what the Week button
+       gives someone who asked for it on a phone. */
     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
       {days.map((date) => {
         const day = dayOfWeekFor(date)
@@ -58,7 +63,11 @@ export function WeekView({
             key={date}
             aria-label={`${day ? DAY_LABEL[day] : ''} ${formatDate(date)}`}
             className={cn(
-              'flex min-h-40 flex-col rounded-lg border bg-surface',
+              /* The 160px floor exists to keep seven side-by-side columns the
+                 same height. Stacked on a phone there is nothing to line up
+                 with, and an empty Sunday holding 160px of nothing is just
+                 scrolling the doctor has to do to reach Monday. */
+              'flex min-h-24 flex-col rounded-lg border bg-surface sm:min-h-40',
               isSelected ? 'border-accent/50 shadow-sm' : 'border-border',
             )}
           >

@@ -19,6 +19,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { ArrowRight, Users } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { ApiError } from '@/api/errors'
 import { GENDERS, BLOOD_GROUPS } from '@/api/schema'
 import type { PatientCreateRequest, PatientResponse } from '@/api/schema'
@@ -342,7 +343,9 @@ export function PatientFormSheet({
         footer={
           <>
             <DialogClose asChild>
-              <Button variant="ghost">Cancel</Button>
+              <Button variant="ghost" className="min-h-tap sm:min-h-0">
+                Cancel
+              </Button>
             </DialogClose>
             <Button
               type="submit"
@@ -350,13 +353,35 @@ export function PatientFormSheet({
               variant="primary"
               loading={saving}
               disabled={editing && !isDirty}
+              /* The submit is what the doctor came here for, so on a phone it
+                 takes the rest of the footer rather than being a 32px target
+                 beside a 32px Cancel. */
+              className="min-h-tap flex-1 sm:min-h-0 sm:flex-none"
             >
               {editing ? 'Save changes' : 'Add patient'}
             </Button>
           </>
         }
       >
-        <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <form
+          id={formId}
+          noValidate
+          onSubmit={handleSubmit(onSubmit)}
+          className={cn(
+            'flex flex-col gap-4',
+            /* The design system's default control is 32px tall, which is right
+               at a desk with a mouse and roughly half a fingertip on a phone.
+               Rather than thread a responsive size through every `Field` on the
+               form — fourteen call sites, none of which is really making a
+               design decision — the touch floor is applied once here, below
+               `sm` only, to the three things this form actually renders: text
+               inputs, the address textarea, and the two Radix Select triggers
+               (which are buttons carrying `role="combobox"`). */
+            'max-sm:[&_input]:min-h-tap',
+            'max-sm:[&_textarea]:min-h-tap',
+            'max-sm:[&_button[role=combobox]]:min-h-tap',
+          )}
+        >
           {duplicateId && (
             <div className="flex items-start gap-3 rounded-md border border-warning/25 bg-warning-muted p-3">
               <Users aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />

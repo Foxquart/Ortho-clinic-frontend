@@ -183,11 +183,15 @@ export function AppointmentsScreen() {
             >
               Clinic hours
             </Button>
+            {/* Full width on a phone. Booking is what a doctor opens this
+                screen to DO; hours is a setting he changes twice a year, so the
+                two are not allowed to share a cramped line at 320px. */}
             {canWrite && (
               <Button
                 variant="primary"
                 iconLeft={<Plus className="size-4" />}
                 onClick={() => openBooking(date, null)}
+                className="w-full sm:w-auto"
               >
                 Book appointment
               </Button>
@@ -204,7 +208,12 @@ export function AppointmentsScreen() {
           options={VIEW_OPTIONS}
         />
 
-        <div className="flex items-center gap-1">
+        {/* `basis-full` below `sm`: the date stepper is one indivisible group of
+            four controls and must never be broken across two lines. Given the
+            whole row it can let the date field take the slack instead of the
+            fixed 160px it holds on a desk, which is what kept the group inside
+            a 320px screen. */}
+        <div className="flex basis-full items-center gap-1 sm:basis-auto">
           <Button
             variant="secondary"
             size="icon"
@@ -221,7 +230,7 @@ export function AppointmentsScreen() {
             type="date"
             value={date}
             onChange={(event) => setDate(event.target.value || todayIso())}
-            className="w-40"
+            className="min-w-0 flex-1 sm:w-40 sm:flex-none"
           />
           <Button
             variant="secondary"
@@ -242,7 +251,9 @@ export function AppointmentsScreen() {
           </Button>
         </div>
 
-        <div className="ms-auto w-44">
+        {/* Full width on a phone rather than a 176px control marooned against
+            the right edge of its own line. */}
+        <div className="w-full sm:ms-auto sm:w-44">
           <Select
             aria-label="Filter by status"
             size="sm"

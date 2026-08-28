@@ -37,6 +37,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FileWarning, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { apiPost } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
 import { toPreviewRequest, type RxDraft } from './model'
@@ -54,6 +55,22 @@ const PREVIEW_DEBOUNCE_MS = 350
  * the page is not showing you what prints.
  */
 const A4_WIDTH_PX = 794
+
+/**
+ * A4 height in CSS pixels — 297mm at 96dpi.
+ *
+ * Only used at 1:1 zoom, where the pane can no longer tell us how tall the
+ * document is (the frame is sandboxed to an opaque origin, so its scroll
+ * height is unreadable). One page is the honest floor: a prescription that
+ * runs longer keeps scrolling inside the frame, exactly as it does today when
+ * the pane is shorter than the page.
+ */
+const A4_HEIGHT_PX = 1123
+
+const ZOOMS = [
+  { value: 'fit', label: 'Fit' },
+  { value: 'actual', label: 'Actual size' },
+] as const
 
 interface PreviewResponse {
   html: string
@@ -95,7 +112,23 @@ function useBoxSize(): [(node: HTMLDivElement | null) => void, { width: number; 
   return [ref, box]
 }
 
-export function RxLivePreview({ draft }: { draft: RxDraft }) {
+export function RxLivePreview({
+  draft,
+  zoomable = false,
+}: {
+  draft: RxDraft
+  /**
+   * Offer a 1:1 zoom alongside fit-to-width.
+   *
+   * Beside the pad on a laptop the pane is ~700px and fit-to-width lands near
+   * 90% — legible, so there is nothing to offer and the header stays as it
+   * was. Opened as a sheet on a phone the same fit is around 40%, which is
+   * enough to check that the page *looks* right and nowhere near enough to
+   * read a dose off it. So the small screen — and only the small screen — gets
+   * a second gear: true A4, panned inside the pane rather than clipped by it.
+   */
+  zoomable?: boolean
+}) {
   /* The payload is the query key. Serialising it here means React Query
      re-fetches exactly when the *content* changed, and not when an unrelated
      re-render produced an equal-but-new object. */
@@ -123,9 +156,12 @@ export function RxLivePreview({ draft }: { draft: RxDraft }) {
   const [frameRef, frame] = useBoxSize()
   const html = lastGoodHtml.current
 
+  const [zoom, setZoom] = useState<'fit' | 'actual'>('fit')
+
   /* Never scale UP: on a very wide pane a 794px page blown up would just be
      blurry. Below A4 width it shrinks to fit. */
-  const scale = frame.width > 0 ? Math.min(1, frame.width / A4_WIDTH_PX) : 1
+  const fitScale = frame.width > 0 ? Math.min(1, frame.width / A4_WIDTH_PX) : 1
+  const scale = zoomable && zoom === 'actual' ? 1 : fitScale
   const pending = payload !== settled || preview.isFetching
   const failed = preview.isError && html === null
 
@@ -142,6 +178,36 @@ export function RxLivePreview({ draft }: { draft: RxDraft }) {
             aria-label="Updating preview"
             className="size-3.5 animate-spin text-text-subtle motion-reduce:animate-none"
           />
+        )}
+
+        {zoomable && (
+          <div
+            role="group"
+            aria-label="Preview zoom"
+            className="ml-auto flex items-center gap-1"
+          >
+            {ZOOMS.map((option) => {
+              const active = zoom === option.value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setZoom(option.value)}
+                  className={cn(
+                    'inline-flex min-h-tap items-center rounded-md border px-3 text-label',
+                    'transition-colors duration-instant ease-standard',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35',
+                    active
+                      ? 'border-accent/40 bg-accent-muted text-accent-muted-fg'
+                      : 'border-border bg-surface text-text-muted hover:border-accent',
+                  )}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
         )}
       </header>
 
@@ -164,7 +230,19 @@ export function RxLivePreview({ draft }: { draft: RxDraft }) {
           />
         </div>
       ) : (
-        <div ref={frameRef} className="min-h-0 flex-1 overflow-hidden">
+        <div
+          ref={frameRef}
+          /* At 1:1 the page is wider than the pane on purpose, so the pane
+             itself is what scrolls — `overscroll-contain` keeps that gesture
+             from turning into a page-level swipe once it reaches the edge.
+             The overflow is contained here and never reaches the document,
+             which is the difference between "pan the preview" and "the whole
+             screen is 400px too wide". */
+          className={cn(
+            'min-h-0 flex-1',
+            scale < 1 || !zoomable ? 'overflow-hidden' : 'overflow-auto overscroll-contain',
+          )}
+        >
           <iframe
             title="Printed prescription preview"
             srcDoc={html}
@@ -178,7 +256,12 @@ export function RxLivePreview({ draft }: { draft: RxDraft }) {
                scroll inside the frame rather than being cut off. */
             style={{
               width: A4_WIDTH_PX,
-              height: scale > 0 ? frame.height / scale : frame.height,
+              height:
+                scale < 1
+                  ? frame.height / scale
+                  : /* At 1:1 the pane can no longer imply a page height, so a
+                       full A4 is the floor and the wrapper scrolls to it. */
+                    Math.max(frame.height, A4_HEIGHT_PX),
               transform: `scale(${scale})`,
               transformOrigin: 'top left',
             }}

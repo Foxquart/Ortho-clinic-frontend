@@ -1,6 +1,6 @@
 import { cn } from '@/lib/cn'
 import { Input, Textarea } from '@/components/ui/Input'
-import { FieldLabel, ProvenanceField } from './Provenance'
+import { FieldLabel, ProvenanceField, TAP_TARGET } from './Provenance'
 import { provenanceControlClass } from './padState'
 // Per-field mic icons hidden at user request. Import commented out with the
 // action={...} block below — restore both together.
@@ -90,7 +90,7 @@ export function RxNarrativeField({
             invalid={Boolean(error)}
             aria-describedby={describedBy}
             autoComplete="off"
-            className={controlClass}
+            className={cn(TAP_TARGET, controlClass)}
             onChange={(e) => onChange(entered(e.target.value))}
           />
         )}

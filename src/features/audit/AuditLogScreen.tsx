@@ -141,12 +141,20 @@ export function AuditLogScreen() {
         edited or removed.
       </p>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <Field label="Actor" className="w-52">
+      {/* Four fixed-width controls in a non-wrapping-in-practice row: at 320px
+          each `w-52`/`w-44` filter claimed its own line, so the toolbar alone
+          was four screens' worth of scrolling before the log started. Below
+          `sm` they become a two-column grid (the actor spans both, because a
+          person's name is the longest label here); from `sm` up the original
+          row of fixed widths is unchanged. Every control is `size="sm"` — 26px,
+          fine under a mouse — so each is raised to the tap minimum on a phone. */}
+      <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap">
+        <Field label="Actor" className="col-span-2 sm:w-52">
           {(a) => (
             <Select
               {...a}
               size="sm"
+              className="min-h-tap sm:min-h-0"
               value={userId || ANY}
               onChange={(v) => update({ user: v === ANY ? '' : v })}
               options={userOptions}
@@ -154,7 +162,7 @@ export function AuditLogScreen() {
           )}
         </Field>
 
-        <Field label="Entity type" className="w-44">
+        <Field label="Entity type" className="sm:w-44">
           {(a) => (
             <>
               <Input
@@ -162,7 +170,7 @@ export function AuditLogScreen() {
                 inputSize="sm"
                 list="audit-entity-types"
                 placeholder="patient, user…"
-                className="font-mono"
+                className="min-h-tap font-mono sm:min-h-0"
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
@@ -178,11 +186,12 @@ export function AuditLogScreen() {
           )}
         </Field>
 
-        <Field label="Action" className="w-44">
+        <Field label="Action" className="sm:w-44">
           {(a) => (
             <Select
               {...a}
               size="sm"
+              className="min-h-tap sm:min-h-0"
               value={action || ANY}
               onChange={(v) => update({ action: v === ANY ? '' : v })}
               options={ACTION_OPTIONS}
@@ -190,11 +199,12 @@ export function AuditLogScreen() {
           )}
         </Field>
 
-        <Field label="Page size" className="w-28">
+        <Field label="Page size" className="sm:w-28">
           {(a) => (
             <Select
               {...a}
               size="sm"
+              className="min-h-tap sm:min-h-0"
               value={String(pageSize)}
               onChange={(v) => update({ size: v })}
               options={SIZE_OPTIONS}
@@ -206,7 +216,7 @@ export function AuditLogScreen() {
           <Button
             variant="ghost"
             size="sm"
-            className="mb-0.5"
+            className="min-h-tap col-span-2 sm:mb-0.5 sm:min-h-0"
             onClick={() => {
               setEntityDraft('')
               setParams(new URLSearchParams(), { replace: true })
@@ -248,48 +258,90 @@ export function AuditLogScreen() {
           />
         ) : (
           <>
-            <Table className="text-caption">
-              <THead>
-                <TH width="12rem">Timestamp</TH>
-                <TH width="11rem">Actor</TH>
-                <TH width="8rem">Action</TH>
-                <TH width="8rem">Entity</TH>
-                <TH width="14rem">Entity id</TH>
-                <TH>Summary</TH>
-              </THead>
-              <tbody>
-                {visible.map((entry) => (
-                  <TR key={entry.id} onClick={() => setSelected(entry)}>
-                    <TD className="whitespace-nowrap py-1 font-mono text-text-muted">
-                      <time dateTime={entry.created_at} title={entry.created_at}>
-                        {formatDateTime(entry.created_at)}
-                      </time>
-                    </TD>
-                    <TD className="max-w-44 truncate py-1">
-                      {entry.user_id ? (
-                        (actorName.get(entry.user_id) ?? (
-                          <span className="font-mono text-text-subtle">{entry.user_id}</span>
-                        ))
-                      ) : (
-                        <span className="text-text-subtle">system</span>
+            {/* Twin renders over the same `visible` array and the same
+                `setSelected`. Six columns of forensic detail measure 974px; on a
+                320px phone that meant Timestamp, half of Actor, and nothing
+                else — the summary, which is the only column written for a human
+                to read, was 700px off-screen. The card leads with that summary
+                and demotes the rest to one meta line; the id, the IP and the
+                raw change set stay one tap away in the detail sheet. */}
+            <ul className="sm:hidden">
+              {visible.map((entry) => (
+                <li key={entry.id} className="border-border border-b last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => setSelected(entry)}
+                    className="min-h-tap duration-fast ease-standard hover:bg-surface-hover focus-visible:outline-focus flex w-full flex-col justify-center gap-0.5 px-4 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2"
+                  >
+                    <span className="text-body text-text line-clamp-2">
+                      {entry.summary ?? (
+                        <span className="font-mono">
+                          {entry.action} {entry.entity_type}
+                        </span>
                       )}
-                    </TD>
-                    <TD className="py-1 font-mono">{entry.action}</TD>
-                    <TD className="py-1 font-mono text-text-muted">{entry.entity_type}</TD>
-                    <TD className="max-w-56 truncate py-1 font-mono text-text-subtle">
-                      {entry.entity_id ? (
-                        <span title={entry.entity_id}>{entry.entity_id}</span>
-                      ) : (
-                        '—'
-                      )}
-                    </TD>
-                    <TD className="max-w-md truncate py-1 text-text-muted">
-                      {entry.summary ?? ''}
-                    </TD>
-                  </TR>
-                ))}
-              </tbody>
-            </Table>
+                    </span>
+                    <span className="text-caption text-text-muted block truncate">
+                      <time dateTime={entry.created_at}>{formatDateTime(entry.created_at)}</time> ·{' '}
+                      {entry.user_id ? (actorName.get(entry.user_id) ?? 'unknown') : 'system'}
+                    </span>
+                    <span className="text-caption text-text-subtle block truncate font-mono">
+                      {entry.action} · {entry.entity_type}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden sm:block">
+              <Table className="text-caption" label="Audit log">
+                <THead>
+                  <TH width="12rem">Timestamp</TH>
+                  <TH width="11rem">Actor</TH>
+                  <TH width="8rem">Action</TH>
+                  <TH width="8rem">Entity</TH>
+                  {/* A raw UUID is the widest column here and the one nobody
+                      reads at a glance — it is what kept this table 974px wide
+                      and scrolling sideways on a tablet. It is one tap away in
+                      the detail sheet, and returns at `lg`. */}
+                  <TH width="14rem" className="hidden lg:table-cell">
+                    Entity id
+                  </TH>
+                  <TH>Summary</TH>
+                </THead>
+                <tbody>
+                  {visible.map((entry) => (
+                    <TR key={entry.id} onClick={() => setSelected(entry)}>
+                      <TD className="whitespace-nowrap py-1 font-mono text-text-muted">
+                        <time dateTime={entry.created_at} title={entry.created_at}>
+                          {formatDateTime(entry.created_at)}
+                        </time>
+                      </TD>
+                      <TD className="max-w-44 truncate py-1">
+                        {entry.user_id ? (
+                          (actorName.get(entry.user_id) ?? (
+                            <span className="font-mono text-text-subtle">{entry.user_id}</span>
+                          ))
+                        ) : (
+                          <span className="text-text-subtle">system</span>
+                        )}
+                      </TD>
+                      <TD className="py-1 font-mono">{entry.action}</TD>
+                      <TD className="py-1 font-mono text-text-muted">{entry.entity_type}</TD>
+                      <TD className="hidden max-w-56 truncate py-1 font-mono text-text-subtle lg:table-cell">
+                        {entry.entity_id ? (
+                          <span title={entry.entity_id}>{entry.entity_id}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </TD>
+                      <TD className="max-w-md truncate py-1 text-text-muted">
+                        {entry.summary ?? ''}
+                      </TD>
+                    </TR>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
 
             {paging && (
               <>

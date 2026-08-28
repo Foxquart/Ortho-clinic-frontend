@@ -86,8 +86,8 @@ export function RxMissingSummary({
               type="button"
               onClick={onResolveAllergy}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-sm bg-allergy px-2 py-0.5',
-                'text-caption font-medium text-allergy-fg',
+                'inline-flex min-h-9 items-center gap-1.5 rounded-sm bg-allergy px-2.5',
+                'text-caption font-medium text-allergy-fg lg:min-h-0 lg:px-2 lg:py-0.5',
                 'transition-opacity duration-instant ease-standard hover:opacity-90',
               )}
             >
@@ -103,8 +103,14 @@ export function RxMissingSummary({
               type="button"
               onClick={() => onFocus(entry.fieldId)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-sm border border-dashed border-provenance-blank',
-                'bg-provenance-blank-muted px-2 py-0.5 text-caption text-text',
+                /* 36px on a phone, not the 44px the form fields get. These
+                    are shortcuts into the form, and they live inside a bar
+                    that is pinned over the pad: at 44px three wrapped chips
+                    plus two buttons would claim a third of the screen the
+                    doctor is trying to write on. Every field they point at is
+                    a full 44px where it actually lives. */
+                'inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-dashed border-provenance-blank',
+                'bg-provenance-blank-muted px-2.5 text-caption text-text lg:min-h-0 lg:px-2 lg:py-0.5',
                 'transition-colors duration-instant ease-standard',
                 'hover:border-accent hover:bg-accent-muted hover:text-accent-muted-fg',
               )}

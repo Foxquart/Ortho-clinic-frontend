@@ -61,6 +61,7 @@ export function PrintTemplatesSection({ canWrite }: { canWrite: boolean }) {
               <Button
                 variant="secondary"
                 size="sm"
+                className="min-h-tap sm:min-h-0"
                 iconLeft={<Plus aria-hidden className="size-4" />}
                 onClick={openCreate}
               >
@@ -99,7 +100,7 @@ export function PrintTemplatesSection({ canWrite }: { canWrite: boolean }) {
         ) : (
           <ul className="divide-y divide-border/60">
             {rows.map((t) => (
-              <li key={t.id} className="flex items-center gap-3 px-4 py-2.5">
+              <li key={t.id} className="flex min-h-tap items-center gap-3 px-4 py-2.5 sm:min-h-0">
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 text-body text-text">
                     <span className="truncate font-medium">{t.name}</span>
@@ -117,8 +118,17 @@ export function PrintTemplatesSection({ canWrite }: { canWrite: boolean }) {
 
                 {canWrite && (
                   <Menu>
+                    {/* A 26px icon is the only way into "Edit HTML…" and "Make
+                        default", which makes it the worst target on the screen
+                        for the reader this app is built for. It grows to a full
+                        44px square on touch. */}
                     <MenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${t.name}`}>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="min-h-tap min-w-tap sm:min-h-0 sm:min-w-0"
+                        aria-label={`Actions for ${t.name}`}
+                      >
                         <MoreHorizontal aria-hidden className="size-4" />
                       </Button>
                     </MenuTrigger>

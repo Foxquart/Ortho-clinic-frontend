@@ -50,7 +50,11 @@ const MENU_SURFACE = cn(
 )
 
 const ITEM = cn(
-  'flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-body text-text outline-none',
+  /* 35px is a comfortable row for a pointer and a cramped one for a thumb, and
+     these menus carry the destructive actions — "Deactivate patient" sits
+     directly under a benign row. Below `sm` every item takes the 44px
+     `--spacing-tap` floor; the desktop menu keeps its density. */
+  'flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-body text-text outline-none max-sm:min-h-tap',
   'data-[highlighted]:bg-accent-muted data-[highlighted]:text-text',
   'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
   '[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-text-subtle',

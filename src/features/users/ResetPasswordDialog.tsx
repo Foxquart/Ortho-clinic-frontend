@@ -74,7 +74,11 @@ export function ResetPasswordDialog({
       onConfirm={handleSubmit((values) => resetPassword.mutate(values))}
       title={`Reset the password for ${user.full_name}?`}
       body={
-        <div className="flex flex-col gap-4">
+        /* The password field is 32px tall and the wand beside it is a 32px
+           square — right under a mouse, both short of a fingertip. The wand has
+           to grow in both directions or it becomes a lozenge next to the taller
+           field. */
+        <div className="flex flex-col gap-4 max-sm:[&_input]:min-h-tap">
           <p>
             Their current password stops working immediately. They sign in as{' '}
             <span className="font-mono text-text">{user.username}</span> with the password you
@@ -100,6 +104,7 @@ export function ResetPasswordDialog({
                 <Button
                   variant="secondary"
                   size="icon"
+                  className="min-h-tap min-w-tap sm:min-h-0 sm:min-w-0"
                   aria-label="Suggest a password"
                   onClick={() =>
                     setValue('new_password', suggestPassword(), {

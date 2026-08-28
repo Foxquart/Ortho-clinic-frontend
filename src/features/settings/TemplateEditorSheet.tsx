@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { Printer } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { apiPatch, apiPost } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
@@ -34,6 +35,14 @@ type FormValues = z.infer<typeof schema>
 const FIELDS = ['name', 'description', 'header_html', 'footer_html'] as const
 
 const EDITOR_CLASS = 'font-mono text-caption leading-relaxed'
+
+/**
+ * The name and description fields are 32px tall — right under a mouse, short of
+ * what a fingertip needs. Raised from the form root, not field by field, so a
+ * field added later inherits it. The two HTML editors are `rows`-sized and
+ * already far past 44px, so this only reaches the ones that need it.
+ */
+const TOUCH_FIELDS = 'max-sm:[&_input]:min-h-tap'
 
 /** What the two HTML blocks will look like with a prescription between them. */
 function PrintPreview({ header, footer }: { header: string; footer: string }) {
@@ -148,10 +157,13 @@ export function TemplateEditorSheet({
         footer={
           <>
             <DialogClose asChild>
-              <Button variant="ghost">Cancel</Button>
+              <Button variant="ghost" className="min-h-tap sm:min-h-0">
+                Cancel
+              </Button>
             </DialogClose>
             <Button
               variant="primary"
+              className="min-h-tap sm:min-h-0"
               loading={save.isPending}
               disabled={isEdit && !isDirty}
               onClick={handleSubmit((v) => save.mutate(v))}
@@ -164,7 +176,7 @@ export function TemplateEditorSheet({
         <form
           noValidate
           onSubmit={handleSubmit((v) => save.mutate(v))}
-          className="flex flex-col gap-5"
+          className={cn('flex flex-col gap-5', TOUCH_FIELDS)}
         >
           <Field label="Template name" error={errors.name?.message} required>
             {(a) => <Input {...a} {...register('name')} autoFocus={!isEdit} />}

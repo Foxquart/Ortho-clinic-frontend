@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/Input'
 import { Kbd } from '@/components/ui/Badge'
 import type { Page_PatientResponse_, PatientSearchResult } from '@/api/schema'
 import { FIELD_IDS, focusField } from './padState'
+import { TAP_ICON, TAP_TARGET } from './Provenance'
 import type { RxPatient } from './model'
 
 /* -------------------------------------------------------------------------- */
@@ -189,6 +190,7 @@ export function RxPatientField({
           getKey={(p) => p.id}
           getLabel={(p) => `${fullName(p.first_name, p.last_name)} · ${p.phone}`}
           invalid={Boolean(errors[FIELD_IDS.patient])}
+          className={TAP_TARGET}
           placeholder={
             quickAdd ? 'New patient — filling in below' : 'Search by name or phone number…'
           }
@@ -216,7 +218,7 @@ export function RxPatientField({
               type="button"
               onClick={openQuickAdd}
               className={cn(
-                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body',
+                'flex min-h-tap w-full items-center gap-2 rounded-md px-2 text-left text-body lg:min-h-0 lg:py-1.5',
                 'text-text transition-colors duration-instant ease-standard',
                 'hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none',
                 noMatches && 'bg-accent-muted text-accent-muted-fg hover:bg-accent-muted',
@@ -282,7 +284,13 @@ function QuickAdd({
             .
           </p>
         </div>
-        <Button variant="ghost" size="icon-sm" aria-label="Cancel new patient" onClick={onCancel}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className={TAP_ICON}
+          aria-label="Cancel new patient"
+          onClick={onCancel}
+        >
           <X aria-hidden className="size-4" />
         </Button>
       </div>
@@ -361,7 +369,7 @@ function QuickAddInput({
         // required field is a value the doctor never gave, dressed as a hint.
         placeholder="—"
         onChange={(e) => onChange(e.target.value)}
-        className={cn(missing && !error && 'border-dashed border-provenance-blank')}
+        className={cn(TAP_TARGET, missing && !error && 'border-dashed border-provenance-blank')}
       />
       {error ? (
         <p id={`${id}-error`} className="text-caption text-danger">
@@ -424,7 +432,7 @@ export function RxPatientIdentity({
       ) : (
         <span className="text-text-subtle">New record — created when you print</span>
       )}
-      <Button variant="ghost" size="sm" className="ml-auto" onClick={onClear}>
+      <Button variant="ghost" size="sm" className={cn(TAP_TARGET, 'ml-auto')} onClick={onClear}>
         Change patient
       </Button>
     </div>

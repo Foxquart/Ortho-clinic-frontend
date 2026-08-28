@@ -204,16 +204,22 @@ function BookingRow({
   const released = !occupiesSlot(appointment.status)
 
   return (
+    /* The row wraps on a phone, and only the status badge is allowed to fall to
+       the second line. At 320px the fixed parts — time, rail, "ends", badge and
+       the status menu — left the patient's NAME about 40px, which is the one
+       thing in the row that has to be readable. `order-last` below `sm` moves
+       the badge past the menu button so the badge is what wraps and the menu
+       stays where the thumb expects it, top-right of the row. */
     <li
       className={cn(
-        'flex items-center gap-3 px-4 py-2 transition-colors duration-fast ease-standard',
+        'flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2 transition-colors duration-fast ease-standard',
         'hover:bg-surface-hover',
         busy && 'opacity-60',
       )}
     >
       <span
         className={cn(
-          'w-18 shrink-0 whitespace-nowrap text-right text-label',
+          'w-14 shrink-0 whitespace-nowrap text-right text-label sm:w-18',
           released ? 'text-text-subtle' : 'text-text',
         )}
         data-numeric
@@ -225,11 +231,19 @@ function BookingRow({
         className={cn('h-8 w-0.5 shrink-0 rounded-full', released ? 'bg-border' : 'bg-accent/45')}
       />
 
-      <div className="min-w-0 flex-1">
+      {/* `basis-24` is a wrap threshold, not a width: `flex-1` still gives the
+          name every pixel the line has spare. It is small enough that the time,
+          the rail, the name and the status menu always fit on one line at
+          320px, which is what keeps the menu button pinned to the top-right of
+          the row instead of drifting down beside the badge. */}
+      <div className="min-w-0 flex-1 basis-24">
         <Link
           to={`/patients/${appointment.patient_id}`}
+          /* `block`, not the default inline: `truncate` is `overflow:hidden`,
+             which an inline box ignores — so the name used to run out of its
+             column and sit UNDER the status badge on a phone. */
           className={cn(
-            'truncate rounded-sm text-body font-medium text-text',
+            'block truncate rounded-sm text-body font-medium text-text',
             'hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
           )}
         >
@@ -252,11 +266,18 @@ function BookingRow({
         ends {formatTime(appointment.end_time)}
       </span>
 
-      <Badge tone={STATUS_TONE[appointment.status]} dot>
-        {humanizeEnum(appointment.status)}
-      </Badge>
+      {/* `basis-full` below `sm` so the badge takes the second line at every
+          phone width rather than only at the ones where it happens not to fit —
+          a status that is inline at 390px and stacked at 320px is two different
+          rows. Indented to the name column so the wrapped line still reads as
+          part of this appointment and not the start of the next one. */}
+      <span className="order-last flex items-center ms-[4.25rem] basis-full sm:order-none sm:ms-0 sm:basis-auto">
+        <Badge tone={STATUS_TONE[appointment.status]} dot>
+          {humanizeEnum(appointment.status)}
+        </Badge>
+      </span>
 
-      <div className="w-7 shrink-0">
+      <div className="ms-auto w-7 shrink-0 sm:ms-0">
         {canWrite && targets.length > 0 && (
           <Menu>
             <MenuTrigger asChild>
@@ -301,9 +322,9 @@ function FreeRow({
   onBook: (startTime: string) => void
 }) {
   return (
-    <li className="group flex items-center gap-3 px-4 py-1.5">
+    <li className="group flex min-h-tap items-center gap-3 px-4 py-1.5 sm:min-h-0">
       <span
-        className="w-18 shrink-0 whitespace-nowrap text-right text-caption text-text-subtle"
+        className="w-14 shrink-0 whitespace-nowrap text-right text-caption text-text-subtle sm:w-18"
         data-numeric
       >
         {formatTime(startTime)}
@@ -314,7 +335,10 @@ function FreeRow({
         <Button
           variant="ghost"
           size="sm"
-          className="opacity-0 transition-opacity duration-fast group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+          /* Always visible and 44px tall on a touch device: a control revealed
+             by hover is a control that does not exist on a phone, and "book
+             this free slot" is the whole point of the row. */
+          className="min-h-tap px-3 opacity-0 transition-opacity duration-fast group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none sm:min-h-0 sm:px-2.5 [@media(hover:none)]:opacity-100"
           onClick={() => onBook(startTime)}
           aria-label={`Book the ${formatTime(startTime)} slot on ${formatDate(date)}`}
         >
@@ -331,7 +355,7 @@ function DaySkeleton() {
     <div className="divide-y divide-border/60">
       {Array.from({ length: 6 }, (_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-2">
-          <Skeleton className="h-3 w-18 shrink-0" />
+          <Skeleton className="h-3 w-14 shrink-0 sm:w-18" />
           <Skeleton className="h-8 w-0.5 shrink-0" />
           <Skeleton className="h-3 flex-1" style={{ maxWidth: `${40 + ((i * 17) % 35)}%` }} />
           <Skeleton className="h-4 w-20 shrink-0 rounded-full" />

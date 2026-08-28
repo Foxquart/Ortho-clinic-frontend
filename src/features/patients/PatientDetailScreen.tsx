@@ -149,11 +149,23 @@ function PrescriptionRow({
       <Link
         to={`/prescriptions/${entry.id}`}
         className={cn(
-          'flex items-start gap-3 px-4 py-3 transition-colors duration-fast ease-standard',
+          /* `flex-wrap` below `sm`, `flex-nowrap` from `sm` up. The date is a
+             112px column that cannot shrink; on a 320px phone that leaves about
+             140px for a diagnosis, which is not enough to read one. Wrapping
+             lets the date take a full line of its own and hands the whole width
+             back to the diagnosis underneath it. */
+          'flex flex-wrap items-start gap-x-3 gap-y-1 px-4 py-3 sm:flex-nowrap',
+          'transition-colors duration-fast ease-standard',
           'hover:bg-surface-raised focus-visible:bg-surface-raised focus-visible:outline-none',
         )}
       >
-        <div className="w-28 shrink-0" data-numeric>
+        {/* One line on a phone (date and "3 days ago" side by side), the stacked
+            two-line column it has always been from `sm` up. Two stacked lines on
+            a phone would cost a row of height to say the same thing. */}
+        <div
+          className="flex w-full items-baseline gap-2 sm:w-28 sm:shrink-0 sm:flex-col sm:items-start sm:gap-0"
+          data-numeric
+        >
           <p className="text-body font-semibold text-text">{formatDate(entry.created_at)}</p>
           <p className="text-caption text-text-subtle">{formatAgo(entry.created_at)}</p>
         </div>
@@ -253,7 +265,7 @@ export function PatientDetailScreen() {
       {/* The token layer reserves display type for exactly this: the patient's
           name on the detail screen. Hence a bespoke header rather than
           PageHeader, which is fixed at title size. */}
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0">
           {summary.isPending ? (
             <Skeleton className="h-8 w-64" />
@@ -298,9 +310,22 @@ export function PatientDetailScreen() {
         </div>
 
         {patient && (
-          <div className="flex shrink-0 items-center gap-2">
+          /* Below `sm` this is a block under the name, not the right-hand end of
+             a row: three 32px controls squeezed against a 320px edge is the
+             layout this screen used to have, and none of them was tappable. The
+             `min-h-tap` / `sm:min-h-0` pairs below raise every control to the
+             44px touch minimum on a phone and hand the desk back its dense
+             32px row from `sm` up. */
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
             {can('prescriptions.write') && (
-              <Button variant="primary" asChild iconLeft={<Plus className="size-4" />}>
+              <Button
+                variant="primary"
+                asChild
+                iconLeft={<Plus className="size-4" />}
+                /* The one thing this screen exists to start. Full width on a
+                   phone so it is hit without aiming. */
+                className="min-h-tap w-full sm:min-h-0 sm:w-auto"
+              >
                 <Link to={`/prescriptions/new?patientId=${patient.id}`}>New prescription</Link>
               </Button>
             )}
@@ -310,12 +335,19 @@ export function PatientDetailScreen() {
                   variant="secondary"
                   iconLeft={<Pencil className="size-4" />}
                   onClick={() => setEditOpen(true)}
+                  // Takes the rest of the line beside the overflow menu.
+                  className="min-h-tap flex-1 sm:min-h-0 sm:flex-none"
                 >
                   Edit
                 </Button>
                 <Menu>
                   <MenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="More patient actions">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="More patient actions"
+                      className="size-tap sm:size-control"
+                    >
                       <Ellipsis aria-hidden className="size-4" />
                     </Button>
                   </MenuTrigger>
@@ -356,8 +388,19 @@ export function PatientDetailScreen() {
         </p>
       )}
 
+      {/* `min-w-0` on BOTH grid items is what stops this page sliding sideways
+          on a phone, and it is not cosmetic. A grid item's automatic minimum
+          size is `auto`, i.e. its min-content, so the single `auto` track here
+          was sized to the widest thing inside it rather than to the container:
+          measured at 320px, the track's base size was 365px against a 288px
+          container and the whole `<main>` scrolled to 381px. The truncating
+          diagnosis line in a prescription row (`white-space: nowrap`) and the
+          non-wrapping status Badge on an appointment row were what set that
+          365px. `min-w-0` drops the minimum to zero, after which the track is
+          clamped to the space available and the truncation inside actually
+          truncates instead of pushing. */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader
             title="Prescription history"
             description={
@@ -418,7 +461,7 @@ export function PatientDetailScreen() {
           )}
         </Card>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <Card>
             <CardHeader
               title="Vitals"
@@ -440,7 +483,10 @@ export function PatientDetailScreen() {
                 </div>
               </CardBody>
             ) : !vitalsRecorded ? (
-              <CardBody className="flex items-center justify-between gap-3">
+              /* `flex-wrap`: the Edit button is `shrink-0`, so on a narrow card
+                 it would otherwise hold the row open at sentence-plus-button
+                 width rather than dropping below the sentence. */
+              <CardBody className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-body text-text-muted">No vitals recorded yet</p>
                 {canWrite && (
                   <Button
@@ -484,7 +530,15 @@ export function PatientDetailScreen() {
                 </div>
               ) : (
                 patient && (
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  /* One column on a phone. These values are addresses, emails
+                     and city names, and half of a 288px card is 128px — wide
+                     enough to truncate every one of them into an ellipsis. The
+                     vitals grid above stays at two columns because "120/80" and
+                     "72.5 kg" genuinely fit. `col-span-full` rather than
+                     `col-span-2` on the spanning rows, so they span whatever
+                     the grid actually has rather than conjuring a second
+                     implicit column at the narrow size. */
+                  <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
                     <Fact label="Date of birth">
                       <span data-numeric>{formatDate(patient.date_of_birth, 'Not recorded')}</span>
                     </Fact>
@@ -503,7 +557,7 @@ export function PatientDetailScreen() {
                       )}
                     </Fact>
                     {patient.address && (
-                      <div className="col-span-2 min-w-0">
+                      <div className="col-span-full min-w-0">
                         <dt className="text-caption text-text-subtle">Address</dt>
                         <dd className="mt-0.5 text-body text-text">{patient.address}</dd>
                       </div>
@@ -518,7 +572,7 @@ export function PatientDetailScreen() {
                         {value}
                       </Fact>
                     ))}
-                    <div className="col-span-2 border-t border-border pt-3">
+                    <div className="col-span-full border-t border-border pt-3">
                       <p className="text-caption text-text-subtle">
                         On the books since {formatDate(patient.created_at)}
                         {allergyCount === 0 && canWrite && ' · allergies not yet confirmed'}
@@ -556,9 +610,15 @@ export function PatientDetailScreen() {
                 {appointments.slice(0, APPOINTMENTS_SHOWN).map((appointment) => (
                   <li
                     key={appointment.id}
-                    className="flex items-center gap-2 px-4 py-3"
+                    /* The status Badge does not wrap its own text, so on a
+                       narrow card it drops to a line of its own rather than
+                       squeezing the date beside it into two words a line. */
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3"
                   >
-                    <span className="min-w-0 flex-1">
+                    {/* `basis-full` below `sm` puts the badge on its own line
+                        rather than leaving the date ~150px and breaking
+                        "4:41 pm" across two of them. */}
+                    <span className="min-w-0 flex-1 basis-full sm:basis-0">
                       <span className="block text-body text-text" data-numeric>
                         {formatRelativeDay(appointment.appointment_date)} ·{' '}
                         {formatTime(appointment.start_time)}

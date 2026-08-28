@@ -5,7 +5,11 @@ import type { AuditLogResponse } from '@/api/schema'
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[8rem_1fr] gap-3 border-b border-border/60 py-2 last:border-b-0">
+    /* One column on a phone, label above value. The 8rem label column left the
+       value 135px on a 320px screen, which turned every id and timestamp in
+       this record into a three-line stack of broken hex — and this sheet exists
+       precisely so an id can be read off and quoted. */
+    <div className="grid gap-x-3 gap-y-0.5 border-b border-border/60 py-2 last:border-b-0 sm:grid-cols-[8rem_1fr] sm:gap-y-3">
       <dt className="text-caption text-text-subtle">{label}</dt>
       <dd className="min-w-0 break-words text-caption text-text">{value}</dd>
     </div>
@@ -32,7 +36,9 @@ export function AuditDetailSheet({
         description={formatDateTime(entry.created_at)}
         footer={
           <DialogClose asChild>
-            <Button variant="secondary">Close</Button>
+            <Button variant="secondary" className="min-h-tap w-full sm:min-h-0 sm:w-auto">
+              Close
+            </Button>
           </DialogClose>
         }
       >

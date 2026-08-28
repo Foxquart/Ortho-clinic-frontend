@@ -205,6 +205,16 @@ function updateBody(values: MedicineFormValues): MedicineUpdateRequest {
   }
 }
 
+/**
+ * Every text field and select in this sheet is 32px tall — the density the
+ * catalogue wants on a desk, and eight pixels short of what a fingertip needs.
+ * Raising them from the form root rather than field by field keeps the fix in
+ * one place, and means a field added later inherits it instead of quietly
+ * shipping a 32px target. Above `sm` the original density returns.
+ */
+const TOUCH_FIELDS =
+  'max-sm:[&_input]:min-h-tap max-sm:[&_textarea]:min-h-tap max-sm:[&_[role=combobox]]:min-h-tap'
+
 export interface MedicineSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -323,13 +333,18 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
         }
         footer={
           <>
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button
+              variant="ghost"
+              className="min-h-tap sm:min-h-0"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button
               type="submit"
               form={formId}
               variant="primary"
+              className="min-h-tap sm:min-h-0"
               loading={pending}
               disabled={editing && !isDirty}
             >
@@ -338,7 +353,7 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
           </>
         }
       >
-        <form id={formId} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        <form id={formId} noValidate onSubmit={onSubmit} className={cn('flex flex-col gap-4', TOUCH_FIELDS)}>
           {errors.root?.message && (
             <p
               role="alert"
@@ -487,7 +502,7 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
                               aria-pressed={active}
                               onClick={() => field.onChange(active ? '' : preset.value)}
                               className={cn(
-                                'text-label inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3',
+                                'text-label inline-flex min-h-tap items-center gap-1.5 rounded-full border px-3 sm:min-h-10',
                                 'duration-instant ease-standard transition-colors',
                                 'focus-visible:ring-accent/35 focus-visible:ring-2 focus-visible:outline-none',
                                 active
@@ -554,7 +569,7 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
               type="button"
               onClick={() => setMoreOpen((v) => !v)}
               aria-expanded={moreOpen}
-              className="text-label text-text-muted hover:text-text flex min-h-10 w-full items-center gap-2 font-medium transition-colors duration-fast"
+              className="text-label text-text-muted hover:text-text flex min-h-tap w-full items-center gap-2 font-medium transition-colors duration-fast sm:min-h-10"
             >
               <ChevronDown
                 aria-hidden

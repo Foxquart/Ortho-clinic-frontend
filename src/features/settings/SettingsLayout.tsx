@@ -30,8 +30,22 @@ const TABS: readonly SettingsTab[] = [
  */
 const OUTSIDE_TABS = new Set(['/dashboard', '/appointments', '/appointments?hours=1'])
 
+/*
+ * Phone layout, decided rather than inherited.
+ *
+ * This is already the shape a phone needs — one column, navigation above the
+ * content pane, never a side rail — so the question was only whether the six
+ * destinations should keep wrapping onto three lines or collapse into a single
+ * horizontally scrollable strip. Wrapping wins here. A scroll strip saves about
+ * ninety vertical pixels and pays for them by hiding "Public site" and "Clinic
+ * hours" past the right edge behind a swipe nobody is told about; this app's
+ * reader is a surgeon who browses rather than hunts, and Settings is the screen
+ * he visits least often, so every destination staying visible is worth more
+ * than the pixels. What the row genuinely lacked was height: `py-2` gave a 36px
+ * target, so below `sm` each tab is raised to the 44px tap minimum.
+ */
 const TAB_CLASS =
-  '-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-body font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus'
+  '-mb-px flex min-h-tap items-center gap-1.5 border-b-2 px-3 py-2 text-body font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus sm:min-h-0'
 
 export function SettingsLayout() {
   const { can } = useAuth()
