@@ -23,11 +23,17 @@ export interface ApiErrorDetail {
   message: string
 }
 
+/**
+ * `details` is polymorphic on the wire and must be narrowed before it is
+ * touched: a 422 sends an ARRAY of field errors, a 403 sends an OBJECT naming
+ * the permissions the account lacks. Iterating it blindly turns a readable
+ * "you may not do that" into a TypeError that hides the real failure.
+ */
 interface ApiErrorEnvelope {
   error: {
     code: ApiErrorCode
     message: string
-    details?: ApiErrorDetail[] | null
+    details?: ApiErrorDetail[] | { missing_permissions?: string[] } | null
   }
 }
 
@@ -45,7 +51,10 @@ function isEnvelope(value: unknown): value is ApiErrorEnvelope {
 export class ApiError extends Error {
   readonly code: ApiErrorCode
   readonly status: number
+  /** Field errors from a 422. Always an array — a 403's object `details` never lands here. */
   readonly details: ApiErrorDetail[]
+  /** What a 403 said was missing. Empty on every other status. */
+  readonly missingPermissions: string[]
   readonly correlationId: string | null
 
   constructor(init: {
@@ -53,6 +62,7 @@ export class ApiError extends Error {
     message: string
     status: number
     details?: ApiErrorDetail[]
+    missingPermissions?: string[]
     correlationId?: string | null
   }) {
     super(init.message)
@@ -60,6 +70,7 @@ export class ApiError extends Error {
     this.code = init.code
     this.status = init.status
     this.details = init.details ?? []
+    this.missingPermissions = init.missingPermissions ?? []
     this.correlationId = init.correlationId ?? null
   }
 
@@ -131,11 +142,17 @@ export function toApiError(error: unknown): ApiError {
 
     const body: unknown = response.data
     if (isEnvelope(body)) {
+      const details = body.error.details
+      const forbidden = details !== null && details !== undefined && !Array.isArray(details)
       return new ApiError({
         code: body.error.code,
         message: body.error.message,
         status: response.status,
-        details: body.error.details ?? [],
+        details: Array.isArray(details) ? details : [],
+        missingPermissions:
+          forbidden && Array.isArray(details.missing_permissions)
+            ? details.missing_permissions
+            : [],
         correlationId,
       })
     }

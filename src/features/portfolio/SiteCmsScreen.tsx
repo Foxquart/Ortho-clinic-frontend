@@ -13,7 +13,7 @@ type Tab = (typeof TABS)[number]
 
 export function SiteCmsScreen() {
   const { can } = useAuth()
-  const canWrite = can('portfolio.manage')
+  const canWrite = can('portfolio.write')
   const [params, setParams] = useSearchParams()
 
   const requested = params.get('tab') as Tab | null

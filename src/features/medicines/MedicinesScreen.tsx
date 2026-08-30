@@ -298,7 +298,7 @@ function MedicineRow({
 
 export function MedicinesScreen() {
   const { can } = useAuth()
-  const canWrite = can('medicines.write')
+  const canWrite = can('medicine.write')
 
   const [searchParams, setSearchParams] = useSearchParams()
   const highlightParam = searchParams.get('highlight')

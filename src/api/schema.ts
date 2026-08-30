@@ -150,12 +150,6 @@ export const PRESCRIPTION_STATUSES = [
   'voided',
 ] as const satisfies readonly PrescriptionStatus[];
 
-/** `UserRole` — used by `UserCreateRequest` (default `"staff"`), `UserUpdateRequest`, `UserResponse`. */
-export type UserRole = 'admin' | 'doctor' | 'staff';
-
-/** All three `UserRole` values, in schema order. */
-export const USER_ROLES = ['admin', 'doctor', 'staff'] as const satisfies readonly UserRole[];
-
 /**
  * NOT an enum in the schema. `blood_group` is declared as a plain
  * `string` with `maxLength: 8` on `PatientCreateRequest` / `PatientUpdateRequest`
@@ -295,6 +289,11 @@ export interface LoginRequest {
 
 /** `LoginResponse` — 200 body of `POST /auth/login`. Session cookie is set alongside. */
 export interface LoginResponse {
+  /**
+   * A bare `UserResponse`: the login body deliberately carries NO `permissions`
+   * and NO `is_superadmin`. Fetch `GET /auth/me` for {@link CurrentUserResponse}
+   * before gating anything on them.
+   */
   user: UserResponse;
   /** Defaults to `"Login successful."` server-side; may be absent from the payload. */
   message?: string;
@@ -325,29 +324,122 @@ export interface MessageResponse {
  */
 export type StringMapResponse = Record<string, string>;
 
-/** `HealthResponse` — 200 body of `GET /health`. Unauthenticated. */
+/**
+ * `HealthResponse` — 200 body of `GET /health` (503 when `degraded`).
+ * Unauthenticated, and now nothing but the verdict: `app`, `version`,
+ * `environment` and `database` moved to `GET /system/status`, which is
+ * superadmin-only, so a load balancer probe cannot fingerprint the deployment.
+ */
 export interface HealthResponse {
-  status: string;
-  app: string;
-  version: string;
-  environment: string;
-  database: string;
+  status: 'ok' | 'degraded';
+}
+
+/* -------------------------------------------------------------------------- */
+/* Roles                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The role as embedded in a user record (`UserResponse.role`).
+ *
+ * `level` and `permissions` are independent and neither implies the other:
+ * `level` ranks roles for management authority only (an actor may act on an
+ * account strictly below their own level), while permissions decide what the
+ * holder may do. Gate the UI on permissions, never on `key` or `level`.
+ */
+export interface RoleSummary {
+  id: UUID;
+  /** Stable machine name, e.g. `doctor`, `reception`. Immutable once created. */
+  key: string;
+  /** Display label. A clinic may rename its roles, so there is no client-side label map. */
+  name: string;
+  /** 1..100. 100 is the vendor's superadmin and is never assignable. */
+  level: number;
+}
+
+/** `RoleResponse` — `GET /roles`, `GET /roles/assignable`, `GET /roles/{role_id}`, `POST /roles`, `PATCH /roles/{role_id}`. */
+export interface RoleResponse {
+  id: UUID;
+  key: string;
+  name: string;
+  description: string | null;
+  level: number;
+  /** Empty for `superadmin`, which bypasses the check rather than enumerating it. */
+  permissions: string[];
+  /** A seeded role. Its permissions are still editable — tightening `staff` is the normal way a clinic tunes the front desk — but its level, activation and existence are not. */
+  is_system: boolean;
+  is_active: boolean;
+  created_at: DateTimeString;
+}
+
+/** `RoleCreateRequest` — body of `POST /roles`. */
+export interface RoleCreateRequest {
+  /** `^[a-z][a-z0-9_]{1,31}$`, immutable afterwards. A duplicate is a 409 on the key field. */
+  key: string;
+  name: string;
+  description?: string | null;
+  /** 1..99 — 100 is reserved for the superadmin and answers 422. */
+  level: number;
+  /** Reserved keys (`role.manage`, `system.monitor`) are refused with 422; render them disabled rather than hidden. */
+  permissions?: string[];
+}
+
+/** `RoleUpdateRequest` — body of `PATCH /roles/{role_id}`. No `key`: it is immutable. */
+export interface RoleUpdateRequest {
+  name?: string | null;
+  description?: string | null;
+  /** 409 when the role is `is_system`. */
+  level?: number | null;
+  permissions?: string[] | null;
+  /** 409 when the role is `is_system`. */
+  is_active?: boolean | null;
+}
+
+/** One grantable capability, as listed by `GET /roles/permissions`. */
+export interface PermissionInfo {
+  key: string;
+  /** The server's own wording for the checkbox, e.g. `"Edit the medicine catalogue"`. */
+  label: string;
+  /** Superadmin-only and ungrantable. Show it disabled: a superadmin who cannot see why a box is missing will file a bug. */
+  reserved: boolean;
+}
+
+/**
+ * `PermissionGroup` — `GET /roles/permissions`, the catalogue grouped for the
+ * role editor. Build the editor from this response, not from a hardcoded list,
+ * so a new backend capability appears without a frontend release.
+ */
+export interface PermissionGroup {
+  group: string;
+  permissions: PermissionInfo[];
 }
 
 /* -------------------------------------------------------------------------- */
 /* Users                                                                      */
 /* -------------------------------------------------------------------------- */
 
-/** `UserResponse` — `GET /auth/me`, `GET /users/{user_id}`, items of `GET /users`, `POST /users`, `PATCH /users/{user_id}`, and `LoginResponse.user`. */
+/** `UserResponse` — `GET /users/{user_id}`, items of `GET /users`, `POST /users`, `PATCH /users/{user_id}`, and `LoginResponse.user`. `GET /auth/me` returns the wider {@link CurrentUserResponse}. */
 export interface UserResponse {
   id: UUID;
   username: string;
   email: EmailString;
   full_name: string;
-  role: UserRole;
+  /** An object since roles became rows. Display `role.name`; decide anything on permissions. */
+  role: RoleSummary;
   is_active: boolean;
   last_login_at: DateTimeString | null;
   created_at: DateTimeString;
+}
+
+/**
+ * `CurrentUserResponse` — 200 body of `GET /auth/me`, and the only shape that
+ * answers "may this user do X". Re-fetch it after any change to the signed-in
+ * user's own role: there is no push channel, so a revoked permission is
+ * otherwise discovered on the next 403.
+ */
+export interface CurrentUserResponse extends UserResponse {
+  /** Flat permission keys the role grants. Empty for a superadmin, which bypasses the check entirely — test `is_superadmin` first. */
+  permissions: string[];
+  is_superadmin: boolean;
 }
 
 /** `UserCreateRequest` — body of `POST /users`. */
@@ -360,8 +452,8 @@ export interface UserCreateRequest {
   full_name: string;
   /** 8..128 chars. */
   password: string;
-  /** Defaults to `"staff"` when omitted. Not nullable — send a valid role or omit the key. */
-  role?: UserRole;
+  /** From `GET /roles/assignable`. Required, and deliberately without a default: the old `"staff"` fallback decided authority on the caller's behalf. Omitting it is a 422. */
+  role_id: UUID;
 }
 
 /** `UserUpdateRequest` — body of `PATCH /users/{user_id}`. Every field optional; note there is no `username` and no `password` here. */
@@ -369,7 +461,8 @@ export interface UserUpdateRequest {
   email?: EmailString | null;
   /** 1..128 chars. */
   full_name?: string | null;
-  role?: UserRole | null;
+  /** Reassignment is refused with 403 when the target is not strictly below the actor's level, and when the target is the actor themselves. */
+  role_id?: UUID | null;
   is_active?: boolean | null;
 }
 
@@ -1365,4 +1458,169 @@ export interface AdvicePresetUpdate {
   category?: string | null;
   sort_order?: number;
   is_active?: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Monitoring                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** The rolling window every monitoring aggregate is computed over. Default `"24h"`. */
+export type MonitoringWindow = '1h' | '24h' | '7d' | '30d';
+
+/** All four `MonitoringWindow` values, shortest first — the order the window picker renders in. */
+export const MONITORING_WINDOWS = [
+  '1h',
+  '24h',
+  '7d',
+  '30d',
+] as const satisfies readonly MonitoringWindow[];
+
+/**
+ * One external dependency's reachability. `ok` is TRI-state: `true` reachable,
+ * `false` broken, `null` not configured or not checked. Render `null` grey with
+ * its `detail` — a disabled feature is not a failure and must never read red.
+ */
+export interface DependencyStatusResponse {
+  name: string;
+  ok: boolean | null;
+  detail: string | null;
+}
+
+/** `SystemStatusResponse` — `GET /system/status`. The "is it up right now" strip; safe to poll every ~15s. */
+export interface SystemStatusResponse {
+  /** Colour the whole strip from this. */
+  status: 'ok' | 'degraded';
+  app: string;
+  version: string;
+  environment: string;
+  instance_id: string;
+  process_started_at: DateTimeString;
+  process_uptime_seconds: number;
+  database_ok: boolean;
+  /** A serverless Postgres includes cold-start here: a first reading in the high hundreds is normal, a sustained one is not. */
+  database_latency_ms: number | null;
+  pool_size: number | null;
+  pool_in_use: number | null;
+  pool_overflow: number | null;
+  dependencies: DependencyStatusResponse[];
+  /** When `false`, uptime and metrics have no new samples coming. Say so rather than drawing an empty chart. */
+  monitoring_enabled: boolean;
+  monitoring_interval_seconds: number;
+}
+
+/** One stretch of unavailability inside an uptime window. `gap` means samples stopped arriving, which is not the same as a confirmed outage. */
+export interface IncidentResponse {
+  started_at: DateTimeString;
+  ended_at: DateTimeString;
+  kind: 'unhealthy' | 'gap';
+  detail: string;
+  seconds: number;
+}
+
+/** A process restart observed inside the window; a new `instance_id` is how a restart is detected at all. */
+export interface RestartResponse {
+  at: DateTimeString;
+  instance_id: string;
+}
+
+/** `UptimeResponse` — `GET /system/uptime`. */
+export interface UptimeResponse {
+  window: MonitoringWindow;
+  window_start: DateTimeString;
+  window_end: DateTimeString;
+  /** Sampling may have begun after `window_start`; everything before this is unknown, not up. */
+  coverage_start: DateTimeString;
+  /** 0..1, not a percentage. */
+  availability: number;
+  downtime_seconds: number;
+  sample_count: number;
+  incidents: IncidentResponse[];
+  restarts: RestartResponse[];
+  /** The figure was interpolated between samples rather than measured continuously. */
+  inferred: boolean;
+  /** The server's own wording for what the number does not prove. Show it beside the figure. */
+  caveat: string;
+}
+
+/** One route's slice of a metrics window, for the busiest / slowest / failing tables. */
+export interface RouteMetricsResponse {
+  route: string;
+  requests: number;
+  errors: number;
+  p95_ms: number | null;
+}
+
+/** One sample in the metrics sparkline series. */
+export interface MetricsPoint {
+  observed_at: DateTimeString;
+  requests_total: number;
+  requests_5xx: number;
+  latency_p95_ms: number | null;
+  db_latency_ms: number | null;
+  db_ok: boolean;
+}
+
+/** `MetricsResponse` — `GET /system/metrics`. Volume, error rate, latency, the three route tables and the series behind the sparkline. */
+export interface MetricsResponse {
+  window: MonitoringWindow;
+  window_start: DateTimeString;
+  window_end: DateTimeString;
+  requests_total: number;
+  requests_4xx: number;
+  requests_5xx: number;
+  /** 0..1, not a percentage. */
+  error_rate: number;
+  latency_p50_ms: number | null;
+  latency_p95_ms: number | null;
+  busiest_routes: RouteMetricsResponse[];
+  slowest_routes: RouteMetricsResponse[];
+  failing_routes: RouteMetricsResponse[];
+  series: MetricsPoint[];
+}
+
+/** `ErrorEventResponse` — one entry of the recent 5xx feed, `GET /system/errors`. `correlation_id` is what a user's bug report will quote. */
+export interface ErrorEventResponse {
+  id: UUID;
+  occurred_at: DateTimeString;
+  correlation_id: string | null;
+  method: string;
+  path: string;
+  status_code: number;
+  exception_type: string | null;
+  message: string | null;
+  user_id: UUID | null;
+  ip_address: string | null;
+}
+
+/** `SecurityOverviewResponse` — `GET /system/security`. Sessions, logins and the head-count per role. */
+export interface SecurityOverviewResponse {
+  active_sessions: number;
+  sessions_last_24h: number;
+  failed_logins_24h: number;
+  successful_logins_24h: number;
+  active_users: number;
+  inactive_users: number;
+  /** Keyed by role name, which the clinic can rename — treat the keys as labels, not identifiers. */
+  users_by_role: Record<string, number>;
+}
+
+/** One table's footprint. `estimated_rows` comes from the planner's statistics, so it is an estimate, not a count. */
+export interface TableStat {
+  table: string;
+  size_bytes: number;
+  size_pretty: string;
+  estimated_rows: number;
+}
+
+/** `DatabaseOverviewResponse` — `GET /system/database`. */
+export interface DatabaseOverviewResponse {
+  database: string;
+  size_bytes: number;
+  size_pretty: string;
+  connections: number;
+  max_connections: number;
+  tables: TableStat[];
+  /** How far back the health history actually reaches; null when nothing has been sampled yet. */
+  oldest_health_sample: DateTimeString | null;
+  health_sample_rows: number;
 }

@@ -72,7 +72,7 @@ function explainStatusConflict(
 
 export function AppointmentsScreen() {
   const { can } = useAuth()
-  const canWrite = can('appointments.write')
+  const canWrite = can('appointment.write')
   // Booking and status need doctor-or-admin; the four availability routes are
   // admin-only server-side, so hours writes need the narrower gate too.
   const canManageHours = canWrite && can('clinic.write')

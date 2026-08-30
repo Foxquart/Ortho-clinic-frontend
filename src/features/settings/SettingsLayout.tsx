@@ -4,21 +4,21 @@ import { cn } from '@/lib/cn'
 import { useAuth } from '@/app/AuthProvider'
 import { DEMOTED_NAV } from '@/app/navigation'
 import { PageHeader } from '@/components/ui/Surface'
-import type { Capability } from '@/lib/permissions'
+import type { Permission } from '@/lib/permissions'
 
 interface SettingsTab {
   to: string
   label: string
   end?: boolean
-  requires?: Capability
+  requires?: Permission
 }
 
 const TABS: readonly SettingsTab[] = [
   { to: '/settings', label: 'Clinic', end: true },
   { to: '/settings/account', label: 'Your account' },
-  { to: '/settings/users', label: 'Users', requires: 'users.manage' },
+  { to: '/settings/users', label: 'Users', requires: 'user.read' },
   { to: '/settings/audit', label: 'Audit log', requires: 'audit.read' },
-  { to: '/settings/site', label: 'Public site', requires: 'portfolio.manage' },
+  { to: '/settings/site', label: 'Public site', requires: 'portfolio.write' },
   { to: '/appointments?hours=1', label: 'Clinic hours' },
 ]
 

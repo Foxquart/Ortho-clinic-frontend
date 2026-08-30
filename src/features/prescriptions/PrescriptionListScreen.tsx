@@ -98,7 +98,7 @@ export function PrescriptionListScreen() {
     : (rows[0]?.patient_name ?? 'this patient')
 
   const newHref = patientId ? `/prescriptions/new?patientId=${patientId}` : '/prescriptions/new'
-  const canWrite = can('prescriptions.write')
+  const canWrite = can('prescription.write')
 
   /* `n` = new, per the reserved shortcut table. Ignored while typing, and never
      bound for someone the capability guard would bounce. */

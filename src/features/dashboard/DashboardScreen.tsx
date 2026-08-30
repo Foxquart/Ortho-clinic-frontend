@@ -113,7 +113,7 @@ export function DashboardScreen() {
                 the largest control on the screen on purpose, and on a phone
                 that means the full width of the screen: it takes its own line
                 and there is nothing else on it to mis-hit. */}
-            {can('prescriptions.write') && (
+            {can('prescription.write') && (
               <Button
                 variant="primary"
                 size="lg"

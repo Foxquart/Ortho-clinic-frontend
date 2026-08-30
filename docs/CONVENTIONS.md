@@ -79,9 +79,36 @@ const { data } = useQuery({
 
 ## Permissions
 
-`useAuth().can(capability)` — capabilities are declared in
-`@/lib/permissions.ts`. The server remains the authority; this only stops us
-rendering controls that would fail.
+Roles are database rows, not an enum. A role carries a **level** (an integer,
+1-100, ranking roles for management authority) and a **permission set** (named
+capabilities). The two are independent and neither may be inferred from the
+other: level answers "who may manage whom", a permission answers "what may this
+account do". `admin` no longer exists as a role.
+
+`useAuth().can(permission)` — the permission keys are declared in
+`@/lib/permissions.ts` and mirror the backend catalogue exactly. `can` reads the
+live `permissions[]` from `GET /auth/me`, and is `true` for everything when
+`is_superadmin`, which holds no permission rows at all — the flag is the grant.
+The server remains the authority; this only stops us rendering controls that
+would 403.
+
+Never gate on a role name. The clinic can rename a role and can define new ones,
+so `role.key` is for identity and `role.name` is for display — there is no
+client-side label map.
+
+Two permissions, `role.manage` and `system.monitor`, are **reserved**: they
+belong to the superadmin alone and the API 422s if a role body asks for them.
+The role editor renders them disabled with an explanation rather than hiding
+them, so an operator can see why they are unavailable.
+
+### Management authority
+
+An actor may create, edit, deactivate, reassign the role of, or reset the
+password of another account **only when the actor's level is strictly greater
+than the target's**. Strictly — so a doctor (60) cannot create another doctor,
+and only the superadmin (100) can. Mirror this in the UI rather than letting the
+user discover it through a 403, and populate every role dropdown from
+`GET /roles/assignable` rather than filtering the role list client-side.
 
 ## Forms
 
@@ -102,13 +129,27 @@ the first submit. Never block typing.
 | `/prescriptions/new` | the prescription pad |
 | `/prescriptions/:id` | prescription detail |
 | `/appointments` | schedule |
-| `/medicines` | formulary (admin writes) |
-| `/speech` | voice capture + transcription lab |
+| `/medicines` | formulary (`medicine.write` to edit) |
+| `/advice` | advice library (`advice.write`) |
+| `/speech` | voice capture + transcription lab (`speech.use`) |
 | `/settings` | clinic settings, doctor profile, print templates |
-| `/settings/users` | user management (admin) |
-| `/settings/audit` | audit log (admin) |
-| `/settings/site` | public-site CMS (admin) |
+| `/settings/users` | user management (`user.read`) |
+| `/settings/audit` | audit log (`audit.read`) |
+| `/settings/site` | public-site CMS (`portfolio.write`) |
 | `/site/*` | the public, unauthenticated patient site |
+
+The staff surface carries a **second, disjoint tree** for the vendor's operator
+account. A superadmin is redirected into it and can reach nothing else; every
+other account is dead-ended out of it. See `src/app/RequireAuth.tsx` for why one
+direction redirects and the other does not.
+
+| Path | Screen |
+|---|---|
+| `/superadmin` | the six monitoring panels |
+| `/superadmin/users` | user management (shared with `/settings/users`) |
+| `/superadmin/roles` | role list |
+| `/superadmin/roles/:roleId` | role editor — the literal `new` is create mode |
+| `/superadmin/account` | change own password (shared) |
 
 ## Loading and empty states
 

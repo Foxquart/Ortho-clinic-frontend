@@ -10,7 +10,7 @@ import {
   SquarePen,
   Users,
 } from 'lucide-react'
-import type { Capability } from '@/lib/permissions'
+import type { Permission } from '@/lib/permissions'
 
 /**
  * The app is a digital prescription pad, so the navigation says so.
@@ -19,8 +19,10 @@ import type { Capability } from '@/lib/permissions'
  * of prescribing, the record of what was prescribed, and the lookups that
  * support both — patients, the formulary, and the advice library the doctor
  * appends to a prescription. The advice library sits next to Medicines because
- * it is formulary-adjacent: the same admin curates both, so it belongs beside
- * the formulary rather than buried in Settings. Everything else — the
+ * it is formulary-adjacent: `medicine.write` and `advice.write` are separate
+ * grants, so a clinic can hand them to different people, but both are curation
+ * of the same prescribing vocabulary and belong beside the formulary rather
+ * than buried in Settings. Everything else — the
  * public-site CMS — is real, still routed and still reachable, but it is not
  * what this software is for and it no longer competes for the doctor's eye.
  * That lives in `DEMOTED_NAV`: absent from the sidebar, present in the command
@@ -58,8 +60,8 @@ export interface NavItem {
   icon: typeof LayoutDashboard
   /** Two-key sequence after `g`, Linear-style: `g r` → prescriptions. */
   goKey: string
-  /** Hide entirely when the user lacks this capability. */
-  requires?: Capability
+  /** Hide entirely when the user lacks this permission. */
+  requires?: Permission
   /** Light up on an exact path match only. */
   end?: boolean
   /** Extra path prefixes that also belong to this row. */
@@ -77,7 +79,7 @@ export interface ActionItem {
   icon: typeof LayoutDashboard
   /** Two-key sequence after `g`, where the action is worth a chord. */
   goKey?: string
-  requires?: Capability
+  requires?: Permission
   hint: string
 }
 
@@ -90,7 +92,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     end: true,
     // The pad and the dictation screen are both "writing a prescription".
     alsoMatch: ['/prescriptions/new', '/speech'],
-    requires: 'prescriptions.write',
+    requires: 'prescription.write',
     hint: 'Dictate or type a new prescription',
   },
   {
@@ -122,7 +124,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     label: 'Advice library',
     icon: ListChecks,
     goKey: 'l',
-    requires: 'medicines.write',
+    requires: 'advice.write',
     hint: 'Saved instructions to append to a prescription',
   },
 ] as const
@@ -147,7 +149,7 @@ export const DEMOTED_NAV: readonly NavItem[] = [
     label: 'Public website',
     icon: Globe,
     goKey: 'w',
-    requires: 'portfolio.manage',
+    requires: 'portfolio.write',
     hint: 'Pages, services, testimonials and gallery',
   },
 ] as const
@@ -170,7 +172,7 @@ export const PRESCRIBE_ACTIONS: readonly ActionItem[] = [
     label: 'Type a prescription',
     icon: SquarePen,
     goKey: 't',
-    requires: 'prescriptions.write',
+    requires: 'prescription.write',
     hint: 'Opens the pad on the patient field',
   },
 ] as const

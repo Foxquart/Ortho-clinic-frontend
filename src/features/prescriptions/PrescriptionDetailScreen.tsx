@@ -272,7 +272,7 @@ export function PrescriptionDetailScreen() {
           <>
             {/* Prescriptions are append-only: no edit, no delete, no void. The
                 only forward action is writing a new one for the same patient. */}
-            {can('prescriptions.write') && patientId && (
+            {can('prescription.write') && patientId && (
               <Button
                 variant="secondary"
                 className="min-h-tap w-full sm:min-h-0 sm:w-auto"

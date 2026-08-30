@@ -205,8 +205,8 @@ function ListPagination({
 export function PatientListScreen() {
   const navigate = useNavigate()
   const { can } = useAuth()
-  const canWrite = can('patients.write')
-  const canPrescribe = can('prescriptions.write')
+  const canWrite = can('patient.write')
+  const canPrescribe = can('prescription.write')
 
   const [searchParams, setSearchParams] = useSearchParams()
   const searchRef = useRef<HTMLInputElement>(null)

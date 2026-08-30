@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronDown, LogOut, Menu as MenuIcon, Monitor, Moon, Search, Sun, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { ROLE_LABEL, type Role } from '@/lib/permissions'
 import { Button } from '@/components/ui/Button'
 import { Kbd } from '@/components/ui/Badge'
 import {
@@ -186,7 +185,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   {user?.full_name ?? user?.username}
                 </span>
                 <span className="block truncate text-caption text-text-subtle">
-                  {ROLE_LABEL[role as Role] ?? role}
+                  {role?.name}
                 </span>
               </span>
               <ChevronDown aria-hidden className="size-4 shrink-0 text-text-subtle" />

@@ -143,7 +143,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </Command.Item>
         )
       })}
-      {can('patients.write') && (
+      {can('patient.write') && (
         <Command.Item
           value={actionValue('New patient')}
           onSelect={() => go('/patients?new=1')}

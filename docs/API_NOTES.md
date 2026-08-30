@@ -172,13 +172,19 @@ a valid enum value or omit the key entirely; `null` will 422 on `POST`.
 
 ### `UserCreateRequest` — `POST /users`
 
-| Required (4) | Optional, non-nullable (1) |
+| Required (5) | Optional |
 |---|---|
-| `username`, `email`, `full_name`, `password` | `role` (default `"staff"`) |
+| `username`, `email`, `full_name`, `password`, `role_id` | — |
+
+`role_id` is a role UUID from `GET /roles/assignable`, and it is **required with
+no default**. The old `role: "staff"` default decided authority on the caller's
+behalf, which is exactly what the role rework removed; omitting `role_id` is a
+422.
 
 `UserUpdateRequest` has **no `username` and no `password`** — usernames are
 immutable and password changes go through `POST /users/{id}/reset-password`
-(admin) or `POST /auth/change-password` (self).
+(`user.reset_password`, and only against an account below your own level) or
+`POST /auth/change-password` (self, demands the current password).
 
 ### `AppointmentCreateByPatientRequest` — `POST /public/appointments` (the public booking payload)
 
@@ -338,10 +344,11 @@ Gender              male | female | other
 MedicineDosageForm  tablet | capsule | syrup | injection | ointment | cream | gel | drops |
                     inhaler | powder | other
 PrescriptionStatus  active | voided
-UserRole            admin | doctor | staff
 ```
 
-Seven enums total. Things that **look** like enums but are **not**:
+Six enums total. `UserRole` (`admin | doctor | staff`) **was** the seventh and
+is gone: roles are database rows now, so `user.role` is an object
+(`{id, key, name, level}`) and there is no closed set of values to enumerate. Things that **look** like enums but are **not**:
 
 | Field | Actual schema |
 |---|---|
@@ -373,10 +380,15 @@ Use `ApiErrorBody` from `src/api/schema.ts`.
 
 **No security metadata at all.** There is no `components.securitySchemes`, no
 top-level `security`, and no per-operation `security`. Nothing in the document
-distinguishes an authenticated route from a public one, and **not one operation
-description mentions `admin`, `doctor` or `staff`.** Role gating in the UI is
-therefore guesswork; `endpoints.ts` marks the plausibly-privileged groups
-(`users`, `audit-logs`, `clinic`) as unverified rather than asserting a rule.
+distinguishes an authenticated route from a public one.
+
+This no longer makes UI gating guesswork, though the schema is still silent:
+`GET /auth/me` returns `permissions[]` and `is_superadmin`, so the authority for
+what to render is the session itself rather than anything inferred from the
+OpenAPI document. Gate with `useAuth().can('<permission>')`. A 403 is the
+contract, not a bug — its body names what was missing in
+`error.details.missing_permissions` and its `message` is written to be shown to
+the account holder verbatim.
 **(live)** Everything except `/health` and `/public/*` 401s when signed out —
 including `GET /speech/config`.
 

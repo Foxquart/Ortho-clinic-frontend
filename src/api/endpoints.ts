@@ -26,17 +26,20 @@
  *     first POST, so the browser stores the cookie, then echo the value
  * Skipping it yields `403 {"error":{"code":"csrf_failed",...}}` (verified live).
  *
- * ## Roles
- * The schema states NO role requirements anywhere: no `security` block, and not
- * one operation `description` mentions admin/doctor/staff. `UserRole`
- * (`admin | doctor | staff`) exists as a data field only. Any role gate you
- * apply in the UI is a guess — the notes below flag the routes that are
- * plausibly privileged, but they are marked as unverified for that reason.
+ * ## Authorisation
+ * Roles are rows, not an enum, and the document still carries no `security`
+ * block — so the gates below are transcribed from the backend's access spec,
+ * not from the schema. Gate the UI on `CurrentUserResponse.permissions` /
+ * `is_superadmin` (see `@/lib/permissions`), never on a role name: a clinic can
+ * rename its roles and define its own. `[superadmin]` marks routes no
+ * permission can unlock — `role.manage` and `system.monitor` are reserved and
+ * ungrantable, which is why the monitoring area is not a capability check.
  */
 
 import type {
   AppointmentStatus,
   DateString,
+  MonitoringWindow,
   SortOrder,
   UUID,
 } from './schema';
@@ -139,6 +142,19 @@ export interface TranscribeParams {
 }
 
 /**
+ * `GET /system/uptime`, `GET /system/metrics`, `GET /system/errors` — the
+ * rolling window each aggregate is computed over. Omitting it means `"24h"`.
+ */
+export interface MonitoringWindowParams {
+  window?: MonitoringWindow;
+}
+
+/** `GET /system/errors` — how many of the most recent 5xx events to return. 1..200, default 50. */
+export interface SystemErrorsParams extends MonitoringWindowParams {
+  limit?: number;
+}
+
+/**
  * Every list-style GET that accepts NO query parameters whatsoever. Sending
  * `?page=1` to these is silently ignored, and they return a bare array (or a
  * single object), never a `Paginated<T>` envelope.
@@ -166,7 +182,7 @@ export const endpoints = {
     login: '/auth/login',
     /** POST — log out. No body -> `Record<string, string>`. [WRITE: needs CSRF] */
     logout: '/auth/logout',
-    /** GET — current user -> `UserResponse`. Any signed-in role. */
+    /** GET — current user -> `CurrentUserResponse` (wider than `LoginResponse.user`: it carries `permissions` and `is_superadmin`). Any signed-in user. */
     me: '/auth/me',
     /** GET — CSRF token for the current session -> `CsrfResponse` (also set as a cookie). */
     csrf: '/auth/csrf',
@@ -297,6 +313,25 @@ export const endpoints = {
     resetPassword: (id: UUID) => `/users/${id}/reset-password`,
   },
 
+  /**
+   * Tag `roles`. Roles are rows the superadmin defines, so the picker and the
+   * editor are both server-driven. Everything here needs `role.manage` —
+   * reserved, therefore superadmin-only and ungrantable — EXCEPT `assignable`,
+   * which any signed-in user may call.
+   */
+  roles: {
+    /** GET — no query params -> `RoleResponse[]`, highest level first. A bare array, not paginated. [superadmin] */
+    list: '/roles',
+    /** GET -> `RoleResponse[]` — the roles THIS actor may hand out (strictly below their own level, active only). Any signed-in user. Populate every role dropdown from it rather than filtering `list` client-side; the write re-checks anyway. */
+    assignable: '/roles/assignable',
+    /** GET -> `PermissionGroup[]` — the permission catalogue, grouped and labelled for the role editor. [superadmin] */
+    permissions: '/roles/permissions',
+    /** POST (`RoleCreateRequest`) -> 201 `RoleResponse`. A duplicate `key` is 409, a reserved permission or a level outside 1..99 is 422. [superadmin] [WRITE: needs CSRF] */
+    create: '/roles',
+    /** GET -> `RoleResponse` · PATCH (`RoleUpdateRequest`) -> `RoleResponse` · DELETE -> `MessageResponse`. Touching the `superadmin` role at all is 403; changing a system role's level, deactivating it, deleting it, or deleting a role somebody still holds is 409. [superadmin] [WRITE: needs CSRF] */
+    byId: (id: UUID) => `/roles/${id}`,
+  },
+
   /** Tag `audit-logs`. Read-only; plausibly admin-only, but the schema states no role. */
   auditLogs: {
     /** GET (`ListAuditLogsParams`) -> `Paginated<AuditLogResponse>`. The only route under this tag. */
@@ -389,9 +424,34 @@ export const endpoints = {
     csrf: '/public/csrf',
   },
 
+  /**
+   * Tag `system` — the superadmin monitoring area. Every route here 403s for
+   * anyone else, and there is no permission that opens it: `system.monitor` is
+   * reserved. All reads, so none of them needs CSRF. `uptime`, `metrics` and
+   * `errors` take `MonitoringWindowParams` (`?window=1h|24h|7d|30d`, default
+   * `24h`); `status`, `security` and `database` take no query params.
+   *
+   * Kept apart from `system` below because that one is the unauthenticated
+   * liveness probe and these are not.
+   */
+  monitoring: {
+    /** GET -> `SystemStatusResponse` — the "is it up right now" strip. Poll ~15s; everything else refetches on view. [superadmin] */
+    status: '/system/status',
+    /** GET (`MonitoringWindowParams`) -> `UptimeResponse` — availability, downtime, incidents and restarts. [superadmin] */
+    uptime: '/system/uptime',
+    /** GET (`MonitoringWindowParams`) -> `MetricsResponse` — volume, error rate, latency, the three route tables and the sparkline series. [superadmin] */
+    metrics: '/system/metrics',
+    /** GET (`SystemErrorsParams`; `limit` 1..200, default 50) -> `ErrorEventResponse[]`, the recent 5xx feed. A bare array, not paginated. [superadmin] */
+    errors: '/system/errors',
+    /** GET -> `SecurityOverviewResponse` — sessions, logins, and the head-count per role. [superadmin] */
+    security: '/system/security',
+    /** GET -> `DatabaseOverviewResponse` — size, connections, table sizes. [superadmin] */
+    database: '/system/database',
+  },
+
   /** Tag `system`. Unauthenticated. */
   system: {
-    /** GET -> `HealthResponse`. */
+    /** GET -> `HealthResponse`: `{ status: 'ok' | 'degraded' }` and nothing else (503 when degraded). `app` / `version` / `environment` / `database` moved to `monitoring.status`, behind the superadmin gate. */
     health: '/health',
   },
 } as const;

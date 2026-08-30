@@ -197,7 +197,7 @@ function PrescriptionRow({
 export function PatientDetailScreen() {
   const { patientId = '' } = useParams<{ patientId: string }>()
   const { can } = useAuth()
-  const canWrite = can('patients.write')
+  const canWrite = can('patient.write')
 
   const [editOpen, setEditOpen] = useState(false)
   const [confirmDeactivate, setConfirmDeactivate] = useState(false)
@@ -317,7 +317,7 @@ export function PatientDetailScreen() {
              44px touch minimum on a phone and hand the desk back its dense
              32px row from `sm` up. */
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
-            {can('prescriptions.write') && (
+            {can('prescription.write') && (
               <Button
                 variant="primary"
                 asChild
@@ -414,7 +414,7 @@ export function PatientDetailScreen() {
             }
             action={
               prescriptions.length > 0 &&
-              can('prescriptions.write') &&
+              can('prescription.write') &&
               patient && (
                 <Button variant="ghost" size="sm" asChild>
                   <Link to={`/prescriptions/new?patientId=${patient.id}`}>Write another</Link>
@@ -438,7 +438,7 @@ export function PatientDetailScreen() {
               title="No prescriptions yet"
               description="Everything written for this patient will be listed here, newest first."
               action={
-                can('prescriptions.write') &&
+                can('prescription.write') &&
                 patient && (
                   <Button variant="primary" size="sm" asChild>
                     <Link to={`/prescriptions/new?patientId=${patient.id}`}>

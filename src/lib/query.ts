@@ -79,6 +79,14 @@ export const qk = {
     list: (params: unknown) => ['users', 'list', params] as const,
     detail: (id: string) => ['users', 'detail', id] as const,
   },
+  roles: {
+    all: () => ['roles'] as const,
+    list: () => ['roles', 'list'] as const,
+    /** Depends on the signed-in user's own level, so it is invalidated by any change to their role. */
+    assignable: () => ['roles', 'assignable'] as const,
+    permissions: () => ['roles', 'permissions'] as const,
+    detail: (id: string) => ['roles', 'detail', id] as const,
+  },
   auditLogs: {
     list: (params: unknown) => ['audit-logs', params] as const,
   },
@@ -94,6 +102,15 @@ export const qk = {
   },
   speech: {
     config: () => ['speech', 'config'] as const,
+  },
+  monitoring: {
+    all: () => ['monitoring'] as const,
+    status: () => ['monitoring', 'status'] as const,
+    uptime: (window: string) => ['monitoring', 'uptime', window] as const,
+    metrics: (window: string) => ['monitoring', 'metrics', window] as const,
+    errors: (limit: number) => ['monitoring', 'errors', limit] as const,
+    security: () => ['monitoring', 'security'] as const,
+    database: () => ['monitoring', 'database'] as const,
   },
   public: {
     clinic: () => ['public', 'clinic'] as const,

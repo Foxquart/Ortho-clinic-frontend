@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Input'
 import { Card, CardBody, CardHeader } from '@/components/ui/Surface'
 import { Badge } from '@/components/ui/Badge'
-import { ROLE_LABEL, type Role } from '@/lib/permissions'
 
 const schema = z
   .object({
@@ -92,7 +91,7 @@ export function AccountScreen() {
           <div>
             <p className="text-label text-text-subtle">Role</p>
             <p className="mt-0.5">
-              <Badge tone="accent">{ROLE_LABEL[role as Role] ?? role}</Badge>
+              <Badge tone="accent">{role?.name ?? '—'}</Badge>
             </p>
           </div>
         </CardBody>
