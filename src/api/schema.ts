@@ -1607,8 +1607,11 @@ export interface SecurityOverviewResponse {
 /** One table's footprint. `estimated_rows` comes from the planner's statistics, so it is an estimate, not a count. */
 export interface TableStat {
   table: string;
-  size_bytes: number;
-  size_pretty: string;
+  /**
+   * The planner's estimate from `pg_stat_user_tables`, not `COUNT(*)`.
+   * There is deliberately no per-table size here — `size_bytes` / `size_pretty`
+   * on `DatabaseOverviewResponse` describe the database as a whole.
+   */
   estimated_rows: number;
 }
 

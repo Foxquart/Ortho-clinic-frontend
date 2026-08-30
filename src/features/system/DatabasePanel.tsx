@@ -62,10 +62,9 @@ export function DatabasePanel() {
                 className="py-8"
               />
             ) : (
-              <Table label="Table sizes">
+              <Table label="Table row counts">
                 <THead>
                   <TH>Table</TH>
-                  <TH align="right">Size</TH>
                   {/* "approx." is part of the column header, not a footnote —
                       a footnote under a table of exact-looking integers is read
                       after the number has already been believed. */}
@@ -75,11 +74,6 @@ export function DatabasePanel() {
                   {data.tables.map((table) => (
                     <TR key={table.table}>
                       <TD className="text-caption font-mono">{table.table}</TD>
-                      <TD align="right" numeric>
-                        <span title={`${formatCount(table.size_bytes)} bytes`}>
-                          {table.size_pretty}
-                        </span>
-                      </TD>
                       <TD align="right" numeric className="text-text-muted">
                         ~{formatCount(table.estimated_rows)}
                       </TD>
