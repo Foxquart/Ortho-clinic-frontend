@@ -70,8 +70,8 @@ export interface RxRowEditorProps {
 /**
  * One prescribed medicine.
  *
- * The four things that decide whether this line can be printed and dispensed —
- * which drug, how much, how often, for how long — sit on one line and are read
+ * The things that decide whether this line can be printed and dispensed —
+ * which drug, how often, for how long — sit on one line and are read
  * together. Instructions stay visible because they are clinical; quantity and
  * food timing fold behind "More" so an ordinary row is one glance and done.
  */
@@ -128,7 +128,7 @@ export function RxRowEditor({
     : (browse.data?.items ?? []).filter((m) => m.is_active)
 
   const issues = rowIssues(row)
-  const has = (field: 'medicine' | 'dosage' | 'frequency') =>
+  const has = (field: 'medicine' | 'frequency') =>
     issues.some((i) => i.field === field)
 
   const unmatched = isUnmatched(row, meta)
@@ -153,7 +153,6 @@ export function RxRowEditor({
   // overwritten, and a swap clears the previous medicine's defaults first.
   const choose = (medicine: MedicineResponse) => onChange(applyMedicineDefaults(row, medicine))
 
-  const dosageId = rowFieldId.dosage(row.key)
   const frequencyId = rowFieldId.frequency(row.key)
   const quantityId = rowFieldId.quantity(row.key)
   const instructionsId = rowFieldId.instructions(row.key)
@@ -225,18 +224,18 @@ export function RxRowEditor({
           )}
 
           {/* Three shapes, chosen by the column this row is sitting in:
-              stacked when very narrow, then medicine over dose/frequency/days,
-              then a single dense line once there is room for all four. */}
-          {/* Dose, Frequency and Days each bottom-align their control inside
+              stacked when very narrow, then medicine over frequency/days,
+              then a single dense line once there is room for all three. */}
+          {/* Frequency and Days each bottom-align their control inside
               the row rather than top-align it. Their labels carry a provenance
               tag and the narrow Days track cannot hold "Days · Carried over"
               on one line, so on a tablet that one label wrapped and dropped
-              its input half a row below the other two — on every medicine
+              its input half a row below the other — on every medicine
               "Continue previous" brings across. Aligned from the bottom, the
-              label may be one line or two and the three fields still read as
+              label may be one line or two and the fields still read as
               one line of the prescription. */}
-          <div className="grid gap-2.5 @xs:grid-cols-2 @md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_4.5rem] @3xl:grid-cols-[minmax(0,1fr)_7rem_minmax(8rem,10rem)_4.5rem]">
-            <div className="@xs:col-span-2 @md:col-span-3 @3xl:col-span-1">
+          <div className="grid gap-2.5 @xs:grid-cols-2 @md:grid-cols-[minmax(0,1fr)_4.5rem] @3xl:grid-cols-[minmax(0,1fr)_minmax(8rem,10rem)_4.5rem]">
+            <div className="@xs:col-span-2 @md:col-span-2 @3xl:col-span-1">
               <FieldLabel
                 htmlFor={rowFieldId.medicine(row.key)}
                 hint="The drug to prescribe. Click to browse your medicines, or type to search by name, generic or brand."
@@ -270,29 +269,6 @@ export function RxRowEditor({
                   Heard “{meta.spokenName}” — matched for you. Check it.
                 </p>
               )}
-            </div>
-
-            <div className="flex flex-col justify-end">
-              <FieldLabel
-                htmlFor={dosageId}
-                provenance={row.dosage.provenance}
-                hint="How much per intake, for example 1 tab or 10 ml. Printed on the prescription."
-              >
-                Dose
-              </FieldLabel>
-              <ProvenanceField provenance={row.dosage.provenance}>
-                <Input
-                  id={dosageId}
-                  value={row.dosage.value}
-                  invalid={has('dosage') || Boolean(errors[dosageId])}
-                  // Never an example value in a blank required field.
-                  placeholder="—"
-                  maxLength={128}
-                  autoComplete="off"
-                  className={cn(TAP_TARGET, provenanceControlClass(row.dosage.provenance))}
-                  onChange={(e) => patch({ dosage: entered(e.target.value) })}
-                />
-              </ProvenanceField>
             </div>
 
             <div className="flex flex-col justify-end">

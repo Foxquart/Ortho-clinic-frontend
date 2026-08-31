@@ -38,7 +38,6 @@ export function DictationReview({ parsed }: { parsed: ParsedDictation }) {
         <Table>
           <THead>
             <TH width="30%">Medicine</TH>
-            <TH width="16%">Dose</TH>
             <TH width="16%">Timing</TH>
             <TH width="12%">Days</TH>
             <TH>Notes</TH>
@@ -90,9 +89,6 @@ function RxPreviewRow({ row }: { row: ParsedRow }) {
             “{row.sourceText}”
           </span>
         </span>
-      </TD>
-      <TD>
-        <Cell value={row.dosage} mono />
       </TD>
       <TD>
         <Cell value={row.schedule ? describeSchedule(row.schedule) : null} mono />

@@ -22,7 +22,6 @@ import type { ParsedDictation, ParsedRow } from '@/features/speech/parser'
 import { toIsoDate } from '@/lib/format'
 import {
   blank,
-  defaulted,
   formatSchedule,
   heard,
   newRow,
@@ -71,7 +70,6 @@ function parsedRow(value: unknown): ParsedRow | null {
   if (!spokenName) return null
   return {
     spokenName,
-    dosage: text(raw.dosage),
     schedule: schedule(raw.schedule),
     durationDays: count(raw.durationDays),
     food: food(raw.food),
@@ -156,82 +154,6 @@ export function takeDictationHandoff(): ParsedDictation | null {
 /*  Turning it into a draft                                                    */
 /* -------------------------------------------------------------------------- */
 
-/* -------------------------------------------------------------------------- */
-/*  Restating a dose the grid already gave us                                  */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Countable dose forms, and how to name one and several of them.
- *
- * Deliberately only the forms where a schedule slot *is* a unit count. "1-0-1"
- * of a tablet is one tablet twice a day. "1-0-1" of a syrup is one *dose*
- * twice a day, and the volume of that dose was never spoken — so syrups,
- * injections, ointments and drops are absent from this table on purpose.
- */
-const COUNTABLE_FORMS: Readonly<Record<string, { one: string; many: string }>> = {
-  tab: { one: 'tab', many: 'tabs' },
-  tabs: { one: 'tab', many: 'tabs' },
-  tablet: { one: 'tab', many: 'tabs' },
-  tablets: { one: 'tab', many: 'tabs' },
-  cap: { one: 'cap', many: 'caps' },
-  caps: { one: 'cap', many: 'caps' },
-  capsule: { one: 'cap', many: 'caps' },
-  capsules: { one: 'cap', many: 'caps' },
-  sachet: { one: 'sachet', many: 'sachets' },
-  sachets: { one: 'sachet', many: 'sachets' },
-  patch: { one: 'patch', many: 'patches' },
-  supp: { one: 'suppository', many: 'suppositories' },
-  suppository: { one: 'suppository', many: 'suppositories' },
-}
-
-/** The dose form the doctor actually said, if it was a countable one. */
-function spokenCountableForm(sourceText: string): { one: string; many: string } | null {
-  for (const word of sourceText.toLowerCase().split(/[^a-z]+/)) {
-    const form = COUNTABLE_FORMS[word]
-    if (form) return form
-  }
-  return null
-}
-
-/**
- * Restate the amount per administration that the schedule already contains.
- *
- * The parser will not turn "tab Zerodol SP one zero one" into a dose, and it
- * is right not to: inventing a dose is the failure this whole model exists to
- * prevent. But it is worth being precise about what is actually missing there.
- * The doctor said a dose *form* ("tab") and a grid whose numbers are unit
- * counts ("1-0-1" is one tablet in the morning and one at night — the parser's
- * own `scaleSchedule` treats "two tabs twice a day" as 2-0-2 for exactly this
- * reason). "1 tab" is therefore a restatement of two things the doctor said,
- * not a third thing we made up.
- *
- * So this fills the dose — as `defaulted`, never `heard`, so it wears the
- * "verify me" rail and reads as assumed — and only when it is unambiguous:
- *
- *  - a countable form was spoken (no form, no restatement);
- *  - every dosing slot carries the *same* count, so "per administration" has a
- *    single answer. A 1-0-0.5 taper does not, and stays blank.
- *
- * Anything outside that stays blank and keeps blocking the print, which is
- * where the friction belongs: on the rows that genuinely lack information.
- */
-export function dosageFromSchedule(parsed: ParsedRow): string | null {
-  if (parsed.dosage !== null || parsed.schedule === null) return null
-
-  const form = spokenCountableForm(parsed.sourceText)
-  if (!form) return null
-
-  const doses = [parsed.schedule.m, parsed.schedule.a, parsed.schedule.n].filter(
-    (v): v is number => v !== null && v > 0,
-  )
-  if (doses.length === 0) return null
-
-  const first = doses[0]
-  if (!doses.every((v) => v === first)) return null
-
-  return `${first} ${first === 1 ? form.one : form.many}`
-}
-
 /**
  * The parser still speaks `{m,a,n}`; the row now carries a frequency string.
  * A complete grid becomes its "1-0-1" form. An incomplete one is treated as
@@ -253,16 +175,10 @@ function frequencyFromParsed(parsed: ParsedRow): RxRow['frequency'] {
  * succeeds the row visibly blocks printing.
  */
 export function rowFromDictation(key: string, parsed: ParsedRow): RxRow {
-  const restated = dosageFromSchedule(parsed)
   return {
     ...newRow(key),
     medicineId: null,
     medicineName: parsed.spokenName,
-    dosage: parsed.dosage
-      ? heard(parsed.dosage)
-      : restated
-        ? defaulted(restated)
-        : blank(''),
     frequency: frequencyFromParsed(parsed),
     durationDays: parsed.durationDays !== null ? heard(parsed.durationDays) : blank(null),
     instructions: parsed.instructions ? heard(parsed.instructions) : blank(''),

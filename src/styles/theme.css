@@ -155,6 +155,18 @@
   --c-info-muted: #e6effa;
   --c-info-muted-fg: #0d4b82; /* 7.7:1 on the tint */
 
+  /* -- CHARTS: categorical series ----------------------------------------- *
+     Fixed-order categorical hues for the superadmin charts. Validated with
+     the dataviz palette checker against `--c-surface` in both modes: CVD
+     ΔE >= 8.4 on every adjacent pair, normal-vision ΔE >= 19.8. Slots 3/4 sit
+     under 3:1 against the light surface, which is why every chart that uses
+     them also carries its values as text (legend + table), never color alone.
+     Assign in order 1→4; never reuse a status hue as a series.               */
+  --c-chart-1: #2a78d6;
+  --c-chart-2: #eb6834;
+  --c-chart-3: #1baf7a;
+  --c-chart-4: #eda100;
+
   /* -- CLINICAL SAFETY: allergy / contraindication ------------------------ *
      Deliberately separate from `danger`. `danger` is UI danger — delete this,
      discard that, the request failed — and it MAY be rendered as a tint.
@@ -288,6 +300,12 @@
   --c-info-muted: #0c2129;
   --c-info-muted-fg: #63d2e8;
 
+  /* Same four hues re-stepped for the dark surface, not a separate palette. */
+  --c-chart-1: #3987e5;
+  --c-chart-2: #d95926;
+  --c-chart-3: #199e70;
+  --c-chart-4: #c98500;
+
   /* Everything else goes pastel on a dark ground. Allergy does not: it keeps a
      saturated fill and WHITE ink, because it is the one red in this app that
      still has to look like a warning light.
@@ -385,6 +403,12 @@
     --c-info-muted: #0c2129;
     --c-info-muted-fg: #63d2e8;
 
+    /* Same four hues re-stepped for the dark surface, not a separate palette. */
+    --c-chart-1: #3987e5;
+    --c-chart-2: #d95926;
+    --c-chart-3: #199e70;
+    --c-chart-4: #c98500;
+
     /* Everything else goes pastel on a dark ground. Allergy does not: it keeps a
        saturated fill and WHITE ink, because it is the one red in this app that
        still has to look like a warning light.
@@ -481,6 +505,11 @@
   --color-info-fg: var(--c-info-fg);
   --color-info-muted: var(--c-info-muted);
   --color-info-muted-fg: var(--c-info-muted-fg);
+
+  --color-chart-1: var(--c-chart-1);
+  --color-chart-2: var(--c-chart-2);
+  --color-chart-3: var(--c-chart-3);
+  --color-chart-4: var(--c-chart-4);
 
   --color-allergy: var(--c-allergy);
   --color-allergy-fg: var(--c-allergy-fg);
@@ -787,6 +816,16 @@
   padding-left: calc(var(--spacing) * 2 - 1px);
   background-color: transparent;
   color: var(--color-provenance-blank);
+  transition:
+    border-color var(--duration-fast, 150ms),
+    box-shadow var(--duration-fast, 150ms);
+
+  /* The control inside stays chromeless — the dashed box is the only border,
+     and it is the thing that responds to focus. */
+  &:focus-within {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 35%, transparent);
+  }
 }
 
 /* Any element that carries a number the user will compare, read out digit by

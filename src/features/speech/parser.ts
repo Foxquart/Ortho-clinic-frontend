@@ -52,8 +52,6 @@ import type { FoodTiming, SectionKind, SpeechToken } from './vocabulary'
 export interface ParsedRow {
   /** The drug name as heard, verbatim — original casing, never normalised. */
   spokenName: string
-  /** Amount per administration, e.g. "1 tab", "10 ml". Null if none was spoken. */
-  dosage: string | null
   /** Null when no frequency was spoken at all. Never guessed. */
   schedule: DoseSchedule | null
   durationDays: number | null
@@ -744,7 +742,6 @@ function parseMedicine(
   if (amount) claim(used, amount.start, amount.end)
 
   const unit = amount ? (amount.unit ?? (form ? (FORM_DEFAULT_UNIT[form] ?? null) : null)) : null
-  const dosage = amount ? `${amount.count}${unit ? ` ${unit}` : ''}` : null
 
   const schedule = scaleSchedule(frequency, amount, unit)
 
@@ -778,7 +775,6 @@ function parseMedicine(
   return {
     row: {
       spokenName,
-      dosage,
       schedule,
       durationDays: duration ? duration.days : null,
       food,

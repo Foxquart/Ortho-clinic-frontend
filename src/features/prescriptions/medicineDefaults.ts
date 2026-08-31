@@ -1,10 +1,10 @@
 /**
  * Filling a row from the medicine's own prescription defaults.
  *
- * A medicine record can carry `default_*` fields — the dose, frequency,
- * duration, food timing and instructions this doctor writes for it nine times
- * out of ten. Choosing that medicine fills the row so the doctor taps once and
- * verifies instead of typing five fields.
+ * A medicine record can carry `default_*` fields — the frequency, duration,
+ * food timing and instructions this doctor writes for it nine times out of
+ * ten. Choosing that medicine fills the row so the doctor taps once and
+ * verifies instead of typing several fields.
  *
  * Two rules keep this honest:
  *
@@ -65,7 +65,6 @@ export function applyMedicineDefaults(row: RxRow, medicine: MedicineResponse): R
     // is exactly the set of values the doctor has not yet made their own —
     // whether they came from these medicine defaults or from a carried-over
     // prescription — so all of it goes back to blank before drug B's arrive.
-    if (next.dosage.provenance === 'defaulted') next = { ...next, dosage: blank('') }
     if (next.frequency.provenance === 'defaulted') {
       next = {
         ...next,
@@ -90,11 +89,6 @@ export function applyMedicineDefaults(row: RxRow, medicine: MedicineResponse): R
   const record: AppliedDefaults = {
     food: carried && carried.food !== null && next.food === carried.food ? carried.food : null,
     prn: carried?.prn === true && next.prn,
-  }
-
-  const dosage = medicine.default_dosage?.trim()
-  if (next.dosage.provenance === 'blank' && dosage) {
-    next = { ...next, dosage: defaulted(dosage) }
   }
 
   const frequency = medicine.default_frequency?.trim()

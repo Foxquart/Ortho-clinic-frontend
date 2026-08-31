@@ -80,7 +80,7 @@ export function isUnmatched(row: RxRow, meta: RowMeta): boolean {
  */
 export function provenanceControlClass(provenance: Provenance): string | undefined {
   return provenance === 'blank'
-    ? 'border-transparent bg-transparent placeholder:text-provenance-blank'
+    ? 'border-transparent bg-transparent placeholder:text-provenance-blank hover:border-transparent focus:border-transparent focus:ring-0'
     : undefined
 }
 
@@ -129,7 +129,6 @@ export const FIELD_IDS = {
 
 export const rowFieldId = {
   medicine: (key: string) => `rx-med-${key}`,
-  dosage: (key: string) => `rx-dosage-${key}`,
   frequency: (key: string) => `rx-freq-${key}`,
   days: (key: string) => `rx-days-${key}`,
   quantity: (key: string) => `rx-qty-${key}`,
@@ -154,7 +153,6 @@ export function issueFieldId(issue: RowIssue): string {
     return FIELD_IDS.patient
   }
   if (issue.rowKey === 'rows') return FIELD_IDS.addMedicine
-  if (issue.field === 'dosage') return rowFieldId.dosage(issue.rowKey)
   if (issue.field === 'frequency') return rowFieldId.frequency(issue.rowKey)
   return rowFieldId.medicine(issue.rowKey)
 }
@@ -175,9 +173,6 @@ export function describeIssue(issue: RowIssue, draft: RxDraft): string {
       ? `“${label}” is not matched to the formulary`
       : `${label} — no medicine chosen`
   }
-  // "Dose not set" on its own leaves the doctor guessing at the format. Say
-  // what to type: this is the one blocker they will hit most often.
-  if (issue.field === 'dosage') return `${label} — amount per intake, e.g. “1 tab”`
   if (issue.field === 'frequency') return `${label} — how often, e.g. 1-0-1 or SOS`
   return `${label} — ${issue.message.toLowerCase()}`
 }
@@ -216,7 +211,7 @@ export function focusField(id: string): void {
 /* -------------------------------------------------------------------------- */
 
 /**
- * `ApiError.fieldErrors()` returns paths like `items.2.dosage` and
+ * `ApiError.fieldErrors()` returns paths like `items.2.frequency` and
  * `patient.phone`. Translate them into our field ids so a 422 lands on the
  * control that caused it instead of in a toast.
  */
@@ -233,17 +228,15 @@ export function mapServerFieldErrors(
       if (!row) continue
       const field = item[2]
       const id =
-        field === 'dosage'
-          ? rowFieldId.dosage(row.key)
-          : field === 'frequency'
-            ? rowFieldId.frequency(row.key)
-            : field === 'duration_days'
-              ? rowFieldId.days(row.key)
-              : field === 'quantity'
-                ? rowFieldId.quantity(row.key)
-                : field === 'instructions'
-                  ? rowFieldId.instructions(row.key)
-                  : rowFieldId.medicine(row.key)
+        field === 'frequency'
+          ? rowFieldId.frequency(row.key)
+          : field === 'duration_days'
+            ? rowFieldId.days(row.key)
+            : field === 'quantity'
+              ? rowFieldId.quantity(row.key)
+              : field === 'instructions'
+                ? rowFieldId.instructions(row.key)
+                : rowFieldId.medicine(row.key)
       out.push({ fieldId: id, message })
       continue
     }

@@ -7,7 +7,7 @@ import { Card, CardHeader } from '@/components/ui/Surface'
 import { ErrorState, Skeleton } from '@/components/ui/Feedback'
 
 /*
- * The furniture the six panels are built from.
+ * The furniture the seven panels are built from.
  *
  * The one structural rule on this screen: a panel owns its own request and its
  * own failure. Six independent aggregations over a live database will not all
@@ -153,25 +153,33 @@ export function Meter({
   value,
   max,
   detail,
+  display,
+  warnAt = 0.9,
 }: {
   label: React.ReactNode
   value: number | null
   max: number | null
   detail?: React.ReactNode
+  /** Overrides the `value / max` text — for units where the raw numbers are unreadable, e.g. bytes. */
+  display?: React.ReactNode
+  /** The ratio at which the bar turns warning-coloured. */
+  warnAt?: number
 }) {
   const usable = value != null && max != null && max > 0
   const ratio = usable ? Math.min(1, Math.max(0, value / max)) : 0
   /* 90% of a connection pool is a real operational signal — the next request
      queues. Below that this stays neutral rather than spending a status hue on
-     a number that is fine. */
-  const hot = usable && ratio >= 0.9
+     a number that is fine. (Storage lowers `warnAt` to 0.8: a quota is
+     approached slowly enough that the warning has to come while there is still
+     time to act on it.) */
+  const hot = usable && ratio >= warnAt
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-micro text-text-subtle uppercase">{label}</span>
         <span data-numeric className="text-label text-text font-medium">
-          {usable ? `${value} / ${max}` : '—'}
+          {display ?? (usable ? `${value} / ${max}` : '—')}
         </span>
       </div>
       <div aria-hidden className="bg-bg-sunken h-1.5 w-full overflow-hidden rounded-full">

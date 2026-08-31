@@ -31,14 +31,11 @@ describe('splitting chained medicines', () => {
     expect(row.schedule).toEqual({ m: 1, a: 0, n: 1 })
     expect(row.durationDays).toBe(5)
     expect(row.food).toBe('after')
-    // Nothing said how much per dose, so nothing is claimed.
-    expect(row.dosage).toBeNull()
   })
 
-  test('row two reads the form cue for its unit', () => {
+  test('row two keeps its own grid and duration', () => {
     const row = rows(CHAINED)[1]
     expect(row.spokenName).toBe('myoril')
-    expect(row.dosage).toBe('1 cap')
     expect(row.schedule).toEqual({ m: 0, a: 0, n: 1 })
     expect(row.durationDays).toBe(3)
   })
@@ -120,10 +117,10 @@ describe('a section cue does not eat the medicine after it', () => {
     expect(parsed.unparsed).toHaveLength(0)
   })
 
-  test('"two tabs" is still a dose, not a second row', () => {
+  test('"two tabs" is still an amount, not a second row', () => {
     const parsed = rows('tab calcium two tabs twice a day')
     expect(parsed).toHaveLength(1)
-    expect(parsed[0].dosage).toBe('2 tab')
+    expect(parsed[0].schedule).toEqual({ m: 2, a: 0, n: 2 })
   })
 })
 
@@ -155,7 +152,6 @@ describe('no phantom rows', () => {
     const parsed = rows('start pan forty one before breakfast for ten days')
     expect(parsed).toHaveLength(1)
     expect(parsed[0].spokenName).toBe('pan forty')
-    expect(parsed[0].dosage).toBe('1')
     expect(parsed[0].food).toBe('before')
     expect(parsed[0].durationDays).toBe(10)
   })
@@ -163,7 +159,6 @@ describe('no phantom rows', () => {
   test('as-needed alone is corroboration enough', () => {
     const parsed = rows('tab ultracet half tablet SOS maximum two a day')
     expect(parsed).toHaveLength(1)
-    expect(parsed[0].dosage).toBe('0.5 tab')
     expect(parsed[0].prn).toBe(true)
   })
 
@@ -286,13 +281,11 @@ describe('plain English frequency', () => {
 
   test('a spoken amount scales a worded grid', () => {
     const row = one('tab calcium two tabs twice a day')
-    expect(row.dosage).toBe('2 tab')
     expect(row.schedule).toEqual({ m: 2, a: 0, n: 2 })
   })
 
   test('millilitres never scale the grid', () => {
     const row = one('syrup calpol 10 ml twice daily')
-    expect(row.dosage).toBe('10 ml')
     expect(row.schedule).toEqual({ m: 1, a: 0, n: 1 })
   })
 })
@@ -305,7 +298,6 @@ describe('null is not zero', () => {
   test('no frequency spoken means no schedule at all', () => {
     const row = one('tab zerodol 1 tab for five days')
     expect(row.schedule).toBeNull()
-    expect(row.dosage).toBe('1 tab')
     expect(row.durationDays).toBe(5)
   })
 
@@ -316,7 +308,6 @@ describe('null is not zero', () => {
   test('a name on its own invents nothing', () => {
     const row = one('tab zerodol')
     expect(row.schedule).toBeNull()
-    expect(row.dosage).toBeNull()
     expect(row.durationDays).toBeNull()
     expect(row.food).toBeNull()
     expect(row.prn).toBe(false)
@@ -328,26 +319,16 @@ describe('null is not zero', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('amount', () => {
-  test('one tablet', () => {
-    expect(one('tab dolo one tablet bd').dosage).toBe('1 tab')
+  test('a spoken amount never opens a second row', () => {
+    expect(rows('tab dolo one tablet bd')).toHaveLength(1)
+    expect(rows('tab dolo two tabs at night')).toHaveLength(1)
+    expect(rows('syrup grilinctus 10 ml tds')).toHaveLength(1)
+    expect(rows('inhaler asthalin one puff bd')).toHaveLength(1)
   })
 
-  test('two tabs', () => {
-    expect(one('tab dolo two tabs at night').dosage).toBe('2 tab')
-  })
-
-  test('10 ml', () => {
-    expect(one('syrup grilinctus 10 ml tds').dosage).toBe('10 ml')
-  })
-
-  test('half tablet', () => {
+  test('half tablet scales a worded grid', () => {
     const row = one('tab dolo half tablet bd')
-    expect(row.dosage).toBe('0.5 tab')
     expect(row.schedule).toEqual({ m: 0.5, a: 0, n: 0.5 })
-  })
-
-  test('one puff', () => {
-    expect(one('inhaler asthalin one puff bd').dosage).toBe('1 puff')
   })
 
   test('a strength stays part of the name', () => {

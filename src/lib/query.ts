@@ -111,6 +111,7 @@ export const qk = {
     errors: (limit: number) => ['monitoring', 'errors', limit] as const,
     security: () => ['monitoring', 'security'] as const,
     database: () => ['monitoring', 'database'] as const,
+    storage: () => ['monitoring', 'storage'] as const,
   },
   public: {
     clinic: () => ['public', 'clinic'] as const,

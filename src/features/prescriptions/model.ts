@@ -1,9 +1,9 @@
 /**
  * The prescription row model.
  *
- * The backend does not yet store structured doses, per-field provenance, or a
- * genuinely blank dose — `dosage` and `frequency` are required free-text
- * strings with `min_length: 1`. The prototype spec requires the opposite: a
+ * The backend does not store per-field provenance or a genuinely blank
+ * field — `frequency` is a required free-text string with `min_length: 1`.
+ * The prototype spec requires the opposite: a
  * field the doctor never spoke and never filled must render blank and must
  * block printing, and nothing may invent a value on their behalf.
  *
@@ -67,8 +67,6 @@ export interface RxRow {
   key: string
   medicineId: string | null
   medicineName: string
-  /** Free-text amount per administration, e.g. "1 tab", "10 ml". */
-  dosage: FieldState<string>
   /** Free-text frequency, e.g. "1-0-1" or "before bed". Sent verbatim. */
   frequency: FieldState<string>
   durationDays: FieldState<number | null>
@@ -86,7 +84,6 @@ export function newRow(key: string): RxRow {
     key,
     medicineId: null,
     medicineName: '',
-    dosage: blank(''),
     frequency: blank(''),
     durationDays: blank(null),
     quantity: blank(null),
@@ -142,7 +139,7 @@ export function suggestQuantity(frequency: string, days: number | null): number 
 
 export interface RowIssue {
   rowKey: string
-  field: 'medicine' | 'dosage' | 'frequency'
+  field: 'medicine' | 'frequency'
   message: string
 }
 
@@ -156,9 +153,6 @@ export function rowIssues(row: RxRow): RowIssue[] {
 
   if (!row.medicineId) {
     issues.push({ rowKey: row.key, field: 'medicine', message: 'No medicine selected' })
-  }
-  if (row.dosage.provenance === 'blank' || row.dosage.value.trim() === '') {
-    issues.push({ rowKey: row.key, field: 'dosage', message: 'Dose not set' })
   }
   if (row.frequency.provenance === 'blank' || row.frequency.value.trim() === '') {
     issues.push({ rowKey: row.key, field: 'frequency', message: 'How often?' })
@@ -181,19 +175,20 @@ export function canPrint(rows: readonly RxRow[]): boolean {
 
 export interface ApiPrescriptionItem {
   medicine_id: string
-  dosage: string
   frequency: string
   duration_days?: number | null
   quantity?: number | null
   instructions?: string | null
+  food_timing?: 'before' | 'after' | 'with' | null
 }
 
 function buildInstructions(row: RxRow): string | null {
-  // PRN, max-per-day and food timing have no backend fields yet, so they are
-  // folded into free text rather than dropped.
+  // PRN and max-per-day have no backend fields yet, so they are folded into
+  // free text rather than dropped. Food timing is NOT folded in any more — it
+  // travels as the structured `food_timing` field, and the print template
+  // groups medicines under food-timing headers from it.
   const parts: string[] = []
   if (row.instructions.value.trim()) parts.push(row.instructions.value.trim())
-  if (row.food) parts.push(`${row.food} food`)
   if (row.prn) parts.push(row.maxPerDay ? `PRN, max ${row.maxPerDay}/day` : 'PRN (as needed)')
   else if (row.maxPerDay) parts.push(`max ${row.maxPerDay}/day`)
   return parts.length ? parts.join(' · ') : null
@@ -209,20 +204,17 @@ function buildInstructions(row: RxRow): string | null {
 export function toApiItem(row: RxRow): ApiPrescriptionItem {
   if (!row.medicineId) throw new Error(`Row ${row.key} has no medicine`)
 
-  const dosage = row.dosage.value.trim()
-  if (!dosage) throw new Error(`Row ${row.key} has no dose`)
-
   const frequency = row.frequency.value.trim()
   if (!frequency) throw new Error(`Row ${row.key} has no frequency`)
 
   return {
     medicine_id: row.medicineId,
-    dosage,
     // Free text on both sides; "1-0-1" is the convention this clinic uses.
     frequency,
     duration_days: row.durationDays.value,
     quantity: row.quantity.value,
     instructions: buildInstructions(row),
+    food_timing: row.food,
   }
 }
 
@@ -256,18 +248,30 @@ export function rowFromPrevious(
   item: {
     medicine_id: string
     medicine_name?: string | null
-    dosage: string
     frequency: string
     duration_days?: number | null
     quantity?: number | null
     instructions?: string | null
+    food_timing?: string | null
   },
 ): RxRow {
+  /* Prefer the structured field; fall back to sniffing the instructions text
+     only for old records written before `food_timing` existed, whose
+     instructions still say "before food" / "after food" / "with food". */
+  const food: RxRow['food'] =
+    item.food_timing === 'before' || item.food_timing === 'after' || item.food_timing === 'with'
+      ? item.food_timing
+      : /before food/i.test(item.instructions ?? '')
+        ? 'before'
+        : /after food/i.test(item.instructions ?? '')
+          ? 'after'
+          : /with food/i.test(item.instructions ?? '')
+            ? 'with'
+            : null
   return {
     key,
     medicineId: item.medicine_id,
     medicineName: item.medicine_name ?? '',
-    dosage: defaulted(item.dosage),
     // The stored string travels back verbatim — "1-0-1" and "SOS" alike.
     frequency: defaulted(item.frequency),
     durationDays: item.duration_days != null ? defaulted(item.duration_days) : blank(null),
@@ -275,13 +279,7 @@ export function rowFromPrevious(
     instructions: item.instructions ? defaulted(item.instructions) : blank(''),
     prn: /\bPRN\b/i.test(item.instructions ?? ''),
     maxPerDay: null,
-    food: /before food/i.test(item.instructions ?? '')
-      ? 'before'
-      : /after food/i.test(item.instructions ?? '')
-        ? 'after'
-        : /with food/i.test(item.instructions ?? '')
-          ? 'with'
-          : null,
+    food,
   }
 }
 
@@ -514,11 +512,11 @@ export function toPreviewRequest(draft: RxDraft): Record<string, unknown> {
     items: draft.rows.map((row) => ({
       medicine_id: row.medicineId,
       medicine_name: row.medicineName || null,
-      dosage: row.dosage.value.trim() || null,
       frequency: row.frequency.value.trim() || null,
       duration_days: row.durationDays.value,
       quantity: row.quantity.value,
       instructions: buildInstructions(row),
+      food_timing: row.food,
     })),
   }
 }

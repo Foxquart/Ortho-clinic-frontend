@@ -96,12 +96,11 @@ export function RxMedicinesView({ items }: { items: PrescriptionItemResponse[] }
                 </div>
               </div>
 
-              {/* Two columns even at 320px: these values are short ("1 tab",
-                  "1-0-1", "5 days", "10") and stacking them one per line would
+              {/* Two columns even at 320px: these values are short ("1-0-1",
+                  "5 days", "10") and stacking them one per line would
                   turn a three-drug prescription into a page of scrolling — the
                   exact thing this render exists to remove. */}
               <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 pl-5">
-                <Field label="Dose" value={item.dosage || null} />
                 <Field label="Frequency" value={item.frequency || null} mono />
                 <Field label="Duration" value={durationLabel(item.duration_days)} numeric />
                 <Field
@@ -131,7 +130,6 @@ export function RxMedicinesView({ items }: { items: PrescriptionItemResponse[] }
               #
             </TH>
             <TH>Medicine</TH>
-            <TH width="9rem">Dose</TH>
             <TH width="7.5rem">Frequency</TH>
             <TH width="6rem" align="right">
               Duration
@@ -160,7 +158,6 @@ export function RxMedicinesView({ items }: { items: PrescriptionItemResponse[] }
                       .join(' · ')}
                   </span>
                 </TD>
-                <TD className="text-label text-text pt-2.5">{item.dosage}</TD>
                 <TD className="text-label text-text pt-2.5 font-mono">{item.frequency}</TD>
                 <TD align="right" className="text-label text-text pt-2.5 whitespace-nowrap">
                   {item.duration_days == null ? (

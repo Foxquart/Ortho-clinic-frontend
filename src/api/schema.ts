@@ -718,8 +718,6 @@ export interface MedicineUpdateRequest {
 export interface PrescriptionItemCreate {
   /** Declared as a plain `string` — no `format: uuid` — but a medicine UUID in practice. */
   medicine_id: UUID;
-  /** REQUIRED. 1..128 chars. */
-  dosage: string;
   /** REQUIRED. 1..64 chars. */
   frequency: string;
   /** Integer 1..3650. */
@@ -728,16 +726,18 @@ export interface PrescriptionItemCreate {
   quantity?: number | null;
   /** max 2000 chars. */
   instructions?: string | null;
+  /** Structured food timing; the print template groups medicines by it. */
+  food_timing?: 'before' | 'after' | 'with' | null;
 }
 
 /** `PrescriptionItemResponse` — items of `PrescriptionResponse.items` / `PrescriptionDetailResponse.items`. */
 export interface PrescriptionItemResponse {
   id: UUID;
-  dosage: string;
   frequency: string;
   duration_days: number | null;
   quantity: number | null;
   instructions: string | null;
+  food_timing?: 'before' | 'after' | 'with' | null;
   sort_order: number;
   medicine: MedicineResponse;
 }
@@ -1337,7 +1337,6 @@ export interface ExtractedValue<T = unknown> {
 /** `ExtractedRow` — one medicine the model found in the dictation. */
 export interface ExtractedRow {
   spoken_name: string;
-  dosage?: ExtractedValue<string> | null;
   /**
    * `{ m, a, n }` counts. Absent means frequency was never stated — which is
    * NOT the same as every slot being zero.
@@ -1609,8 +1608,10 @@ export interface TableStat {
   table: string;
   /**
    * The planner's estimate from `pg_stat_user_tables`, not `COUNT(*)`.
-   * There is deliberately no per-table size here — `size_bytes` / `size_pretty`
-   * on `DatabaseOverviewResponse` describe the database as a whole.
+   * There is deliberately no per-table size here — sizes live on
+   * `DatabaseStorageResponse` (`GET /system/database/storage`), and
+   * `size_bytes` / `size_pretty` on `DatabaseOverviewResponse` describe the
+   * database as a whole.
    */
   estimated_rows: number;
 }
@@ -1626,4 +1627,52 @@ export interface DatabaseOverviewResponse {
   /** How far back the health history actually reaches; null when nothing has been sampled yet. */
   oldest_health_sample: DateTimeString | null;
   health_sample_rows: number;
+}
+
+/** One table's storage footprint, `DatabaseStorageResponse.tables`. All sizes are `pg_total_relation_size` and its parts, in bytes. */
+export interface TableStorage {
+  name: string;
+  /** table + indexes + TOAST. */
+  total_bytes: number;
+  table_bytes: number;
+  index_bytes: number;
+  toast_bytes: number;
+  /** `pg_stat_user_tables.n_live_tup` — the planner's estimate, not `COUNT(*)`. */
+  live_rows: number;
+  /** Rows deleted or updated but not yet vacuumed away. They still occupy the bytes above. */
+  dead_rows: number;
+  /** 0..100 — this is a percentage, unlike the 0..1 rates elsewhere in this file. */
+  percent_of_database: number;
+}
+
+/** Where the database's bytes actually are. Each `*_percent` is of the database size, 0..100. */
+export interface StorageBreakdown {
+  tables_bytes: number;
+  indexes_bytes: number;
+  toast_bytes: number;
+  /** Everything `pg_class` cannot attribute to a user table — catalogs, WAL bookkeeping, free space maps. */
+  other_bytes: number;
+  tables_percent: number;
+  indexes_percent: number;
+  toast_percent: number;
+  other_percent: number;
+}
+
+/** `DatabaseStorageResponse` — `GET /system/database/storage`. Used vs the configured quota, plus the per-table sizes `TableStat` deliberately omits. */
+export interface DatabaseStorageResponse {
+  database_size_bytes: number;
+  database_size_pretty: string;
+  /**
+   * The configured quota, not a live figure from the provider — Neon's real
+   * limit is not queryable over SQL, so the server reports the ceiling it was
+   * told about.
+   */
+  storage_limit_bytes: number;
+  /** `max(limit - used, 0)` — never negative, even over quota. */
+  remaining_bytes: number;
+  /** 0..100-and-beyond: it EXCEEDS 100 when the database is over its quota. */
+  percent_used: number;
+  breakdown: StorageBreakdown;
+  /** Sorted by `total_bytes` descending. */
+  tables: TableStorage[];
 }

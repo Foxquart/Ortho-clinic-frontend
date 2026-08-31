@@ -10,6 +10,7 @@ import { ErrorsPanel } from './ErrorsPanel'
 import { MetricsPanel } from './MetricsPanel'
 import { SecurityPanel } from './SecurityPanel'
 import { StatusPanel } from './StatusPanel'
+import { StoragePanel } from './StoragePanel'
 import { UptimePanel } from './UptimePanel'
 import { WINDOW_LABEL } from './systemFormat'
 import {
@@ -23,19 +24,19 @@ import type { MonitoringWindow } from '@/api/schema'
 /*
  * THE SUPERADMIN SYSTEM DASHBOARD
  * ===============================
- * One screen, six panels, one reader: the vendor's operator, who opened this
+ * One screen, seven panels, one reader: the vendor's operator, who opened this
  * because something is either wrong or about to be. Nothing on it is for the
  * clinic — `/system/*` 403s for every other account, and the error feed below
  * carries internal exception text for exactly that reason.
  *
  * This is the one screen in the app where density beats calm. The dashboard the
  * surgeon uses answers three questions and stops; this one is a console, and an
- * operator scanning for an anomaly would rather have six panels in one viewport
+ * operator scanning for an anomaly would rather have seven panels in one viewport
  * than four clicks between them.
  *
  * POLLING
  * -------
- * Only `/system/status` polls, every 15 seconds. The other five are
+ * Only `/system/status` polls, every 15 seconds. The other six are
  * aggregations over a window — running them on a timer would cost the database
  * more than the clinic does. They load on view and refresh from the one control
  * in the header. There is no websocket in this deployment.
@@ -43,9 +44,9 @@ import type { MonitoringWindow } from '@/api/schema'
  * THE WINDOW
  * ----------
  * `1h | 24h | 7d | 30d`, default `24h`, and it drives exactly two panels:
- * uptime and metrics. Status, errors, security and database have no window
- * parameter, so the selector sits with the two panels it governs rather than in
- * the page header, where it would appear to control all six.
+ * uptime and metrics. Status, errors, security, database and storage have no
+ * window parameter, so the selector sits with the two panels it governs rather
+ * than in the page header, where it would appear to control all seven.
  */
 
 export function SystemDashboardScreen() {
@@ -110,13 +111,16 @@ export function SystemDashboardScreen() {
 
       <ErrorsPanel />
 
-      {/* The two reference panels. Neither is time-windowed and neither is what
-          somebody opens this screen in a hurry for, so they sit last and share
-          a row. */}
+      {/* The reference panels. None of them is time-windowed and none is what
+          somebody opens this screen in a hurry for, so they sit last: security
+          and the database overview share a row, and storage takes a full one
+          because its five-column table needs the width. */}
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2">
         <SecurityPanel />
         <DatabasePanel />
       </div>
+
+      <StoragePanel />
     </div>
   )
 }

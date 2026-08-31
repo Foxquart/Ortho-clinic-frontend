@@ -83,6 +83,16 @@ export function formatCount(value: number | null | undefined, fallback = '—'):
   return value.toLocaleString()
 }
 
+/**
+ * A 0..100 percentage as the storage endpoint reports them — NOT the 0..1
+ * rates `formatRate` takes. One decimal, and no clamp at the top: a database
+ * over its quota honestly reads "104.2%".
+ */
+export function formatPercent(pct: number | null | undefined, fallback = '—'): string {
+  if (pct == null || !Number.isFinite(pct)) return fallback
+  return `${Number(pct.toFixed(1))}%`
+}
+
 /** Binary units, because that is what `pg_database_size` is measured in. */
 export function formatBytes(bytes: number | null | undefined, fallback = '—'): string {
   if (bytes == null || !Number.isFinite(bytes)) return fallback

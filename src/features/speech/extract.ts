@@ -82,7 +82,6 @@ export function toParsedDictation(response: ExtractionResponse): ParsedDictation
     .filter((row) => typeof row.spoken_name === 'string' && row.spoken_name.trim().length > 0)
     .map((row) => ({
       spokenName: row.spoken_name.trim(),
-      dosage: text(row.dosage),
       schedule: schedule(row.schedule),
       durationDays: days(row.duration_days),
       food: food(row.food),

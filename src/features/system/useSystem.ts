@@ -5,6 +5,7 @@ import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
 import type {
   DatabaseOverviewResponse,
+  DatabaseStorageResponse,
   ErrorEventResponse,
   MetricsResponse,
   MonitoringWindow,
@@ -14,10 +15,10 @@ import type {
 } from '@/api/schema'
 
 /*
- * The six monitoring reads.
+ * The seven monitoring reads.
  *
  * Only `/system/status` polls. It is the "is it up right now" strip and it is
- * cheap; the other five are aggregations over a window and re-running them
+ * cheap; the other six are aggregations over a window and re-running them
  * every fifteen seconds would put more load on the database than the clinic
  * does. They refresh on view and on the explicit control in the page header.
  * There is no websocket in this deployment — do not add one here.
@@ -77,10 +78,17 @@ export function useSystemDatabase() {
   })
 }
 
+export function useSystemStorage() {
+  return useQuery({
+    queryKey: qk.monitoring.storage(),
+    queryFn: () => apiGet<DatabaseStorageResponse>(endpoints.monitoring.storage),
+  })
+}
+
 /**
  * The manual refresh. It invalidates the monitoring root rather than calling
- * six `refetch()`es, so a panel that is currently in its error state is
- * retried by the same control as the five that are fine — and so a window the
+ * seven `refetch()`es, so a panel that is currently in its error state is
+ * retried by the same control as the six that are fine — and so a window the
  * operator switched away from is not silently left stale in the cache.
  */
 export function useMonitoringRefresh(): { refresh: () => void; isRefreshing: boolean } {

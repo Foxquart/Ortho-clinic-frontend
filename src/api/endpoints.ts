@@ -265,7 +265,7 @@ export const endpoints = {
      * `prescription_number` renders as `DRAFT`.
      *
      * Unlike `create`, the request has no minimums — `items` defaults to `[]`
-     * and `dosage`/`frequency` are optional — because a draft is incomplete by
+     * and `frequency` is optional — because a draft is incomplete by
      * definition and the preview matters most when the pad is half filled.
      */
     preview: '/prescriptions/preview',
@@ -447,6 +447,8 @@ export const endpoints = {
     security: '/system/security',
     /** GET -> `DatabaseOverviewResponse` — size, connections, table sizes. [superadmin] */
     database: '/system/database',
+    /** GET -> `DatabaseStorageResponse` — used vs the configured quota, the tables/indexes/TOAST breakdown and per-table sizes. [superadmin] */
+    storage: '/system/database/storage',
   },
 
   /** Tag `system`. Unauthenticated. */

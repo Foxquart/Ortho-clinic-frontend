@@ -293,11 +293,11 @@ export function PrescriptionPadScreen() {
       rowFromPrevious(nextRowKey(), {
         medicine_id: item.medicine.id,
         medicine_name: item.medicine.name,
-        dosage: item.dosage,
         frequency: item.frequency,
         duration_days: item.duration_days,
         quantity: item.quantity,
         instructions: item.instructions,
+        food_timing: item.food_timing,
       }),
     )
     if (carried.length === 0) {
