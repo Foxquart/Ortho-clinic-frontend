@@ -57,11 +57,7 @@ const schema = z.object({
     .min(1, 'Enter the medicine name')
     .max(128, 'Keep the name to 128 characters or fewer'),
   generic_name: z.string().trim().max(128, 'Keep this to 128 characters or fewer'),
-  brand_name: z
-    .string()
-    .trim()
-    .min(1, 'Enter the brand name')
-    .max(128, 'Keep this to 128 characters or fewer'),
+  brand_name: z.string().trim().max(128, 'Keep this to 128 characters or fewer'),
   dosage_form: z.enum(MEDICINE_DOSAGE_FORMS),
   strength: z.string().trim().max(32, 'Keep the strength to 32 characters or fewer'),
   category: z.string().trim().max(64, 'Keep the category to 64 characters or fewer'),
@@ -381,7 +377,6 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
             label="Brand name"
             hint="What you actually write on the prescription."
             error={errors.brand_name?.message}
-            required
           >
             {(a) => (
               <Input {...a} {...register('brand_name')} autoComplete="off" placeholder="Crocin" />
