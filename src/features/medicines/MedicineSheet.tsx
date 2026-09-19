@@ -377,6 +377,7 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
             label="Brand name"
             hint="What you actually write on the prescription."
             error={errors.brand_name?.message}
+            optionalLabel
           >
             {(a) => (
               <Input {...a} {...register('brand_name')} autoComplete="off" placeholder="Crocin" />
