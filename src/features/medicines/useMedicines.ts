@@ -234,32 +234,91 @@ function useInvalidateMedicines() {
   }
 }
 
+/* The refetch after a write takes seconds on a slow link, and until it lands
+   the table shows the old rows. So the saved record is written straight into
+   every cached list first; the invalidation that follows then reconciles
+   against the server. Lists are sorted by name ascending, as the API does. */
+const byName = (a: MedicineResponse, b: MedicineResponse) =>
+  a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+
+function useWriteMedicineIntoCache() {
+  const queryClient = useQueryClient()
+  return (saved: MedicineResponse, created: boolean) => {
+    const replace = (items: MedicineResponse[]) =>
+      items.map((m) => (m.id === saved.id ? saved : m))
+
+    queryClient.setQueriesData<Paginated<MedicineResponse> | Catalogue>(
+      { queryKey: ['medicines', 'list'] },
+      (old) => {
+        if (!old) return old
+        if (!('total' in old)) {
+          const items = created ? [...old.items, saved].sort(byName) : replace(old.items)
+          return { ...old, items }
+        }
+        if (!created) return { ...old, items: replace(old.items) }
+        // A new row belongs on this page if it sorts inside it, or after its
+        // last row when this is the final page.
+        const last = old.items[old.items.length - 1]
+        const first = old.items[0]
+        const isLastPage = old.page >= old.pages
+        const fits =
+          (!first || byName(saved, first) >= 0 || old.page === 1) &&
+          (!last || byName(saved, last) <= 0 || isLastPage)
+        const items = fits
+          ? [...old.items, saved].sort(byName).slice(0, old.page_size)
+          : old.items
+        return { ...old, items, total: old.total + 1 }
+      },
+    )
+
+    if (!created) {
+      queryClient.setQueriesData<MedicineResponse[]>(
+        { queryKey: ['medicines', 'search'] },
+        (old) => old && replace(old),
+      )
+      queryClient.setQueryData(qk.medicines.detail(saved.id), saved)
+    }
+  }
+}
+
 export function useCreateMedicine() {
   const invalidate = useInvalidateMedicines()
+  const writeIntoCache = useWriteMedicineIntoCache()
   return useMutation({
     mutationFn: (body: MedicineCreateRequest) =>
       apiPost<MedicineResponse>(endpoints.medicines.create, body),
-    onSuccess: invalidate,
+    onSuccess: (saved) => {
+      writeIntoCache(saved, true)
+      invalidate()
+    },
   })
 }
 
 export function useUpdateMedicine() {
   const invalidate = useInvalidateMedicines()
+  const writeIntoCache = useWriteMedicineIntoCache()
   return useMutation({
     mutationFn: ({ id, body }: { id: UUID; body: MedicineUpdateRequest }) =>
       apiPatch<MedicineResponse>(endpoints.medicines.byId(id), body),
-    onSuccess: invalidate,
+    onSuccess: (saved) => {
+      writeIntoCache(saved, false)
+      invalidate()
+    },
   })
 }
 
 /** Soft delete and its undo — there is no hard delete for a medicine. */
 export function useSetMedicineActive() {
   const invalidate = useInvalidateMedicines()
+  const writeIntoCache = useWriteMedicineIntoCache()
   return useMutation({
     mutationFn: ({ id, active }: { id: UUID; active: boolean; name: string }) =>
       apiPost<MedicineResponse>(
         active ? endpoints.medicines.reactivate(id) : endpoints.medicines.deactivate(id),
       ),
-    onSuccess: invalidate,
+    onSuccess: (saved) => {
+      writeIntoCache(saved, false)
+      invalidate()
+    },
   })
 }
