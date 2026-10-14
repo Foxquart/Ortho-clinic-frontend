@@ -3,6 +3,7 @@ import {
   FileText,
   Globe,
   LayoutDashboard,
+  LayoutTemplate,
   ListChecks,
   Mic,
   Pill,
@@ -44,6 +45,7 @@ import type { Permission } from '@/lib/permissions'
  * | `g p` | Patients                                                  |
  * | `g m` | Medicines                                                 |
  * | `g l` | Advice library                                            |
+ * | `g e` | Templates                                                 |
  * | `g s` | Settings                                                  |
  * | `g d` | Dashboard (demoted)                                       |
  * | `g a` | Appointments (demoted)                                    |
@@ -126,6 +128,14 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     goKey: 'l',
     requires: 'advice.write',
     hint: 'Saved instructions to append to a prescription',
+  },
+  {
+    to: '/templates',
+    label: 'Templates',
+    icon: LayoutTemplate,
+    goKey: 'e',
+    requires: 'prescription.write',
+    hint: 'Saved prescriptions the pad can fill in',
   },
 ] as const
 

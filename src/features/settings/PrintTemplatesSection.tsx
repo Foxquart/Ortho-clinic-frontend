@@ -12,7 +12,7 @@ import { Card, CardHeader } from '@/components/ui/Surface'
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/Feedback'
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/Menu'
 import { TemplateEditorSheet } from './TemplateEditorSheet'
-import type { PrescriptionTemplateResponse, PrescriptionTemplateUpdate } from '@/api/schema'
+import type { PrintTemplateResponse, PrintTemplateUpdate } from '@/api/schema'
 
 function htmlSummary(html: string | null): string {
   if (!html || html.trim() === '') return 'empty'
@@ -22,17 +22,17 @@ function htmlSummary(html: string | null): string {
 
 export function PrintTemplatesSection({ canWrite }: { canWrite: boolean }) {
   const queryClient = useQueryClient()
-  const [editing, setEditing] = useState<PrescriptionTemplateResponse | null>(null)
+  const [editing, setEditing] = useState<PrintTemplateResponse | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
   const templates = useQuery({
     queryKey: qk.clinic.templates(),
-    queryFn: () => apiGet<PrescriptionTemplateResponse[]>(endpoints.clinic.templates),
+    queryFn: () => apiGet<PrintTemplateResponse[]>(endpoints.clinic.templates),
   })
 
   const patch = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: PrescriptionTemplateUpdate }) =>
-      apiPatch<PrescriptionTemplateResponse>(endpoints.clinic.templateById(id), body),
+    mutationFn: ({ id, body }: { id: string; body: PrintTemplateUpdate }) =>
+      apiPatch<PrintTemplateResponse>(endpoints.clinic.templateById(id), body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.clinic.templates() })
     },
@@ -43,7 +43,7 @@ export function PrintTemplatesSection({ canWrite }: { canWrite: boolean }) {
     setEditing(null)
     setSheetOpen(true)
   }
-  const openEdit = (template: PrescriptionTemplateResponse) => {
+  const openEdit = (template: PrintTemplateResponse) => {
     setEditing(template)
     setSheetOpen(true)
   }

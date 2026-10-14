@@ -40,19 +40,20 @@ import type {
   AppointmentStatus,
   DateString,
   MonitoringWindow,
+  PrescriptionStatus,
   SortOrder,
   UUID,
-} from './schema';
+} from './schema'
 
 /* -------------------------------------------------------------------------- */
 /* Base                                                                       */
 /* -------------------------------------------------------------------------- */
 
 /** The versioned API prefix. Paths in `endpoints` do NOT include it. */
-export const API_BASE = '/api/v1';
+export const API_BASE = '/api/v1'
 
 /** Header name for the double-submit CSRF token required on every write. */
-export const CSRF_HEADER = 'X-CSRF-Token';
+export const CSRF_HEADER = 'X-CSRF-Token'
 
 /* -------------------------------------------------------------------------- */
 /* Query parameter types                                                      */
@@ -69,20 +70,29 @@ export const CSRF_HEADER = 'X-CSRF-Token';
  * - `sort_order`: string matching `^(asc|desc)$`, default `"desc"`
  */
 export interface PaginationParams {
-  page?: number;
-  page_size?: number;
-  sort_by?: string | null;
-  sort_order?: SortOrder;
+  page?: number
+  page_size?: number
+  sort_by?: string | null
+  sort_order?: SortOrder
 }
 
-/** `GET /patients` — pagination only, no `q`/`is_active`/`city` filter. */
-export type ListPatientsParams = PaginationParams;
+/**
+ * `GET /patients` — pagination plus:
+ * - `sort_by` also accepts `last_visit` (desc = newest visit first, never-seen always last)
+ * - `visited_from` / `visited_to`: inclusive clinic-local dates, only patients with a prescription in range (from > to -> 400)
+ * - `q` (1..100): name (first/last/full) or phone contains — the paginated twin of `GET /patients/search`
+ */
+export interface ListPatientsParams extends PaginationParams {
+  visited_from?: DateString | null
+  visited_to?: DateString | null
+  q?: string | null
+}
 
 /** `GET /medicines` — pagination only, no `is_active`/`category`/`dosage_form` filter. */
-export type ListMedicinesParams = PaginationParams;
+export type ListMedicinesParams = PaginationParams
 
 /** `GET /users` — pagination only, no `role`/`is_active` filter. */
-export type ListUsersParams = PaginationParams;
+export type ListUsersParams = PaginationParams
 
 /**
  * The shared shape of `GET /patients/search` and `GET /medicines/search`.
@@ -92,53 +102,59 @@ export type ListUsersParams = PaginationParams;
  * - `limit`: integer 1..100, default 20
  */
 export interface SearchParams {
-  q: string;
-  limit?: number;
+  q: string
+  limit?: number
 }
 
 /** `GET /patients/search` — `q` is required (1..100 chars, matches name or phone). */
-export type SearchPatientsParams = SearchParams;
+export type SearchPatientsParams = SearchParams
 
 /** `GET /medicines/search` — `q` is required (1..100 chars, medicine name prefix). */
-export type SearchMedicinesParams = SearchParams;
+export type SearchMedicinesParams = SearchParams
 
 /**
  * `GET /appointments` — the only list with real filters, and it takes all four
  * pagination params too.
  */
 export interface ListAppointmentsParams extends PaginationParams {
-  status?: AppointmentStatus | null;
-  from_date?: DateString | null;
-  to_date?: DateString | null;
-  patient_id?: UUID | null;
+  status?: AppointmentStatus | null
+  from_date?: DateString | null
+  to_date?: DateString | null
+  patient_id?: UUID | null
 }
 
-/** `GET /prescriptions` — one filter plus all four pagination params. */
+/** `GET /prescriptions` — filters plus all four pagination params. Default order is `created_at desc`. */
 export interface ListPrescriptionsParams extends PaginationParams {
-  patient_id?: UUID | null;
+  patient_id?: UUID | null
+  /** 1..100. Patient name (contains), phone (contains, digits only), Rx number (prefix). */
+  q?: string | null
+  /** Inclusive, by the prescription's clinic-local created date. Either may be sent alone; from > to is a 400. */
+  date_from?: DateString | null
+  date_to?: DateString | null
+  status?: PrescriptionStatus | null
 }
 
 /** `GET /audit-logs` — two filters plus all four pagination params. There is no `action` or date-range filter. */
 export interface ListAuditLogsParams extends PaginationParams {
-  user_id?: UUID | null;
+  user_id?: UUID | null
   /** max 64 chars. Free-form entity name; the schema enumerates no values. */
-  entity_type?: string | null;
+  entity_type?: string | null
 }
 
 /** `GET /appointments/slots` — `date` is REQUIRED. */
 export interface AvailableSlotsParams {
-  date: DateString;
+  date: DateString
 }
 
 /** `GET /public/slots` — `date` is REQUIRED. Same shape as the staff variant, minus the param description. */
-export type PublicSlotsParams = AvailableSlotsParams;
+export type PublicSlotsParams = AvailableSlotsParams
 
 /** `POST /speech/transcribe` — optional per-request overrides, sent as QUERY params (the audio itself is the multipart body). */
 export interface TranscribeParams {
   /** Override the configured language for this request, e.g. `"en-IN"`. */
-  language_code?: string | null;
+  language_code?: string | null
   /** Detect among the configured language options instead of pinning one. */
-  identify_multiple_languages?: boolean | null;
+  identify_multiple_languages?: boolean | null
 }
 
 /**
@@ -146,12 +162,12 @@ export interface TranscribeParams {
  * rolling window each aggregate is computed over. Omitting it means `"24h"`.
  */
 export interface MonitoringWindowParams {
-  window?: MonitoringWindow;
+  window?: MonitoringWindow
 }
 
 /** `GET /system/errors` — how many of the most recent 5xx events to return. 1..200, default 50. */
 export interface SystemErrorsParams extends MonitoringWindowParams {
-  limit?: number;
+  limit?: number
 }
 
 /**
@@ -169,7 +185,7 @@ export const NO_QUERY_PARAM_LISTS = [
   '/clinic/templates',
   '/public/portfolio',
   '/public/availability',
-] as const;
+] as const
 
 /* -------------------------------------------------------------------------- */
 /* Route table                                                                */
@@ -232,6 +248,8 @@ export const endpoints = {
   prescriptions: {
     /** GET (`ListPrescriptionsParams`) -> `Paginated<PrescriptionResponse>` · POST (`PrescriptionCreateRequest`) -> 201 `PrescriptionDetailResponse` [WRITE: needs CSRF] */
     list: '/prescriptions',
+    /** GET -> `PrescriptionStatsToday` (`{ today, this_week }`). Declared before `/{id}` on the server. */
+    statsToday: '/prescriptions/stats/today',
     /** POST — same path as `list`. Auto-creates the patient/visit and completes any linked appointment. [WRITE: needs CSRF] */
     create: '/prescriptions',
     /** GET -> `PrescriptionDetailResponse`. */
@@ -295,9 +313,9 @@ export const endpoints = {
     settings: '/clinic/settings',
     /** GET -> `DoctorProfileResponse` · PATCH (`DoctorProfileUpdate`) -> `DoctorProfileResponse` [WRITE: needs CSRF] */
     doctorProfile: '/clinic/doctor-profile',
-    /** GET — no query params -> `PrescriptionTemplateResponse[]` · POST (`PrescriptionTemplateCreate`) -> 201 `PrescriptionTemplateResponse` [WRITE: needs CSRF] */
+    /** GET — no query params -> `PrintTemplateResponse[]` · POST (`PrintTemplateCreate`) -> 201 `PrintTemplateResponse` [WRITE: needs CSRF] */
     templates: '/clinic/templates',
-    /** GET -> `PrescriptionTemplateResponse` · PATCH (`PrescriptionTemplateUpdate`) -> `PrescriptionTemplateResponse`. No DELETE — deactivate via `is_active: false`. [WRITE: needs CSRF] */
+    /** GET -> `PrintTemplateResponse` · PATCH (`PrintTemplateUpdate`) -> `PrintTemplateResponse`. No DELETE — deactivate via `is_active: false`. [WRITE: needs CSRF] */
     templateById: (id: UUID) => `/clinic/templates/${id}`,
   },
 
@@ -379,6 +397,25 @@ export const endpoints = {
     byId: (id: UUID) => `/advice-presets/${id}`,
   },
 
+  /**
+   * Tag `prescription-templates` — the signed-in doctor's own named templates
+   * (never shared; another user's id is a 404). Duplicate name -> 409.
+   */
+  prescriptionTemplates: {
+    /** GET -> `PrescriptionTemplateResponse[]`, ordered by name, no pagination. */
+    list: '/prescription-templates',
+    /** POST `PrescriptionTemplateCreate` -> 201 `PrescriptionTemplateResponse`. [WRITE: needs CSRF] */
+    create: '/prescription-templates',
+    /** GET -> `PrescriptionTemplateResponse` · PATCH `PrescriptionTemplateUpdate` -> same · DELETE -> 204 no body. [WRITE: needs CSRF] */
+    byId: (id: UUID) => `/prescription-templates/${id}`,
+  },
+
+  /**
+   * The signed-in doctor's pad layout (section order, labels, visibility, custom sections).
+   * GET -> the saved layout, or the default when none is saved · PUT `{ sections }` -> the validated, normalised layout. [PUT: needs CSRF]
+   */
+  prescriptionLayout: '/prescription-layout',
+
   /** Tag `speech`. Requires a session — `GET /speech/config` returns 401 when signed out. */
   speech: {
     /** GET -> `SpeechConfigResponse`. Read `websocket_path` from the response for streaming; it is not a REST path in the document. */
@@ -456,9 +493,9 @@ export const endpoints = {
     /** GET -> `HealthResponse`: `{ status: 'ok' | 'degraded' }` and nothing else (503 when degraded). `app` / `version` / `environment` / `database` moved to `monitoring.status`, behind the superadmin gate. */
     health: '/health',
   },
-} as const;
+} as const
 
 /** Standalone alias for the `public-website` group, for destructuring where `public` is awkward as a binding name. */
-export const publicEndpoints = endpoints.public;
+export const publicEndpoints = endpoints.public
 
-export default endpoints;
+export default endpoints

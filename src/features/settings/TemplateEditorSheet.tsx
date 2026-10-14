@@ -16,9 +16,9 @@ import { Field, Input, Textarea } from '@/components/ui/Input'
 import { Switch } from '@/components/ui/Controls'
 import { optionalText, reportMutationError, requiredText, textValue } from './formUtils'
 import type {
-  PrescriptionTemplateCreate,
-  PrescriptionTemplateResponse,
-  PrescriptionTemplateUpdate,
+  PrintTemplateCreate,
+  PrintTemplateResponse,
+  PrintTemplateUpdate,
 } from '@/api/schema'
 
 const schema = z.object({
@@ -83,7 +83,7 @@ export function TemplateEditorSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
   /** `null` opens the sheet in create mode. */
-  template: PrescriptionTemplateResponse | null
+  template: PrintTemplateResponse | null
 }) {
   const queryClient = useQueryClient()
   const isEdit = template !== null
@@ -125,14 +125,14 @@ export function TemplateEditorSheet({
         is_default: v.is_default,
       }
       if (template) {
-        const body: PrescriptionTemplateUpdate = { ...shared, is_active: v.is_active }
-        return apiPatch<PrescriptionTemplateResponse>(
+        const body: PrintTemplateUpdate = { ...shared, is_active: v.is_active }
+        return apiPatch<PrintTemplateResponse>(
           endpoints.clinic.templateById(template.id),
           body,
         )
       }
-      const body: PrescriptionTemplateCreate = shared
-      return apiPost<PrescriptionTemplateResponse>(endpoints.clinic.templates, body)
+      const body: PrintTemplateCreate = shared
+      return apiPost<PrintTemplateResponse>(endpoints.clinic.templates, body)
     },
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: qk.clinic.templates() })

@@ -72,6 +72,9 @@ const AdviceLibraryScreen = lazy(() =>
     default: m.AdviceLibraryScreen,
   })),
 )
+const TemplatesScreen = lazy(() =>
+  import('@/features/templates/TemplatesScreen').then((m) => ({ default: m.TemplatesScreen })),
+)
 const SiteCmsScreen = lazy(() =>
   import('@/features/portfolio/SiteCmsScreen').then((m) => ({ default: m.SiteCmsScreen })),
 )
@@ -201,6 +204,12 @@ const appRoutes = {
                      own. */
                   element: <RequireCapability capability="advice.write" />,
                   children: [{ path: 'advice', element: <AdviceLibraryScreen /> }],
+                },
+                {
+                  /* A template is written from the pad's fields, so it is
+                     gated by the same grant as the pad itself. */
+                  element: <RequireCapability capability="prescription.write" />,
+                  children: [{ path: 'templates', element: <TemplatesScreen /> }],
                 },
                 {
                   element: <RequireCapability capability="speech.use" />,

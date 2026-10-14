@@ -12,6 +12,14 @@
  * is the single function that changes.
  */
 
+import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
+import type {
+  PrescriptionTemplateCreate,
+  PrescriptionTemplateResponse,
+  RxExtraField,
+} from '@/api/schema'
+import type { PadLayout, PadLayoutSection } from './layout/usePadLayout'
+
 /**
  * Morning / afternoon / night. Halves are legal: 0.5 means half a unit.
  *
@@ -235,7 +243,11 @@ export function parseSchedule(frequency: string): DoseSchedule | null {
   })
 
   if (parsed.some((p) => p === undefined)) return null
-  return { m: parsed[0] as number | null, a: parsed[1] as number | null, n: parsed[2] as number | null }
+  return {
+    m: parsed[0] as number | null,
+    a: parsed[1] as number | null,
+    n: parsed[2] as number | null,
+  }
 }
 
 /**
@@ -363,7 +375,16 @@ export interface RxDraft {
   vitalsPulse: FieldState<string>
   vitalsWeight: FieldState<string>
   diagnosis: FieldState<string>
+  /** Sent as `examination_findings` — what the doctor found on examining the patient. */
+  examinationFindings: FieldState<string>
   chiefComplaint: FieldState<string>
+  /**
+   * The doctor's own pad sections, one entry per `custom:<slug>` section that
+   * has been touched. `label` is a snapshot of the layout label at the time
+   * (see {@link withLayoutLabels}); it travels with the value so the printed
+   * page never depends on the layout still existing.
+   */
+  extraFields: ExtraFieldDraft[]
   rows: RxRow[]
   advice: FieldState<string>
   /** Sent as `investigations` — a real column since 2026-08-25. */
@@ -377,6 +398,104 @@ export interface RxDraft {
   followUpDate: FieldState<string>
 }
 
+export interface ExtraFieldDraft {
+  /** `custom:<slug>` */
+  key: string
+  label: string
+  value: FieldState<string>
+}
+
+/** The pad's value for a custom section, blank when it was never touched. */
+export function extraValue(draft: RxDraft, key: string): FieldState<string> {
+  return draft.extraFields.find((f) => f.key === key)?.value ?? blank('')
+}
+
+/** Set one custom section's value, replacing any earlier entry for the same key. */
+export function setExtraField(
+  draft: RxDraft,
+  key: string,
+  label: string,
+  value: FieldState<string>,
+): RxDraft {
+  const next: ExtraFieldDraft = { key, label, value }
+  const exists = draft.extraFields.some((f) => f.key === key)
+  return {
+    ...draft,
+    extraFields: exists
+      ? draft.extraFields.map((f) => (f.key === key ? next : f))
+      : [...draft.extraFields, next],
+  }
+}
+
+/**
+ * Re-stamp each custom value with the layout's current label for its key. A
+ * value that came from an old template or prescription still carries the
+ * label it was written under; the doctor has since seen (and may have
+ * renamed) the section, so what he sees is what gets sent. Keys the layout no
+ * longer has keep their snapshot label — nothing is dropped.
+ */
+export function withLayoutLabels(draft: RxDraft, layout: PadLayout): RxDraft {
+  if (draft.extraFields.length === 0) return draft
+  const labels = new Map(layout.sections.map((s) => [s.key, s.label]))
+  return {
+    ...draft,
+    extraFields: draft.extraFields.map((f) => ({ ...f, label: labels.get(f.key) ?? f.label })),
+  }
+}
+
+/** Built-in layout section key -> the draft field that holds its text. */
+export type SectionField =
+  | 'chiefComplaint'
+  | 'diagnosis'
+  | 'examinationFindings'
+  | 'investigations'
+  | 'procedure'
+  | 'consult'
+  | 'advice'
+  | 'notes'
+  | 'followUpDate'
+
+export const SECTION_FIELD: Readonly<Record<string, SectionField | undefined>> = {
+  chief_complaint: 'chiefComplaint',
+  diagnosis: 'diagnosis',
+  examination_findings: 'examinationFindings',
+  investigations: 'investigations',
+  procedure: 'procedure',
+  consult: 'consult',
+  advice: 'advice',
+  notes: 'notes',
+  follow_up: 'followUpDate',
+}
+
+/**
+ * The sections the pad renders, in layout order: the visible ones, plus any
+ * hidden one that has content (a template, a repeat or an allergy override
+ * wrote into it — what will print must be on screen), plus custom values whose
+ * section the layout does not have (a snapshot from a template or an old
+ * prescription), at the end under the label they were written with.
+ */
+export function shownSections(draft: RxDraft, layout: PadLayout): PadLayoutSection[] {
+  const filled = (key: string): boolean => {
+    const field = SECTION_FIELD[key]
+    return (field ? draft[field] : extraValue(draft, key)).value.trim() !== ''
+  }
+  const inLayout = new Set(layout.sections.map((s) => s.key))
+  return [
+    ...layout.sections.filter((s) => s.visible || filled(s.key)),
+    ...draft.extraFields
+      .filter((f) => !inLayout.has(f.key))
+      .map((f) => ({ key: f.key, label: f.label, visible: true })),
+  ]
+}
+
+/** Wire shape of the custom sections: empty values are not sent. */
+function extraPayload(fields: readonly ExtraFieldDraft[]): RxExtraField[] {
+  return fields.flatMap((f) => {
+    const value = f.value.value.trim()
+    return value ? [{ key: f.key, label: f.label.trim().slice(0, 64), value }] : []
+  })
+}
+
 export function newDraft(): RxDraft {
   return {
     patient: { ...EMPTY_PATIENT },
@@ -385,7 +504,9 @@ export function newDraft(): RxDraft {
     vitalsPulse: blank(''),
     vitalsWeight: blank(''),
     diagnosis: blank(''),
+    examinationFindings: blank(''),
     chiefComplaint: blank(''),
+    extraFields: [],
     rows: [],
     advice: blank(''),
     investigations: blank(''),
@@ -496,6 +617,8 @@ export function toPreviewRequest(draft: RxDraft): Record<string, unknown> {
           },
         }),
     diagnosis: text(draft.diagnosis),
+    examination_findings: text(draft.examinationFindings),
+    extra_fields: extraPayload(draft.extraFields),
     chief_complaint: text(draft.chiefComplaint),
     advice: text(draft.advice),
     notes: text(draft.notes),
@@ -562,6 +685,8 @@ export function toApiRequest(draft: RxDraft): Record<string, unknown> {
           },
         }),
     diagnosis: text(draft.diagnosis),
+    examination_findings: text(draft.examinationFindings),
+    extra_fields: extraPayload(draft.extraFields),
     chief_complaint: text(draft.chiefComplaint),
     /* Newline-delimited on purpose: the print template splits `advice` on
        newlines and numbers it (1) (2) (3), which is what the pad writes. */
@@ -576,5 +701,201 @@ export function toApiRequest(draft: RxDraft): Record<string, unknown> {
     vitals_weight_kg: weightKg(draft.vitalsWeight.value),
     follow_up_date: text(draft.followUpDate),
     items: draft.rows.map(toApiItem),
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Templates                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Draft field -> template column, for the plain-text fields. */
+const TEMPLATE_TEXT_FIELDS = [
+  ['chiefComplaint', 'chief_complaint'],
+  ['diagnosis', 'diagnosis'],
+  ['examinationFindings', 'examination_findings'],
+  ['advice', 'advice'],
+  ['investigations', 'investigations'],
+  ['procedure', 'procedure'],
+  ['consult', 'consult'],
+  ['notes', 'notes'],
+] as const
+
+/** Anything on the pad a template would overwrite. Patient and vitals never count. */
+export function hasTemplateContent(draft: RxDraft): boolean {
+  return (
+    draft.rows.length > 0 ||
+    draft.followUpDate.value.trim() !== '' ||
+    draft.extraFields.some((f) => f.value.value.trim() !== '') ||
+    TEMPLATE_TEXT_FIELDS.some(([key]) => draft[key].value.trim() !== '')
+  )
+}
+
+/**
+ * Lay a saved template over the pad. Everything it fills is `entered` — the
+ * doctor chose it, and can edit it like anything they typed. A field the
+ * template leaves empty keeps what the pad already has, and so do the
+ * medicine rows when the template has none usable. Patient and vitals are
+ * never touched.
+ *
+ * `newKey` is called once per row; call this outside a state updater.
+ */
+export function applyTemplate(
+  draft: RxDraft,
+  template: PrescriptionTemplateResponse,
+  newKey: () => string,
+): RxDraft {
+  const next = { ...draft }
+  for (const [key, column] of TEMPLATE_TEXT_FIELDS) {
+    const value = template[column]?.trim()
+    if (value) next[key] = entered(value)
+  }
+  // Custom sections: a template value replaces the pad's for the same key, the rest stay.
+  for (const extra of template.extra_fields ?? []) {
+    const value = extra.value.trim()
+    if (value) {
+      next.extraFields = setExtraField(next, extra.key, extra.label, entered(value)).extraFields
+    }
+  }
+  if (template.follow_up_days != null) {
+    next.followUpDate = entered(format(addDays(new Date(), template.follow_up_days), 'yyyy-MM-dd'))
+  }
+  // A medicine deleted since the template was saved has no name: skip it.
+  const rows = template.items.flatMap((item) =>
+    item.medicine_name
+      ? [
+          {
+            ...newRow(newKey()),
+            medicineId: item.medicine_id,
+            medicineName: item.medicine_name,
+            frequency: entered(item.frequency),
+            durationDays: item.duration_days != null ? entered(item.duration_days) : blank(null),
+            quantity: item.quantity != null ? entered(item.quantity) : blank(null),
+            instructions: item.instructions ? entered(item.instructions) : blank(''),
+            food: item.food_timing ?? null,
+          },
+        ]
+      : [],
+  )
+  if (rows.length > 0) next.rows = rows
+  return next
+}
+
+/** The slice of a past prescription "repeat" reads. The text columns exist on the API but not yet in `schema.ts`. */
+export interface RepeatSource {
+  patient_id: string
+  created_at: string
+  chief_complaint: string | null
+  diagnosis: string | null
+  examination_findings?: string | null
+  extra_fields?: RxExtraField[]
+  advice: string | null
+  notes: string | null
+  investigations?: string | null
+  procedure?: string | null
+  consult?: string | null
+  follow_up_date: string | null
+  items: {
+    frequency: string
+    duration_days: number | null
+    quantity: number | null
+    instructions: string | null
+    food_timing?: 'before' | 'after' | 'with' | null
+    medicine: { id: string; name: string }
+  }[]
+}
+
+/**
+ * "Repeat last prescription": lay a past prescription over the pad through
+ * `applyTemplate`, then mark all of it `defaulted` — last visit's decision, not
+ * one made today, so it stays flagged "carried over" until the doctor touches
+ * it. Vitals and patient are never copied (vitals are per-visit).
+ *
+ * Follow-up keeps the interval it had (visit date to follow-up date), counted
+ * from today. Medicines go through `rowFromPrevious`, the same path as
+ * "continue previous medicines", so both carry over identically.
+ */
+export function applyPrevious(draft: RxDraft, rx: RepeatSource, newKey: () => string): RxDraft {
+  const days = rx.follow_up_date
+    ? differenceInCalendarDays(parseISO(rx.follow_up_date), parseISO(rx.created_at))
+    : NaN
+  const out = applyTemplate(
+    draft,
+    {
+      id: '',
+      name: '',
+      chief_complaint: rx.chief_complaint,
+      diagnosis: rx.diagnosis,
+      examination_findings: rx.examination_findings ?? null,
+      extra_fields: rx.extra_fields ?? [],
+      advice: rx.advice,
+      investigations: rx.investigations ?? null,
+      procedure: rx.procedure ?? null,
+      consult: rx.consult ?? null,
+      notes: rx.notes,
+      follow_up_days: days >= 0 && days <= 365 ? days : null,
+      items: [],
+      created_at: '',
+      updated_at: '',
+    },
+    newKey,
+  )
+  for (const key of [...TEMPLATE_TEXT_FIELDS.map(([k]) => k), 'followUpDate'] as const) {
+    if (out[key] !== draft[key]) out[key] = defaulted(out[key].value)
+  }
+  out.extraFields = out.extraFields.map((f) =>
+    draft.extraFields.includes(f) ? f : { ...f, value: defaulted(f.value.value) },
+  )
+  if (rx.items.length > 0) {
+    out.rows = rx.items.map((item) =>
+      rowFromPrevious(newKey(), {
+        medicine_id: item.medicine.id,
+        medicine_name: item.medicine.name,
+        frequency: item.frequency,
+        duration_days: item.duration_days,
+        quantity: item.quantity,
+        instructions: item.instructions,
+        food_timing: item.food_timing,
+      }),
+    )
+  }
+  return out
+}
+
+/**
+ * The pad's non-patient content as a `POST /prescription-templates` body.
+ * Rows without a matched medicine or a frequency cannot be stored and are
+ * dropped; the follow-up date becomes days from today.
+ */
+export function templateFromDraft(draft: RxDraft, name: string): PrescriptionTemplateCreate {
+  const text = (field: FieldState<string>): string | null => field.value.trim() || null
+  const days = draft.followUpDate.value
+    ? differenceInCalendarDays(parseISO(draft.followUpDate.value), new Date())
+    : NaN
+  return {
+    name: name.trim(),
+    chief_complaint: text(draft.chiefComplaint),
+    diagnosis: text(draft.diagnosis),
+    examination_findings: text(draft.examinationFindings),
+    extra_fields: extraPayload(draft.extraFields),
+    advice: text(draft.advice),
+    investigations: text(draft.investigations),
+    procedure: text(draft.procedure),
+    consult: text(draft.consult),
+    notes: text(draft.notes),
+    follow_up_days: days >= 0 && days <= 365 ? days : null,
+    items: draft.rows.flatMap((row) =>
+      row.medicineId && row.frequency.value.trim()
+        ? [
+            {
+              medicine_id: row.medicineId,
+              frequency: row.frequency.value.trim(),
+              duration_days: row.durationDays.value || null,
+              quantity: row.quantity.value || null,
+              instructions: buildInstructions(row),
+              food_timing: row.food,
+            },
+          ]
+        : [],
+    ),
   }
 }

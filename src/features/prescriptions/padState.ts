@@ -118,6 +118,7 @@ export const FIELD_IDS = {
   vitalsPulse: 'rx-vitals-pulse',
   vitalsWeight: 'rx-vitals-weight',
   diagnosis: 'rx-diagnosis',
+  examinationFindings: 'rx-examination-findings',
   procedure: 'rx-procedure',
   consult: 'rx-consult',
   chiefComplaint: 'rx-chief-complaint',
@@ -126,6 +127,9 @@ export const FIELD_IDS = {
   notes: 'rx-notes',
   followUp: 'rx-follow-up',
 } as const
+
+/** DOM id of a custom section's textarea (`custom:gait` -> `rx-extra-gait`). */
+export const extraFieldId = (key: string): string => `rx-extra-${key.replace(/^custom:/, '')}`
 
 export const rowFieldId = {
   medicine: (key: string) => `rx-med-${key}`,
@@ -241,6 +245,14 @@ export function mapServerFieldErrors(
       continue
     }
 
+    const extra = /^extra_fields\.(\d+)\b/.exec(path)
+    if (extra) {
+      // The request skips empty values, so the server's index is into the filled ones.
+      const field = draft.extraFields.filter((f) => f.value.value.trim())[Number(extra[1])]
+      if (field) out.push({ fieldId: extraFieldId(field.key), message })
+      continue
+    }
+
     const patient = /^patient\.(\w+)$/.exec(path)
     if (patient) {
       const field = patient[1]
@@ -258,6 +270,7 @@ export function mapServerFieldErrors(
 
     const top: Record<string, string> = {
       diagnosis: FIELD_IDS.diagnosis,
+      examination_findings: FIELD_IDS.examinationFindings,
       chief_complaint: FIELD_IDS.chiefComplaint,
       advice: FIELD_IDS.advice,
       notes: FIELD_IDS.notes,

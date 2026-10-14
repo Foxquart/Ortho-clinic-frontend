@@ -128,7 +128,9 @@ export function RxAdvicePicker({
                     !open && '-rotate-90',
                   )}
                 />
-                <span className="text-label font-semibold text-text">{group.name}</span>
+                <span className="text-label font-semibold text-text">
+                  {group.name}
+                </span>
                 <span className="text-caption text-text-subtle">
                   ({group.presets.length}
                   {checkedCount > 0 ? `, ${checkedCount} added` : ''})

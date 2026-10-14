@@ -23,21 +23,26 @@ import type {
   PatientResponse,
   PrescriptionDetailResponse,
   PrescriptionResponse,
+  PrescriptionTemplateResponse,
 } from '@/api/schema'
 import { RxRowEditor } from './RxRowEditor'
 import { RxPatientField, RxPatientIdentity } from './RxPatientField'
 import { RxNarrativeField } from './RxNarrativeField'
 import { RxAdvicePicker } from './RxAdvicePicker'
+import { RxTemplatePicker } from './RxTemplatePicker'
 import { applyMedicineDefaults, forgetAppliedDefaults } from './medicineDefaults'
 import { RxMissingSummary } from './RxMissingSummary'
 // DICTATION-PANEL: import { RxDictationPanel } from './RxDictationPanel'
 import { RxLivePreview } from './RxLivePreview'
+import { CustomizeLayoutButton } from './layout/PadLayoutEditor'
 import { RxAllergyConflictBanner, RxAllergyRecord } from './RxAllergyGate'
 import { FieldLabel, ProvenanceField, ProvenanceLegend, TAP_ICON, TAP_TARGET } from './Provenance'
+import { DEFAULT_PAD_LAYOUT, usePadLayout, type PadLayoutSection } from './layout/usePadLayout'
 import { applyDictation, confidentMatch, takeDictationHandoff } from './dictation'
 import {
   FIELD_IDS,
   conflictSignature,
+  extraFieldId,
   focusField,
   issueFieldId,
   mapServerFieldErrors,
@@ -49,14 +54,22 @@ import {
 } from './padState'
 import {
   allergyConflicts,
+  applyPrevious,
+  applyTemplate,
   canSubmitDraft,
   draftIssues,
   entered,
+  extraValue,
+  hasTemplateContent,
   newDraft,
   newRow,
   rowFromPrevious,
+  setExtraField,
+  shownSections,
   toApiRequest,
+  withLayoutLabels,
   type FieldState,
+  type SectionField,
   type RxDraft,
   type RxPatient,
   type RxRow,
@@ -99,11 +112,121 @@ const VITALS: {
   /** Mirrors the API column width, so a long qualifier is stopped here, not by a 422. */
   maxLength?: number
 }[] = [
-  { key: 'vitalsBp', id: FIELD_IDS.vitalsBp, label: 'BP', hint: 'Blood pressure as you write it, for example 120/80. Qualifiers are fine — "140/90 (right arm)".', inputMode: 'text', maxLength: 32 },
-  { key: 'vitalsSpo2', id: FIELD_IDS.vitalsSpo2, label: 'SpO₂', hint: 'Oxygen saturation, per cent.', inputMode: 'numeric' },
-  { key: 'vitalsPulse', id: FIELD_IDS.vitalsPulse, label: 'HR', hint: 'Heart rate, beats per minute.', inputMode: 'numeric' },
-  { key: 'vitalsWeight', id: FIELD_IDS.vitalsWeight, label: 'Weight', hint: 'Weight in kilograms.', inputMode: 'decimal' },
+  {
+    key: 'vitalsBp',
+    id: FIELD_IDS.vitalsBp,
+    label: 'BP',
+    hint: 'Blood pressure as you write it, for example 120/80. Qualifiers are fine — "140/90 (right arm)".',
+    inputMode: 'text',
+    maxLength: 32,
+  },
+  {
+    key: 'vitalsSpo2',
+    id: FIELD_IDS.vitalsSpo2,
+    label: 'SpO₂',
+    hint: 'Oxygen saturation, per cent.',
+    inputMode: 'numeric',
+  },
+  {
+    key: 'vitalsPulse',
+    id: FIELD_IDS.vitalsPulse,
+    label: 'HR',
+    hint: 'Heart rate, beats per minute.',
+    inputMode: 'numeric',
+  },
+  {
+    key: 'vitalsWeight',
+    id: FIELD_IDS.vitalsWeight,
+    label: 'Weight',
+    hint: 'Weight in kilograms.',
+    inputMode: 'decimal',
+  },
 ]
+
+/**
+ * How each built-in layout section is drawn. The label comes from the layout,
+ * so nothing here may name a section in its own wording.
+ */
+const SECTION_UI: Record<
+  string,
+  | {
+      field: Exclude<SectionField, 'followUpDate'>
+      id: string
+      labelHint: string
+      hint?: string
+      rows?: number
+      maxLength: number
+      wide?: boolean
+    }
+  | undefined
+> = {
+  chief_complaint: {
+    field: 'chiefComplaint',
+    id: FIELD_IDS.chiefComplaint,
+    labelHint:
+      'What the patient came in complaining of, in their words. Printed on the prescription.',
+    maxLength: 512,
+    wide: true,
+  },
+  diagnosis: {
+    field: 'diagnosis',
+    id: FIELD_IDS.diagnosis,
+    labelHint:
+      'What you have concluded is wrong, for example osteoarthritis of the right knee. Printed on the prescription.',
+    maxLength: 512,
+    wide: true,
+  },
+  examination_findings: {
+    field: 'examinationFindings',
+    id: FIELD_IDS.examinationFindings,
+    labelHint:
+      'What you found on examining the patient, for example tenderness over the medial joint line. Printed on the prescription.',
+    rows: 3,
+    maxLength: 4000,
+    wide: true,
+  },
+  investigations: {
+    field: 'investigations',
+    id: FIELD_IDS.investigations,
+    labelHint: 'Tests to order, for example an X-ray or blood work. Printed on the prescription.',
+    rows: 3,
+    maxLength: 2000,
+    wide: true,
+  },
+  procedure: {
+    field: 'procedure',
+    id: FIELD_IDS.procedure,
+    labelHint: 'Any procedure done at this visit. Routinely NA.',
+    rows: 2,
+    maxLength: 2000,
+  },
+  consult: {
+    field: 'consult',
+    id: FIELD_IDS.consult,
+    labelHint: 'The consult line from the paper pad.',
+    rows: 2,
+    maxLength: 2000,
+  },
+  advice: {
+    field: 'advice',
+    id: FIELD_IDS.advice,
+    labelHint:
+      'Non-medicine guidance, one instruction per line, for example avoid squatting. Printed on the prescription.',
+    hint: 'Printed. One instruction per line.',
+    rows: 4,
+    maxLength: 4000,
+    wide: true,
+  },
+  notes: {
+    field: 'notes',
+    id: FIELD_IDS.notes,
+    labelHint: 'Private notes for your own record. Never printed, never shown to the patient.',
+    hint: 'Not printed.',
+    rows: 3,
+    maxLength: 4000,
+    wide: true,
+  },
+}
 
 export function PrescriptionPadScreen() {
   const [params, setParams] = useSearchParams()
@@ -111,6 +234,13 @@ export function PrescriptionPadScreen() {
   const queryClient = useQueryClient()
 
   const [draft, setDraft] = useState<RxDraft>(() => newDraft())
+  /* Never blocks prescribing: while the layout loads, or if it fails, the pad
+     is the standard one. */
+  const layoutQuery = usePadLayout()
+  const layout = layoutQuery.data ?? DEFAULT_PAD_LAYOUT
+  const sections = useMemo(() => shownSections(draft, layout), [draft, layout])
+  /* What leaves the pad: custom values re-stamped with the labels on screen. */
+  const outgoing = useMemo(() => withLayoutLabels(draft, layout), [draft, layout])
   const [rowMeta, setRowMeta] = useState<RowMetaMap>({})
   const [quickAdd, setQuickAdd] = useState(false)
   /* The value is unread with the dictation panel commented out, but the
@@ -161,20 +291,8 @@ export function PrescriptionPadScreen() {
   }, [])
 
   const setField = useCallback(
-    (
-      key:
-        | 'diagnosis'
-        | 'chiefComplaint'
-        | 'advice'
-        | 'investigations'
-        | 'notes'
-        | 'followUpDate'
-        | 'procedure'
-        | 'consult'
-        | VitalKey,
-    ) =>
-      (next: FieldState<string>) =>
-        setDraft((d) => ({ ...d, [key]: next })),
+    (key: SectionField | VitalKey) => (next: FieldState<string>) =>
+      setDraft((d) => ({ ...d, [key]: next })),
     [],
   )
 
@@ -310,6 +428,66 @@ export function PrescriptionPadScreen() {
     )
   }, [lastPrescription])
 
+  /* ------------------------- repeat (?from=<rxId>) ------------------------- */
+
+  // "Repeat last prescription" on the patient screen lands here. Everything but
+  // vitals and patient is carried over, once, onto an untouched pad.
+  const fromParam = params.get('from')
+  const repeatSource = useQuery({
+    queryKey: qk.prescriptions.detail(fromParam ?? ''),
+    queryFn: () =>
+      apiGet<PrescriptionDetailResponse>(endpoints.prescriptions.byId(fromParam ?? '')),
+    enabled: Boolean(fromParam),
+    staleTime: 30_000,
+  })
+  const repeatDone = useRef(false)
+
+  useEffect(() => {
+    const rx = repeatSource.data
+    if (!rx || repeatDone.current) return
+    repeatDone.current = true
+    if (patientIdParam && rx.patient_id !== patientIdParam) {
+      toast.error('That prescription belongs to a different patient, so nothing was copied.')
+    } else if (hasTemplateContent(draft)) {
+      toast.info('The pad already has content, so the last prescription was not copied over it.')
+    } else {
+      setDraft((d) =>
+        applyPrevious(
+          d.patient.id ? d : { ...d, patient: { ...d.patient, id: rx.patient_id } },
+          rx,
+          nextRowKey,
+        ),
+      )
+      toast.success(
+        `Repeated ${rx.prescription_number} — fields are marked "carried over" until you check them. Vitals are left blank.`,
+      )
+    }
+  }, [repeatSource.data, draft, patientIdParam])
+
+  useEffect(() => {
+    if (repeatSource.isError)
+      toast.error("Couldn't load the last prescription — start a new one instead.")
+  }, [repeatSource.isError])
+
+  /* ------------------------------ templates ------------------------------- */
+
+  const applyPickedTemplate = useCallback(
+    (template: PrescriptionTemplateResponse) => {
+      // Keys are allocated here, not in an updater, which may run twice.
+      const next = applyTemplate(draft, template, nextRowKey)
+      if (next.rows !== draft.rows) {
+        for (const row of draft.rows) forgetAppliedDefaults(row.key)
+        setRowMeta({})
+      }
+      setDraft(next)
+      const gone = template.items.filter((item) => !item.medicine_name).length
+      const message = `Applied “${template.name}” — check each field before saving.`
+      if (gone > 0) toast.warning(`${message} ${gone} no longer in the formulary, skipped.`)
+      else toast.success(message)
+    },
+    [draft],
+  )
+
   /* ------------------------------ dictation ------------------------------- */
 
   const resolveSpokenMedicine = useCallback(
@@ -409,38 +587,38 @@ export function PrescriptionPadScreen() {
    */
   // DICTATION-PANEL: the panel was the only caller.
   // const placeTranscript = useCallback(async () => {
-    // const text = transcript.trim()
-    // if (!text || placing) return
-    // setPlacing(true)
-    // let parsed: ParsedDictation
-    // try {
-      // parsed = (await extractDictation(text)).parsed
-    // } catch {
-      // parsed = parseDictation(text)
-    // } finally {
-      // setPlacing(false)
-    // }
-    // if (isEmptyDictation(parsed) && parsed.unparsed.length === 0) {
-      // // Nothing structured came out of it, but the doctor still said it.
-      // setUnparsed((prev) => [...prev, text])
-    // } else {
-      // ingestDictation(parsed)
-    // }
-    // setTranscript('')
+  // const text = transcript.trim()
+  // if (!text || placing) return
+  // setPlacing(true)
+  // let parsed: ParsedDictation
+  // try {
+  // parsed = (await extractDictation(text)).parsed
+  // } catch {
+  // parsed = parseDictation(text)
+  // } finally {
+  // setPlacing(false)
+  // }
+  // if (isEmptyDictation(parsed) && parsed.unparsed.length === 0) {
+  // // Nothing structured came out of it, but the doctor still said it.
+  // setUnparsed((prev) => [...prev, text])
+  // } else {
+  // ingestDictation(parsed)
+  // }
+  // setTranscript('')
   // }, [ingestDictation, transcript, placing])
 
   // DICTATION-PANEL: only the dictation panel filed lines into advice/notes.
   // const fileDictationLine = useCallback(
-    // (line: string, destination: 'advice' | 'notes') => {
-      // setDraft((d) => {
-        // const current = d[destination]
-        // const merged = current.value.trim() ? `${current.value.trim()}\n${line}` : line
-        // // Filed by hand, so it is now the doctor's text, not the machine's.
-        // return { ...d, [destination]: entered(merged) }
-      // })
-      // setUnparsed((prev) => prev.filter((l) => l !== line))
-    // },
-    // [],
+  // (line: string, destination: 'advice' | 'notes') => {
+  // setDraft((d) => {
+  // const current = d[destination]
+  // const merged = current.value.trim() ? `${current.value.trim()}\n${line}` : line
+  // // Filed by hand, so it is now the doctor's text, not the machine's.
+  // return { ...d, [destination]: entered(merged) }
+  // })
+  // setUnparsed((prev) => prev.filter((l) => l !== line))
+  // },
+  // [],
   // )
 
   /* ------------------------------- allergy -------------------------------- */
@@ -500,7 +678,7 @@ export function PrescriptionPadScreen() {
       try {
         const created = await apiPost<PrescriptionDetailResponse>(
           endpoints.prescriptions.create,
-          toApiRequest(draft),
+          toApiRequest(outgoing),
         )
 
         void queryClient.invalidateQueries({ queryKey: qk.prescriptions.all() })
@@ -533,7 +711,7 @@ export function PrescriptionPadScreen() {
         setSubmitting(false)
       }
     },
-    [draft, focusFirstProblem, navigate, queryClient, ready],
+    [draft, focusFirstProblem, navigate, outgoing, queryClient, ready],
   )
 
   /* ------------------------------ shortcuts ------------------------------- */
@@ -603,6 +781,79 @@ export function PrescriptionPadScreen() {
 
   /* -------------------------------- render -------------------------------- */
 
+  const renderSection = (section: PadLayoutSection) => {
+    if (section.key === 'follow_up') {
+      return (
+        <div key={section.key} className="flex min-w-0 flex-col">
+          <FieldLabel
+            htmlFor={FIELD_IDS.followUp}
+            provenance={draft.followUpDate.provenance}
+            hint="When the patient should come back for review. Printed on the prescription."
+          >
+            {section.label}
+          </FieldLabel>
+          <ProvenanceField provenance={draft.followUpDate.provenance}>
+            <Input
+              id={FIELD_IDS.followUp}
+              type="date"
+              min={todayIso()}
+              value={draft.followUpDate.value}
+              invalid={Boolean(serverErrors[FIELD_IDS.followUp])}
+              className={cn(TAP_TARGET, provenanceControlClass(draft.followUpDate.provenance))}
+              onChange={(e) => setField('followUpDate')(entered(e.target.value))}
+            />
+          </ProvenanceField>
+        </div>
+      )
+    }
+
+    const ui = SECTION_UI[section.key]
+    if (!ui) {
+      // The doctor's own section.
+      const id = extraFieldId(section.key)
+      return (
+        <RxNarrativeField
+          key={section.key}
+          id={id}
+          label={section.label}
+          labelHint="Your own section. Printed on the prescription."
+          field={extraValue(draft, section.key)}
+          onChange={(next) => setDraft((d) => setExtraField(d, section.key, section.label, next))}
+          rows={3}
+          maxLength={4000}
+          error={serverErrors[id]}
+          className="sm:col-span-2"
+        />
+      )
+    }
+
+    const field = (
+      <RxNarrativeField
+        key={section.key}
+        id={ui.id}
+        label={section.label}
+        labelHint={ui.labelHint}
+        hint={ui.hint}
+        field={draft[ui.field]}
+        onChange={setField(ui.field)}
+        rows={ui.rows}
+        maxLength={ui.maxLength}
+        error={serverErrors[ui.id]}
+        className={ui.wide ? 'sm:col-span-2' : undefined}
+      />
+    )
+    // One tap per line of advice. Renders nothing until the backend serves the
+    // library, so the field below stands alone exactly as before.
+    return section.key === 'advice' ? (
+      <div key={section.key} className="flex min-w-0 flex-col gap-3 sm:col-span-2">
+        <RxAdvicePicker field={draft.advice} onChange={setField('advice')} />
+        {field}
+      </div>
+    ) : (
+      field
+    )
+  }
+
   const age = patientAge(patientRecord.data?.date_of_birth)
   const namedPatient = Boolean(
     draft.patient.id || draft.patient.firstName || draft.patient.lastName || draft.patient.phone,
@@ -624,7 +875,7 @@ export function PrescriptionPadScreen() {
        viewport tall and the form column scrolls inside it, so the preview
        stays put instead of sliding away as he fills the pad. Below that the
        pad is a single column and the ordinary page scroll is correct. */
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pt-6 sm:px-6 xl:max-w-none xl:px-10 min-[1400px]:h-full min-[1400px]:overflow-hidden">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 pt-6 min-[1400px]:h-full min-[1400px]:overflow-hidden sm:px-6 xl:max-w-none xl:px-10">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 min-[1400px]:shrink-0">
         <Button
           variant="ghost"
@@ -637,8 +888,9 @@ export function PrescriptionPadScreen() {
             <ArrowLeft aria-hidden className="size-4" />
           </Link>
         </Button>
-        <h1 className="text-title font-semibold tracking-tight text-text">New prescription</h1>
-        <p className="ml-auto hidden items-center gap-3 text-caption text-text-subtle sm:flex">
+        <h1 className="text-title text-text font-semibold tracking-tight">New prescription</h1>
+        <CustomizeLayoutButton className="max-sm:ml-auto" />
+        <p className="text-caption text-text-subtle ml-auto hidden items-center gap-3 sm:flex">
           <span className="flex items-center gap-1">
             <Kbd>Enter</Kbd> next medicine
           </span>
@@ -664,32 +916,37 @@ export function PrescriptionPadScreen() {
         left, and on the right the live preview of the printed page.
       */}
       <div className="flex flex-col gap-4 min-[1400px]:grid min-[1400px]:min-h-0 min-[1400px]:flex-1 min-[1400px]:grid-cols-[minmax(440px,1fr)_1.15fr] min-[1400px]:items-stretch min-[1400px]:gap-6">
-        <div className="contents min-[1400px]:no-scrollbar min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-y-auto min-[1400px]:pb-28">
+        <div className="min-[1400px]:no-scrollbar contents min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-y-auto min-[1400px]:pb-28">
+          {/* --------------------------- template ---------------------------- */}
+          <div className="order-0">
+            <RxTemplatePicker draft={draft} onApply={applyPickedTemplate} />
+          </div>
+
           {/* ---------------------------- patient ---------------------------- */}
           <Card className="order-1">
             <CardBody className="flex flex-col gap-3">
-          <RxPatientField
-            patient={draft.patient}
-            onChange={setPatient}
-            quickAdd={quickAdd}
-            onQuickAddChange={setQuickAdd}
-            errors={serverErrors}
-          />
+              <RxPatientField
+                patient={draft.patient}
+                onChange={setPatient}
+                quickAdd={quickAdd}
+                onQuickAddChange={setQuickAdd}
+                errors={serverErrors}
+              />
 
-          {namedPatient && (
-            <RxPatientIdentity
-              patient={draft.patient}
-              age={age}
-              gender={patientRecord.data?.gender}
-              onClear={clearPatient}
-            />
-          )}
+              {namedPatient && (
+                <RxPatientIdentity
+                  patient={draft.patient}
+                  age={age}
+                  gender={patientRecord.data?.gender}
+                  onClear={clearPatient}
+                />
+              )}
 
-          {namedPatient && <RxAllergyRecord patient={draft.patient} status={allergyStatus} />}
+              {namedPatient && <RxAllergyRecord patient={draft.patient} status={allergyStatus} />}
 
               {/* Vitals — the top-right corner of the paper pad, kept on the
                   patient card because that is where he reads them from. */}
-              <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 sm:grid-cols-4">
+              <div className="border-border grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4">
                 {VITALS.map((vital) => (
                   <div key={vital.key} className="flex min-w-0 flex-col">
                     <FieldLabel
@@ -706,7 +963,10 @@ export function PrescriptionPadScreen() {
                         maxLength={vital.maxLength}
                         placeholder="—"
                         value={draft[vital.key].value}
-                        className={cn(TAP_TARGET, provenanceControlClass(draft[vital.key].provenance))}
+                        className={cn(
+                          TAP_TARGET,
+                          provenanceControlClass(draft[vital.key].provenance),
+                        )}
                         onChange={(e) => setField(vital.key)(entered(e.target.value))}
                       />
                     </ProvenanceField>
@@ -716,141 +976,48 @@ export function PrescriptionPadScreen() {
             </CardBody>
           </Card>
 
-          {/* --------------------------- clinical ---------------------------- */}
-          <Card className="order-2">
-            <CardBody className="grid gap-4 sm:grid-cols-2">
-          {/* Complaint before diagnosis: the consultation records what the
-              patient says first, then what the doctor concludes. */}
-          <RxNarrativeField
-            id={FIELD_IDS.chiefComplaint}
-            label="Chief complaint"
-            labelHint="What the patient came in complaining of, in their words. Printed on the prescription."
-            field={draft.chiefComplaint}
-            onChange={setField('chiefComplaint')}
-            maxLength={512}
-            error={serverErrors[FIELD_IDS.chiefComplaint]}
-            className="sm:col-span-2"
-          />
-          <RxNarrativeField
-            id={FIELD_IDS.diagnosis}
-            label="Diagnosis"
-            labelHint="What you have concluded is wrong, for example osteoarthritis of the right knee. Printed on the prescription."
-            field={draft.diagnosis}
-            onChange={setField('diagnosis')}
-            maxLength={512}
-            error={serverErrors[FIELD_IDS.diagnosis]}
-          />
-          <div className="flex min-w-0 flex-col">
-            <FieldLabel
-              htmlFor={FIELD_IDS.followUp}
-              provenance={draft.followUpDate.provenance}
-              hint="When the patient should come back for review. Printed on the prescription."
-            >
-              Follow-up date
-            </FieldLabel>
-            <ProvenanceField provenance={draft.followUpDate.provenance}>
-              <Input
-                id={FIELD_IDS.followUp}
-                type="date"
-                min={todayIso()}
-                value={draft.followUpDate.value}
-                invalid={Boolean(serverErrors[FIELD_IDS.followUp])}
-                className={cn(TAP_TARGET, provenanceControlClass(draft.followUpDate.provenance))}
-                onChange={(e) => setField('followUpDate')(entered(e.target.value))}
-              />
-            </ProvenanceField>
-          </div>
-        </CardBody>
-          </Card>
-
-          {/* ---------------------------- advice ----------------------------- */}
-          <Card className="order-3">
-            <CardBody className="grid gap-4 sm:grid-cols-2">
-              <div className="flex min-w-0 flex-col gap-3">
-                {/* One tap per line of advice. Renders nothing until the
-                    backend serves the library, so the field below stands
-                    alone exactly as before. */}
-                <RxAdvicePicker field={draft.advice} onChange={setField('advice')} />
-                <RxNarrativeField
-                  id={FIELD_IDS.advice}
-                  label="Advice to the patient"
-                  labelHint="Non-medicine guidance, one instruction per line, for example avoid squatting. Printed on the prescription."
-                  hint="Printed. One instruction per line."
-                  field={draft.advice}
-                  onChange={setField('advice')}
-                  rows={4}
-                  maxLength={4000}
-                  error={serverErrors[FIELD_IDS.advice]}
-                />
-              </div>
-              <RxNarrativeField
-                id={FIELD_IDS.investigations}
-                label="Investigations"
-                labelHint="Tests to order, for example an X-ray or blood work. Saved with the prescription notes."
-                hint="Printed under Investigations."
-                field={draft.investigations}
-                onChange={setField('investigations')}
-                rows={4}
-                maxLength={2000}
-              />
-              <RxNarrativeField
-                id={FIELD_IDS.procedure}
-                label="Procedure"
-                labelHint="Any procedure done at this visit. Routinely NA."
-                hint="Printed under Procedure."
-                field={draft.procedure}
-                onChange={setField('procedure')}
-                rows={2}
-                maxLength={2000}
-              />
-              <RxNarrativeField
-                id={FIELD_IDS.consult}
-                label="Consult"
-                labelHint="The consult line from the paper pad."
-                hint="Printed under Consult."
-                field={draft.consult}
-                onChange={setField('consult')}
-                rows={2}
-                maxLength={2000}
-              />
-              <RxNarrativeField
-                id={FIELD_IDS.notes}
-                label="Internal notes"
-                labelHint="Private notes for your own record. Never printed, never shown to the patient."
-                hint="Not printed."
-                field={draft.notes}
-                onChange={setField('notes')}
-                rows={3}
-                maxLength={4000}
-                error={serverErrors[FIELD_IDS.notes]}
-                className="sm:col-span-2"
-              />
-            </CardBody>
-          </Card>
+          {/* --------------------------- sections ---------------------------- */}
+          {/* The doctor's own layout: order, labels and visibility come from
+              `GET /prescription-layout`; see `shownSections` for what counts
+              as shown. */}
+          {(sections.length > 0 || layoutQuery.isError) && (
+            <Card className="order-2">
+              <CardBody className="grid gap-4 sm:grid-cols-2">
+                {sections.map(renderSection)}
+                {layoutQuery.isError && (
+                  <p className="text-caption text-text-subtle sm:col-span-2">
+                    Couldn&rsquo;t load your pad layout, so the standard one is showing.
+                  </p>
+                )}
+              </CardBody>
+            </Card>
+          )}
 
           {/* The allergy banner sits directly above the medicines, because it
               has to be read before anything is chosen, not after. */}
           <div id="rx-allergy-conflict" tabIndex={-1} className="order-4 empty:hidden">
-        <RxAllergyConflictBanner
-          conflicts={conflicts}
-          acknowledgedReason={acknowledgement?.signature === signature ? acknowledgement.reason : null}
-          onAcknowledge={acknowledgeAllergy}
-          onRevoke={revokeAcknowledgement}
-          onFocusRow={(rowKey) => focusField(rowFieldId.medicine(rowKey))}
-        />
+            <RxAllergyConflictBanner
+              conflicts={conflicts}
+              acknowledgedReason={
+                acknowledgement?.signature === signature ? acknowledgement.reason : null
+              }
+              onAcknowledge={acknowledgeAllergy}
+              onRevoke={revokeAcknowledgement}
+              onFocusRow={(rowKey) => focusField(rowFieldId.medicine(rowKey))}
+            />
           </div>
 
           {/* -------------------------- medicines ---------------------------- */}
           <Card className="order-5">
-        <CardHeader
-          title="Medicines"
-          description={
-            draft.rows.length === 0
-              ? 'Nothing prescribed yet.'
-              : `${draft.rows.filter((r) => r.medicineId).length} of ${draft.rows.length} matched · maximum ${MAX_ROWS}`
-          }
-          action={
-            /* `CardHeader` wraps its action onto a second line but keeps it
+            <CardHeader
+              title={<>Medicines</>}
+              description={
+                draft.rows.length === 0
+                  ? 'Nothing prescribed yet.'
+                  : `${draft.rows.filter((r) => r.medicineId).length} of ${draft.rows.length} matched · maximum ${MAX_ROWS}`
+              }
+              action={
+                /* `CardHeader` wraps its action onto a second line but keeps it
                `shrink-0`, so a non-wrapping pair of buttons sets the card's
                min-content width and pushes the page sideways — 418px of
                content in a 320px viewport, which is exactly what these two
@@ -859,75 +1026,76 @@ export function PrescriptionPadScreen() {
                a flex item's intrinsic contribution, `shrink-0` does not stop
                it. 6rem covers the page and card gutters either side with
                room for a classic scrollbar. */
-            <div className="flex max-w-[calc(100vw-6rem)] flex-wrap items-center gap-2 sm:max-w-none">
-              {lastPrescription && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className={TAP_TARGET}
-                  onClick={carryOverPrevious}
-                  iconLeft={<History className="size-4" />}
-                >
-                  Continue previous
-                  {/* Which prescription, and when — worth the width on a
+                <div className="flex max-w-[calc(100vw-6rem)] flex-wrap items-center gap-2 sm:max-w-none">
+                  {lastPrescription && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className={TAP_TARGET}
+                      onClick={carryOverPrevious}
+                      iconLeft={<History className="size-4" />}
+                    >
+                      Continue previous
+                      {/* Which prescription, and when — worth the width on a
                       laptop, and the first thing to go on a phone, where the
                       button itself is already the whole idea. */}
-                  <span className="hidden text-text-subtle sm:inline">
-                    ({lastPrescription.items.length} · {formatDate(lastPrescription.created_at)})
-                  </span>
-                </Button>
-              )}
-              <Button
-                id={FIELD_IDS.addMedicine}
-                variant="primary"
-                size="sm"
-                className={TAP_TARGET}
-                onClick={addRowAndFocus}
-                iconLeft={<Plus className="size-4" />}
-                disabled={draft.rows.length >= MAX_ROWS}
-              >
-                Add medicine
-              </Button>
-            </div>
-          }
-        />
-        <CardBody className="flex flex-col gap-3">
-          <ProvenanceLegend />
+                      <span className="text-text-subtle hidden sm:inline">
+                        ({lastPrescription.items.length} · {formatDate(lastPrescription.created_at)}
+                        )
+                      </span>
+                    </Button>
+                  )}
+                  <Button
+                    id={FIELD_IDS.addMedicine}
+                    variant="primary"
+                    size="sm"
+                    className={TAP_TARGET}
+                    onClick={addRowAndFocus}
+                    iconLeft={<Plus className="size-4" />}
+                    disabled={draft.rows.length >= MAX_ROWS}
+                  >
+                    Add medicine
+                  </Button>
+                </div>
+              }
+            />
+            <CardBody className="flex flex-col gap-3">
+              <ProvenanceLegend />
 
-          {draft.rows.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-provenance-blank px-4 py-8 text-center">
-              <p className="text-body text-text">No medicines on this prescription.</p>
-              <p className="mt-1 text-caption text-text-muted">
-                Add one, dictate them, or carry over the last visit&rsquo;s.
-              </p>
-              <Button
-                variant="primary"
-                size="sm"
-                className={cn(TAP_TARGET, 'mt-3')}
-                onClick={addRowAndFocus}
-              >
-                Add the first medicine
-              </Button>
-            </div>
-          ) : (
-            <ul className="flex flex-col gap-2.5">
-              {draft.rows.map((row, index) => (
-                <RxRowEditor
-                  key={row.key}
-                  row={row}
-                  index={index}
-                  meta={metaFor(rowMeta, row.key)}
-                  allergies={draft.patient.allergies}
-                  errors={serverErrors}
-                  canRemove
-                  onChange={(next) => updateRow(row.key, next)}
-                  onRemove={() => removeRow(row.key)}
-                  onEnter={() => onRowEnter(index)}
-                />
-              ))}
-            </ul>
-          )}
-        </CardBody>
+              {draft.rows.length === 0 ? (
+                <div className="border-provenance-blank rounded-lg border border-dashed px-4 py-8 text-center">
+                  <p className="text-body text-text">No medicines on this prescription.</p>
+                  <p className="text-caption text-text-muted mt-1">
+                    Add one, dictate them, or carry over the last visit&rsquo;s.
+                  </p>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className={cn(TAP_TARGET, 'mt-3')}
+                    onClick={addRowAndFocus}
+                  >
+                    Add the first medicine
+                  </Button>
+                </div>
+              ) : (
+                <ul className="flex flex-col gap-2.5">
+                  {draft.rows.map((row, index) => (
+                    <RxRowEditor
+                      key={row.key}
+                      row={row}
+                      index={index}
+                      meta={metaFor(rowMeta, row.key)}
+                      allergies={draft.patient.allergies}
+                      errors={serverErrors}
+                      canRemove
+                      onChange={(next) => updateRow(row.key, next)}
+                      onRemove={() => removeRow(row.key)}
+                      onEnter={() => onRowEnter(index)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </CardBody>
           </Card>
 
           {/* -------------------------- dictation ---------------------------- */}
@@ -954,7 +1122,7 @@ export function PrescriptionPadScreen() {
           />
           </div>
           */}
-          <p className="order-7 flex items-start gap-2 px-1 text-caption text-text-subtle">
+          <p className="text-caption text-text-subtle order-7 flex items-start gap-2 px-1">
             <Lock aria-hidden className="mt-0.5 size-3.5 shrink-0" />
             Prescriptions are append-only. Once this is saved it cannot be edited or deleted — a
             correction is a new prescription, written from this pad and printed over the old one.
@@ -982,7 +1150,7 @@ export function PrescriptionPadScreen() {
               content height — without it the iframe collapses to its intrinsic
               size and the page is cut off under the letterhead. */}
           <div className="hidden min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:flex-1 min-[1400px]:flex-col">
-            <RxLivePreview draft={draft} />
+            <RxLivePreview draft={outgoing} />
           </div>
         </div>
       </div>
@@ -991,7 +1159,7 @@ export function PrescriptionPadScreen() {
       <div
         ref={barRef}
         data-print-hide
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg/85 backdrop-blur-md"
+        className="border-border bg-bg/85 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur-md"
       >
         {/* One row on a laptop, exactly as before. On a phone the blockers
             get the full width — squeezed into a 120px column beside three
@@ -1023,7 +1191,7 @@ export function PrescriptionPadScreen() {
               variant="secondary"
               onClick={() => setPreviewOpen(true)}
               iconLeft={<Eye className="size-4" />}
-              className={cn(TAP_TARGET, 'basis-full sm:flex-none min-[1400px]:hidden')}
+              className={cn(TAP_TARGET, 'basis-full min-[1400px]:hidden sm:flex-none')}
             >
               Preview prescription
             </Button>
@@ -1102,7 +1270,7 @@ export function PrescriptionPadScreen() {
           description="Live from the pad. Nothing is saved yet."
         >
           <div className="h-full">
-            <RxLivePreview draft={draft} zoomable />
+            <RxLivePreview draft={outgoing} zoomable />
           </div>
         </DrawerContent>
       </DialogRoot>

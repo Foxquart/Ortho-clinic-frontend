@@ -12,7 +12,8 @@ import { Combobox } from '@/components/ui/Combobox'
 import { Select } from '@/components/ui/Controls'
 import { Tooltip } from '@/components/ui/Menu'
 import type { MedicineResponse, Page_MedicineResponse_ } from '@/api/schema'
-import { FieldLabel, ProvenanceField, TAP_ICON, TAP_TARGET } from './Provenance'
+import { BnTag, FieldLabel, ProvenanceField, TAP_ICON, TAP_TARGET } from './Provenance'
+import { BN_FOOD, BN_FREQUENCY_PRESET, daysBn, frequencyBn } from './bn'
 // Per-field mic icons hidden at user request. Import commented out with the
 // action={...} block below — restore both together.
 // import { RxFieldStateMic } from './RxMic'
@@ -22,9 +23,9 @@ import { isUnmatched, provenanceControlClass, rowFieldId, type RowMeta } from '.
 import { entered, rowIssues, suggestQuantity, type RxRow } from './model'
 
 const FOOD_OPTIONS = [
-  { value: 'after', label: 'After food' },
-  { value: 'before', label: 'Before food' },
-  { value: 'with', label: 'With food' },
+  { value: 'after', label: `After food · ${BN_FOOD.after}` },
+  { value: 'before', label: `Before food · ${BN_FOOD.before}` },
+  { value: 'with', label: `With food · ${BN_FOOD.with}` },
 ] as const
 
 /**
@@ -128,8 +129,7 @@ export function RxRowEditor({
     : (browse.data?.items ?? []).filter((m) => m.is_active)
 
   const issues = rowIssues(row)
-  const has = (field: 'medicine' | 'frequency') =>
-    issues.some((i) => i.field === field)
+  const has = (field: 'medicine' | 'frequency') => issues.some((i) => i.field === field)
 
   const unmatched = isUnmatched(row, meta)
   // Auto-matched from speech, and the formulary's name is not what was said.
@@ -140,6 +140,12 @@ export function RxRowEditor({
     meta.spokenName !== null &&
     normaliseMedicineName(meta.spokenName) !== normaliseMedicineName(row.medicineName)
   const allergyHit = row.medicineName ? matchesAllergy(row.medicineName, allergies) : null
+  const bnSummary = [
+    frequencyBn(row.frequency.value),
+    row.durationDays.value ? daysBn(row.durationDays.value) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
   const quantityHint = suggestQuantity(row.frequency.value, row.durationDays.value)
 
   const selected: MedicineResponse | null = row.medicineId
@@ -160,9 +166,7 @@ export function RxRowEditor({
   // Quantity and food fold away by default; a row that already carries either
   // (dictated, carried over, or from a server error) arrives unfolded, because
   // hiding a filled-in value is worse than showing an extra line.
-  const [showMore, setShowMore] = useState(
-    () => row.quantity.value !== null || row.food !== null,
-  )
+  const [showMore, setShowMore] = useState(() => row.quantity.value !== null || row.food !== null)
   useEffect(() => {
     if (errors[quantityId] || errors[rowFieldId.food(row.key)]) setShowMore(true)
   }, [errors, quantityId, row.key])
@@ -177,8 +181,8 @@ export function RxRowEditor({
     <li
       data-row-key={row.key}
       className={cn(
-        'relative rounded-lg border bg-surface p-3',
-        'transition-colors duration-fast ease-standard',
+        'bg-surface relative rounded-lg border p-3',
+        'duration-fast ease-standard transition-colors',
         allergyHit
           ? 'border-allergy shadow-[inset_3px_0_0_0_var(--color-allergy)]'
           : unmatched
@@ -207,7 +211,7 @@ export function RxRowEditor({
       <div className="@container flex items-start gap-2">
         <span
           aria-hidden
-          className="mt-6 hidden w-5 shrink-0 text-right font-mono text-caption tabular-nums text-text-subtle @xs:block"
+          className="text-caption text-text-subtle mt-6 hidden w-5 shrink-0 text-right font-mono tabular-nums @xs:block"
         >
           {index + 1}
         </span>
@@ -253,7 +257,10 @@ export function RxRowEditor({
                 getKey={(m) => m.id}
                 getLabel={(m) => m.name}
                 invalid={has('medicine')}
-                className={cn(TAP_TARGET, !row.medicineId && 'border-dashed border-provenance-blank')}
+                className={cn(
+                  TAP_TARGET,
+                  !row.medicineId && 'border-provenance-blank border-dashed',
+                )}
                 placeholder={unmatched ? `“${meta.spokenName}” — not matched` : '—'}
                 searchPlaceholder="Brand or generic name…"
                 emptyMessage={
@@ -264,8 +271,8 @@ export function RxRowEditor({
                 renderItem={(m) => <MedicineOption medicine={m} />}
               />
               {matchedFromSpeech && (
-                <p className="mt-1 flex items-center gap-1 text-caption text-text-subtle">
-                  <Ear aria-hidden className="size-3 shrink-0 text-provenance-heard" />
+                <p className="text-caption text-text-subtle mt-1 flex items-center gap-1">
+                  <Ear aria-hidden className="text-provenance-heard size-3 shrink-0" />
                   Heard “{meta.spokenName}” — matched for you. Check it.
                 </p>
               )}
@@ -322,6 +329,15 @@ export function RxRowEditor({
             </div>
           </div>
 
+          {/* One line under both fields, not one under each: a hint under only
+              one of the two bottom-aligned columns would push its input out of
+              line with the other. */}
+          {bnSummary && (
+            <p lang="bn" className="text-caption text-text-subtle mt-1.5">
+              {bnSummary}
+            </p>
+          )}
+
           <div
             role="group"
             aria-label="Frequency presets"
@@ -341,16 +357,19 @@ export function RxRowEditor({
                     patch({ frequency: entered(preset.value), prn: preset.value === 'SOS' })
                   }
                   className={cn(
-                    'inline-flex min-h-tap items-center gap-1.5 rounded-full border px-3 text-label lg:min-h-10',
-                    'transition-colors duration-instant ease-standard',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35',
+                    'min-h-tap text-label inline-flex items-center gap-1.5 rounded-full border px-3 lg:min-h-10',
+                    'duration-instant ease-standard transition-colors',
+                    'focus-visible:ring-accent/35 focus-visible:ring-2 focus-visible:outline-none',
                     active
                       ? 'border-accent/40 bg-accent-muted text-accent-muted-fg'
                       : 'border-border bg-surface text-text-muted hover:border-accent hover:bg-accent-muted hover:text-accent-muted-fg',
                   )}
                 >
                   <span className="font-mono tabular-nums">{preset.value}</span>
-                  <span>{preset.label}</span>
+                  <span>
+                    {preset.label}
+                    <BnTag>{BN_FREQUENCY_PRESET[preset.value]}</BnTag>
+                  </span>
                 </button>
               )
             })}
@@ -366,7 +385,6 @@ export function RxRowEditor({
                 htmlFor={instructionsId}
                 provenance={row.instructions.provenance}
                 hint="Anything the patient must know for this medicine, for example after food or with warm water. Printed with the medicine."
-
                 // Per-field mic icons hidden at user request. Uncomment this block
                 // and the RxFieldStateMic import above to restore it.
                 // action={
@@ -403,7 +421,7 @@ export function RxRowEditor({
                 <ChevronDown
                   aria-hidden
                   className={cn(
-                    'size-3.5 transition-transform duration-fast ease-standard',
+                    'duration-fast ease-standard size-3.5 transition-transform',
                     showMore && 'rotate-180',
                   )}
                 />
@@ -445,7 +463,7 @@ export function RxRowEditor({
                           type="button"
                           aria-label={`Set quantity to ${quantityHint}`}
                           onClick={() => patch({ quantity: entered(quantityHint) })}
-                          className="rounded px-1 font-mono text-caption text-accent hover:bg-accent-muted"
+                          className="text-caption text-accent hover:bg-accent-muted rounded px-1 font-mono"
                         >
                           {quantityHint}
                         </button>
@@ -476,19 +494,17 @@ export function RxRowEditor({
           )}
 
           {allergyHit && (
-            <p
-              className="mt-2.5 flex items-center gap-2 rounded-md bg-allergy px-2.5 py-1.5 text-caption font-medium text-allergy-fg"
-            >
+            <p className="bg-allergy text-caption text-allergy-fg mt-2.5 flex items-center gap-2 rounded-md px-2.5 py-1.5 font-medium">
               <TriangleAlert aria-hidden className="size-4 shrink-0" />
               This patient is recorded as allergic to “{allergyHit}”.
             </p>
           )}
 
           {issues.length > 0 && (
-            <p className="mt-2 flex items-center gap-1.5 text-caption text-provenance-blank">
+            <p className="text-caption text-provenance-blank mt-2 flex items-center gap-1.5">
               <span
                 aria-hidden
-                className="inline-block size-2.5 shrink-0 rounded-xs border border-dashed border-provenance-blank"
+                className="border-provenance-blank inline-block size-2.5 shrink-0 rounded-xs border border-dashed"
               />
               {issues.map((i) => i.message).join(' · ')} — this line cannot be printed yet.
             </p>
@@ -514,15 +530,15 @@ function MedicineOption({ medicine }: { medicine: MedicineResponse }) {
   return (
     <span className="flex flex-col">
       <span className="flex items-baseline gap-2">
-        <span className="truncate text-text">{medicine.name}</span>
+        <span className="text-text truncate">{medicine.name}</span>
         {medicine.strength && (
-          <span className="shrink-0 font-mono text-caption text-text-subtle">
+          <span className="text-caption text-text-subtle shrink-0 font-mono">
             {medicine.strength}
           </span>
         )}
       </span>
       {(medicine.generic_name ?? medicine.brand_name) && (
-        <span className="truncate text-caption text-text-subtle">
+        <span className="text-caption text-text-subtle truncate">
           {[medicine.generic_name, medicine.brand_name].filter(Boolean).join(' · ')}
         </span>
       )}
@@ -557,16 +573,16 @@ function UnmatchedNotice({
   onSearch: () => void
 }) {
   return (
-    <div className="mb-2.5 rounded-md border border-provenance-heard/40 bg-provenance-heard-muted px-2.5 py-2">
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-text">
-        <Ear aria-hidden className="size-3.5 shrink-0 text-provenance-heard" />
+    <div className="border-provenance-heard/40 bg-provenance-heard-muted mb-2.5 rounded-md border px-2.5 py-2">
+      <p className="text-caption text-text flex flex-wrap items-center gap-x-1.5 gap-y-1">
+        <Ear aria-hidden className="text-provenance-heard size-3.5 shrink-0" />
         <span className="text-provenance-heard">Heard</span>
-        <strong className="font-semibold text-text">“{spokenName}”</strong>
+        <strong className="text-text font-semibold">“{spokenName}”</strong>
         <span className="text-text-muted">— no confident match in the formulary.</span>
       </p>
 
       {resolving ? (
-        <p className="mt-1.5 flex items-center gap-1.5 text-caption text-text-muted">
+        <p className="text-caption text-text-muted mt-1.5 flex items-center gap-1.5">
           <Loader2 aria-hidden className="size-3.5 animate-spin motion-reduce:animate-none" />
           Searching the formulary…
         </p>
@@ -579,14 +595,14 @@ function UnmatchedNotice({
               type="button"
               onClick={() => onChoose(medicine)}
               className={cn(
-                'inline-flex min-h-tap items-center gap-1.5 rounded-sm border border-border-field bg-surface px-2.5',
-                'text-caption text-text transition-colors duration-instant ease-standard',
+                'min-h-tap border-border-field bg-surface inline-flex items-center gap-1.5 rounded-sm border px-2.5',
+                'text-caption text-text duration-instant ease-standard transition-colors',
                 'hover:border-accent hover:bg-accent-muted lg:min-h-0 lg:items-baseline lg:px-2 lg:py-0.5',
               )}
             >
               {medicine.name}
               {medicine.strength && (
-                <span className="font-mono text-micro text-text-subtle">{medicine.strength}</span>
+                <span className="text-micro text-text-subtle font-mono">{medicine.strength}</span>
               )}
             </button>
           ))}
@@ -601,7 +617,7 @@ function UnmatchedNotice({
           </Button>
         </div>
       ) : (
-        <p className="mt-1.5 text-caption text-text-muted">
+        <p className="text-caption text-text-muted mt-1.5">
           The formulary returned nothing for it. Search by hand, or add it to the formulary first.
         </p>
       )}

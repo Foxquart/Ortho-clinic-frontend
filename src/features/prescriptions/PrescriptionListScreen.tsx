@@ -1,34 +1,113 @@
-import { useCallback, useEffect } from 'react'
+/**
+ * `/prescriptions` — built for a clinic that writes ~100 a day.
+ *
+ * The default view is TODAY, newest first, grouped under sticky day headers; a
+ * doctor opening the page sees today's patients and nothing else. Anything older
+ * is one chip or one keystroke away: `/` jumps to search, which matches patient
+ * name, phone and Rx number on the server and — unless a range was chosen on
+ * purpose — looks across all dates, because the patient you are hunting for was
+ * rarely here today. Nothing loads more than 25 rows at a time.
+ *
+ * All view state lives in the URL (`range`, `q`, `patient_id`) so back/forward
+ * and "open a prescription, come back" land exactly where the doctor was.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { FileText, Plus, User, X } from 'lucide-react'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { FileText, Plus, SearchX, User, X } from 'lucide-react'
 import { apiGet } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
-import { formatAgo, formatDate, formatDateTime, fullName } from '@/lib/format'
+import { cn } from '@/lib/cn'
+import { formatDate, fullName } from '@/lib/format'
 import { useAuth } from '@/app/AuthProvider'
 import { isTypingTarget } from '@/app/useGoToShortcuts'
-import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, PageHeader } from '@/components/ui/Surface'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback'
-import { Pagination, Table, TD, TH, THead, TR } from '@/components/ui/Table'
+import { EmptyState, ErrorState } from '@/components/ui/Feedback'
+import { DayHeader, RxListSkeleton, RxRow } from './list/RxRow'
+import { RxToolbar } from './list/RxToolbar'
+import {
+  dayLabel,
+  groupByDay,
+  isIsoDay,
+  isSingleDay,
+  rangeBounds,
+  resolveRange,
+} from './list/range'
 import type { ListPrescriptionsParams } from '@/api/endpoints'
-import type { Paginated, PatientResponse, PrescriptionResponse, SortOrder } from '@/api/schema'
+import type {
+  Paginated,
+  PatientResponse,
+  PrescriptionResponse,
+  PrescriptionStatsToday,
+} from '@/api/schema'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 25
+const SEARCH_DEBOUNCE_MS = 250
+/** `q` is 1..100 on the API. */
+const Q_MAX = 100
 
-/**
- * `sort_by` is a nullable free string in the schema with no enum of allowed
- * columns, so only stored columns we are confident about are offered. Patient
- * name, diagnosis and the item count are derived or joined and are deliberately
- * not sortable — a control that silently no-ops is worse than no control.
- */
-const SORTABLE = ['prescription_number', 'follow_up_date', 'created_at'] as const
-type SortableColumn = (typeof SORTABLE)[number]
+/** "today", "in the last 7 days" etc. for the header line. */
+function scopeWords(range: string, q: string): string {
+  if (range === 'today') return 'today'
+  if (range === 'yesterday') return 'yesterday'
+  if (range === '7d') return 'in the last 7 days'
+  if (isIsoDay(range)) return `on ${formatDate(range)}`
+  return q ? 'across all dates' : 'in total'
+}
 
-function isSortable(value: string): value is SortableColumn {
-  return (SORTABLE as readonly string[]).includes(value)
+interface EmptyCopy {
+  title: string
+  en: string
+  /** The one sensible widening, offered as a button. */
+  next?: { label: string; range: string }
+}
+
+/** Empty states say what is true and what to do next — never just "No data". */
+function emptyCopy(range: string, q: string): EmptyCopy {
+  if (q) {
+    return {
+      title: `No prescriptions match “${q}”`,
+      en: 'Try the first letters of the name, the phone number, or the Rx number.',
+      next:
+        range === 'all'
+          ? undefined
+          : { label: 'Search all dates', range: 'all' },
+    }
+  }
+  switch (range) {
+    case 'today':
+      return {
+        title: 'No prescriptions yet today',
+        en: 'They show up here the moment one is written.',
+        next: { label: 'See yesterday', range: 'yesterday' },
+      }
+    case 'yesterday':
+      return {
+        title: 'Nothing was written yesterday',
+        en: 'Check the last week to find an older one.',
+        next: { label: 'See last 7 days', range: '7d' },
+      }
+    case '7d':
+      return {
+        title: 'No prescriptions in the last 7 days',
+        en: 'Older ones are filed under All.',
+        next: { label: 'See all', range: 'all' },
+      }
+    case 'all':
+      return {
+        title: 'No prescriptions yet',
+        en: 'Every prescription written on the pad is filed here.',
+      }
+    default:
+      return {
+        title: `No prescriptions on ${formatDate(range)}`,
+        en: 'Pick another day, or look at everything.',
+        next: { label: 'See all', range: 'all' },
+      }
+  }
 }
 
 export function PrescriptionListScreen() {
@@ -40,14 +119,9 @@ export function PrescriptionListScreen() {
      `patientId` is accepted as an alias so a link written in the pad's camelCase
      convention still lands on a filtered list rather than the unfiltered one. */
   const patientId = searchParams.get('patient_id') ?? searchParams.get('patientId')
-  const pageParam = Number(searchParams.get('page'))
-  const page = Number.isFinite(pageParam) && pageParam >= 1 ? Math.floor(pageParam) : 1
-  const sortByParam = searchParams.get('sort_by') ?? ''
-  const sortBy: SortableColumn = isSortable(sortByParam) ? sortByParam : 'created_at'
-  const sortOrder: SortOrder = searchParams.get('sort_order') === 'asc' ? 'asc' : 'desc'
+  const urlQ = (searchParams.get('q') ?? '').trim().slice(0, Q_MAX)
+  const range = resolveRange(searchParams.get('range'), Boolean(urlQ || patientId))
 
-  /* All list state lives in the URL: back/forward work, and a sorted, filtered
-     view is a link the doctor can keep. */
   const patch = useCallback(
     (next: Record<string, string | null>) => {
       setSearchParams(
@@ -65,22 +139,66 @@ export function PrescriptionListScreen() {
     [setSearchParams],
   )
 
-  const clearPatientFilter = () => patch({ patient_id: null, patientId: null, page: null })
+  /* The debounced write below fires 250ms after the last keystroke, from a
+     closure made at that keystroke. React Router's functional updater reads the
+     params of the render that created it, so a chip clicked inside that window
+     would be overwritten. Always calling the latest `patch` avoids that. */
+  const patchRef = useRef(patch)
+  useEffect(() => {
+    patchRef.current = patch
+  })
 
+  const clearPatientFilter = () => patch({ patient_id: null, patientId: null })
+  const setRange = (next: string) => patch({ range: next })
+
+  /* ---- search: typing is local, the URL (and so the query) follows 250ms later ---- */
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [text, setText] = useState(urlQ)
+  const writeTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(writeTimer.current), [])
+
+  const onTextChange = (value: string) => {
+    setText(value)
+    window.clearTimeout(writeTimer.current)
+    writeTimer.current = window.setTimeout(
+      () => patchRef.current({ q: value.trim().slice(0, Q_MAX) || null }),
+      SEARCH_DEBOUNCE_MS,
+    )
+  }
+  const clearSearch = () => {
+    window.clearTimeout(writeTimer.current)
+    setText('')
+    patch({ q: null })
+  }
+
+  /* ---- data ---- */
   const params: ListPrescriptionsParams = {
-    page,
     page_size: PAGE_SIZE,
-    sort_by: sortBy,
-    sort_order: sortOrder,
+    sort_by: 'created_at',
+    sort_order: 'desc',
+    ...rangeBounds(range),
+    ...(urlQ ? { q: urlQ } : {}),
     ...(patientId ? { patient_id: patientId } : {}),
   }
 
-  const list = useQuery({
-    queryKey: qk.prescriptions.list(params),
-    queryFn: () =>
-      apiGet<Paginated<PrescriptionResponse>>(endpoints.prescriptions.list, { params }),
-    // Paging must not blank out the table the doctor is reading.
+  const feed = useInfiniteQuery({
+    queryKey: [...qk.prescriptions.all(), 'feed', params] as const,
+    queryFn: ({ pageParam }) =>
+      apiGet<Paginated<PrescriptionResponse>>(endpoints.prescriptions.list, {
+        params: { ...params, page: pageParam },
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page < last.pages ? last.page + 1 : undefined),
+    // A new filter must not blank the list the doctor is reading.
     placeholderData: keepPreviousData,
+  })
+
+  /* Chip counts. Decoration, not a dependency: if this fails the chips simply
+     show no number. */
+  const stats = useQuery({
+    queryKey: [...qk.prescriptions.all(), 'stats-today'] as const,
+    queryFn: () => apiGet<PrescriptionStatsToday>(endpoints.prescriptions.statsToday),
+    staleTime: 60_000,
   })
 
   /* The filtered empty state has to name the patient even when the list comes
@@ -91,70 +209,99 @@ export function PrescriptionListScreen() {
     enabled: Boolean(patientId),
   })
 
-  const rows = list.data?.items ?? []
-  const total = list.data?.total ?? 0
+  /* A new prescription landing between two "Load more" clicks shifts every
+     later row down by one, so page 2 can repeat the last row of page 1. */
+  const rows = useMemo(() => {
+    const seen = new Set<string>()
+    const out: PrescriptionResponse[] = []
+    for (const page of feed.data?.pages ?? []) {
+      for (const rx of page.items) {
+        if (seen.has(rx.id)) continue
+        seen.add(rx.id)
+        out.push(rx)
+      }
+    }
+    return out
+  }, [feed.data])
+  const groups = useMemo(() => groupByDay(rows), [rows])
+  const total = feed.data?.pages[feed.data.pages.length - 1]?.total ?? 0
+
   const filterName = patient.data
     ? fullName(patient.data.first_name, patient.data.last_name)
     : (rows[0]?.patient_name ?? 'this patient')
 
-  const newHref = patientId ? `/prescriptions/new?patientId=${patientId}` : '/prescriptions/new'
   const canWrite = can('prescription.write')
+  const newHref = patientId ? `/prescriptions/new?patientId=${patientId}` : '/prescriptions/new'
 
-  /* `n` = new, per the reserved shortcut table. Ignored while typing, and never
-     bound for someone the capability guard would bounce. */
+  const isEmpty = Boolean(feed.data) && rows.length === 0
+  /* A plain empty range owns a "New prescription" button of its own, and one
+     view gets one primary button — so the header and phone "+" step aside. */
+  const emptyOwnsNew = isEmpty && canWrite && !urlQ
+  const showNew = canWrite && !emptyOwnsNew
+
+  /* ---- keyboard ---- */
+  const listRef = useRef<HTMLDivElement>(null)
+  const rowLinks = () =>
+    Array.from(listRef.current?.querySelectorAll<HTMLAnchorElement>('[data-rx-row]') ?? [])
+
+  /* `/` = search, `n` = new (the reserved table in navigation.ts). Both are
+     ignored while typing, and `n` is never bound for someone the guard would bounce. */
   useEffect(() => {
-    if (!canWrite) return
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return
-      if (e.key.toLowerCase() !== 'n') return
-      if (isTypingTarget(e.target)) return
-      e.preventDefault()
-      navigate(newHref)
+      if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return
+      if (e.key === '/') {
+        e.preventDefault()
+        searchRef.current?.focus()
+        searchRef.current?.select()
+      } else if (canWrite && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        navigate(newHref)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [canWrite, navigate, newHref])
 
-  const sortFor = (column: SortableColumn) => (sortBy === column ? sortOrder : null)
-  const toggleSort = (column: SortableColumn) => {
-    const nextOrder: SortOrder = sortBy === column && sortOrder === 'desc' ? 'asc' : 'desc'
-    patch({ sort_by: column, sort_order: nextOrder, page: null })
+  /* ↑ ↓ walk the rows, so a hundred-row day is not a hundred Tab presses. */
+  const onListKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const links = rowLinks()
+    const at = links.indexOf(document.activeElement as HTMLAnchorElement)
+    if (at === -1) return
+    e.preventDefault()
+    if (e.key === 'ArrowUp' && at === 0) searchRef.current?.focus()
+    else links[at + (e.key === 'ArrowDown' ? 1 : -1)]?.focus()
   }
 
-  const isEmpty = Boolean(list.data) && rows.length === 0
-  const isUnfilteredEmpty = isEmpty && !patientId
+  /* Keyboard focus would otherwise stay on a button that has just slid down
+     below the rows it loaded. Hand it to the first new row. */
+  const loadMore = async () => {
+    const before = rows.length
+    await feed.fetchNextPage()
+    requestAnimationFrame(() => rowLinks()[before]?.focus())
+  }
 
-  /* One destination, quoted by both renders below. The table row navigates on
-     click because a `<tr>` cannot contain an anchor that spans it; the phone
-     card is a real `<Link>`, which is strictly better where it is possible —
-     long-press, "open in new tab" and the status bar preview all come free. */
-  const hrefFor = (rx: PrescriptionResponse) => `/prescriptions/${rx.id}`
+  /* ---- copy ---- */
+  const scope = scopeWords(range, urlQ)
+  const noun = total === 1 ? 'prescription' : 'prescriptions'
+  const countLine = `${total.toLocaleString()} ${noun}${urlQ ? ` matching “${urlQ}”` : ''} ${scope}`
+  const empty = emptyCopy(range, urlQ)
 
   return (
     <div className="max-w-content flex flex-col gap-4 px-4 py-6 sm:px-6">
       <PageHeader
+        /* The header button is hidden below `sm` (the toolbar has a "+" there),
+           so the empty actions row must not leave its flex gap behind. */
+        className="gap-0 sm:gap-4"
         title="Prescriptions"
-        description={
-          <span aria-live="polite" className="text-body text-text-muted">
-            {list.data
-              ? `${total.toLocaleString()} ${total === 1 ? 'prescription' : 'prescriptions'}${
-                  patientId ? ' for this patient' : ''
-                }`
-              : 'Everything written at this clinic, newest first.'}
-          </span>
-        }
+        description={<span aria-live="polite">{feed.data ? countLine : 'Newest first.'}</span>}
         actions={
-          /* Hidden when the collection is genuinely empty: the empty state owns
-             the primary action there, and one view gets one primary button. */
-          canWrite &&
-          !isUnfilteredEmpty && (
-            /* Full width below `sm`: it is the only action on the screen, and a
-               phone has no pointer to aim with. */
+          showNew && (
             <Button
               variant="primary"
               onClick={() => navigate(newHref)}
               iconLeft={<Plus className="size-4" />}
-              className="w-full sm:w-auto"
+              className="hidden sm:inline-flex"
             >
               New prescription
             </Button>
@@ -185,188 +332,117 @@ export function PrescriptionListScreen() {
         </div>
       )}
 
-      {list.isError && <ErrorState error={list.error} onRetry={() => list.refetch()} />}
+      <RxToolbar
+        text={text}
+        onTextChange={onTextChange}
+        onClearSearch={clearSearch}
+        searchRef={searchRef}
+        onArrowDown={() => rowLinks()[0]?.focus()}
+        range={range}
+        onRange={setRange}
+        todayCount={stats.data?.today}
+        weekCount={stats.data?.this_week}
+        onNew={showNew ? () => navigate(newHref) : undefined}
+      />
 
-      <Card className="overflow-hidden">
-        {list.isPending ? (
-          <SkeletonRows rows={8} className="py-2" />
+      {feed.isError && <ErrorState error={feed.error} onRetry={() => feed.refetch()} />}
+
+      <div
+        ref={listRef}
+        onKeyDown={onListKeyDown}
+        aria-busy={feed.isFetching && !feed.isFetchingNextPage}
+        className={cn(
+          'duration-base ease-standard transition-opacity',
+          feed.isPlaceholderData && 'opacity-60',
+        )}
+      >
+        {feed.isPending ? (
+          <RxListSkeleton />
         ) : isEmpty ? (
-          patientId ? (
-            /* A filter returned nothing: said in place, left-aligned, with a way
-               back. No "create" here — they were looking, not authoring. */
-            <div className="flex flex-wrap items-center gap-2 px-4 py-6">
-              <p className="text-body text-text">No prescriptions for {filterName}.</p>
-              <Button variant="link" onClick={clearPatientFilter}>
-                Show all prescriptions
-              </Button>
-            </div>
-          ) : (
+          <Card>
             <EmptyState
-              icon={<FileText />}
-              title="No prescriptions yet"
-              description="Every prescription written on the pad is filed here."
+              icon={urlQ ? <SearchX /> : <FileText />}
+              title={patientId ? `${empty.title} — ${filterName}` : empty.title}
+              description={empty.en}
               action={
-                canWrite && (
-                  <Button variant="primary" size="sm" onClick={() => navigate(newHref)}>
-                    Write the first one
-                  </Button>
-                )
+                <div className="flex flex-wrap justify-center gap-2">
+                  {emptyOwnsNew && (
+                    <Button
+                      variant="primary"
+                      onClick={() => navigate(newHref)}
+                      iconLeft={<Plus className="size-4" />}
+                      className="sm:h-control h-11"
+                    >
+                      {range === 'all' ? 'Write the first one' : 'New prescription'}
+                    </Button>
+                  )}
+                  {empty.next && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setRange(empty.next!.range)}
+                      className="sm:h-control h-11"
+                    >
+                      {empty.next.label}
+                    </Button>
+                  )}
+                  {urlQ && (
+                    <Button variant="ghost" onClick={clearSearch} className="sm:h-control h-11">
+                      Clear search
+                    </Button>
+                  )}
+                </div>
               }
             />
-          )
+          </Card>
         ) : (
           <>
-            {/* ---------------------------------------------------------------
-                PHONE: a stacked card list, not a sideways table.
-
-                Six columns need about 500px. On a 320–390px phone that made the
-                doctor drag a list of his own prescriptions sideways to find out
-                whose it was — the patient's name, the one thing the list is FOR,
-                sat in the second column and was the first thing off-screen. So
-                under `sm` the same row data is re-laid out vertically, in the
-                order a person actually asks for it: which prescription, whose,
-                what for, and then the numbers.
-
-                There is deliberately no mobile sort control. Sorting only ever
-                lived in the table header, and the list arrives `created_at desc`
-                — newest first, which is the only order that makes sense on a
-                phone, where the doctor is looking for something he wrote this
-                morning rather than auditing a year. A sort UI here would be a
-                second control surface to maintain for a case that does not
-                exist; the sorted view is still reachable as a URL and still
-                renders correctly from `sm` up.
-                --------------------------------------------------------------- */}
-            <ul className="divide-border divide-y sm:hidden">
-              {rows.map((rx) => (
-                <li key={rx.id}>
-                  <Link
-                    to={hrefFor(rx)}
-                    className="min-h-tap duration-fast ease-standard hover:bg-surface-hover focus-visible:bg-surface-hover flex flex-col gap-1 px-4 py-3 transition-colors focus-visible:outline-offset-[-2px]"
-                  >
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-label text-text-muted font-mono">
-                        {rx.prescription_number}
-                      </span>
-                      {rx.status !== 'active' && <Badge tone="danger">Voided</Badge>}
-                    </span>
-
-                    <span className="text-body text-text truncate font-medium">
-                      {rx.patient_name || 'Unnamed patient'}
-                    </span>
-
-                    {rx.diagnosis && (
-                      <span className="text-label text-text-muted line-clamp-2">
-                        {rx.diagnosis}
-                      </span>
-                    )}
-
-                    {/* The three table columns that were furthest off-screen,
-                        folded into one quiet line. Separated by middots rather
-                        than laid out on a sub-grid: they are context, and a grid
-                        would give them back the rank the table gave them. */}
-                    <span className="text-caption text-text-subtle flex flex-wrap items-center gap-x-1.5">
-                      <span data-numeric>
-                        {rx.items.length} {rx.items.length === 1 ? 'item' : 'items'}
-                      </span>
-                      {rx.follow_up_date && (
-                        <>
-                          <span aria-hidden>·</span>
-                          <span data-numeric>follow-up {formatDate(rx.follow_up_date)}</span>
-                        </>
-                      )}
-                      <span aria-hidden>·</span>
-                      <span>{formatAgo(rx.created_at)}</span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-
-            {/* From `sm` up the table is untouched — same columns, same sort.
-                Hidden on the WRAPPER rather than on the `<table>`, so the
-                scroll region the primitive builds is not left behind as an
-                empty focus stop on a phone. */}
-            <div className="hidden sm:block">
-              <Table label="Prescriptions">
-                <THead>
-                  <TH
-                    width="10.5rem"
-                    sort={sortFor('prescription_number')}
-                    onSort={() => toggleSort('prescription_number')}
-                  >
-                    Number
-                  </TH>
-                  <TH>Patient</TH>
-                  <TH>Diagnosis</TH>
-                  <TH width="5rem" align="right">
-                    Items
-                  </TH>
-                  <TH
-                    width="9rem"
-                    align="right"
-                    sort={sortFor('follow_up_date')}
-                    onSort={() => toggleSort('follow_up_date')}
-                  >
-                    Follow-up
-                  </TH>
-                  <TH
-                    width="9rem"
-                    align="right"
-                    sort={sortFor('created_at')}
-                    onSort={() => toggleSort('created_at')}
-                  >
-                    Created
-                  </TH>
-                </THead>
-                <tbody>
-                  {rows.map((rx) => (
-                    <TR key={rx.id} onClick={() => navigate(hrefFor(rx))}>
-                      <TD className="text-label text-text font-mono whitespace-nowrap">
-                        {rx.prescription_number}
-                        {rx.status !== 'active' && (
-                          <Badge tone="danger" className="ml-2 font-sans">
-                            Voided
-                          </Badge>
-                        )}
-                      </TD>
-                      <TD className="text-body text-text max-w-0 truncate">
-                        {rx.patient_name || 'Unnamed patient'}
-                      </TD>
-                      <TD className="text-label text-text-muted max-w-0 truncate">
-                        {rx.diagnosis ?? <span className="text-text-subtle">—</span>}
-                      </TD>
-                      <TD align="right" numeric className="text-label text-text-muted">
-                        {rx.items.length}
-                      </TD>
-                      <TD
-                        align="right"
-                        numeric
-                        className="text-label text-text-muted whitespace-nowrap"
-                      >
-                        {rx.follow_up_date ? (
-                          formatDate(rx.follow_up_date)
-                        ) : (
-                          <span className="text-text-subtle">—</span>
-                        )}
-                      </TD>
-                      <TD align="right" className="text-caption text-text-subtle whitespace-nowrap">
-                        <span title={formatDateTime(rx.created_at)}>{formatAgo(rx.created_at)}</span>
-                      </TD>
-                    </TR>
-                  ))}
-                </tbody>
-              </Table>
+            <div className="flex flex-col gap-3">
+              {groups.map((group, i) => {
+                const label = dayLabel(group.day)
+                const id = `rx-day-${group.day}`
+                /* A one-day range knows the day's exact count. Over several days
+                   the last group may still be filling, hence the "+". */
+                const count = isSingleDay(range)
+                  ? total.toLocaleString()
+                  : `${group.rows.length}${i === groups.length - 1 && feed.hasNextPage ? '+' : ''}`
+                return (
+                  <section key={group.day} aria-labelledby={id}>
+                    <DayHeader id={id} label={label} count={`${count} Rx`} />
+                    <ul className="border-border bg-surface divide-border divide-y overflow-hidden rounded-xl border shadow-sm">
+                      {group.rows.map((rx) => (
+                        <RxRow key={rx.id} rx={rx} />
+                      ))}
+                    </ul>
+                  </section>
+                )
+              })}
             </div>
-            <Pagination
-              page={list.data?.page ?? page}
-              pages={list.data?.pages ?? 1}
-              total={total}
-              pageSize={list.data?.page_size ?? PAGE_SIZE}
-              onPageChange={(next) => patch({ page: String(next) })}
-            />
+
+            <div className="flex flex-col items-center gap-1.5 pt-4 pb-2">
+              {feed.hasNextPage ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    loading={feed.isFetchingNextPage}
+                    onClick={loadMore}
+                    className="h-11 w-full sm:w-auto sm:min-w-56"
+                  >
+                    Load more
+                  </Button>
+                  <p className="text-caption text-text-subtle" data-numeric>
+                    Showing {rows.length.toLocaleString()} of {total.toLocaleString()}
+                  </p>
+                </>
+              ) : (
+                <p className="text-caption text-text-subtle text-center" data-numeric>
+                  That’s all {total.toLocaleString()}
+                </p>
+              )}
+            </div>
           </>
         )}
-      </Card>
+      </div>
     </div>
   )
 }

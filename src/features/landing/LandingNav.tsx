@@ -21,6 +21,7 @@
  * oversight.
  */
 import { useEffect, useRef, useState } from 'react'
+import { Bone, LayoutDashboard } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/app/AuthProvider'
 import { staffUrl } from '@/app/surface'
@@ -33,6 +34,12 @@ const LINKS = [
   { id: 'life', label: 'Life' },
   { id: 'reviews', label: 'Reviews' },
 ] as const
+
+/** "Dr. Sankar Deb Roy" -> "Dr. Deb Roy": the title plus the last two words. */
+function compactName(full: string): string {
+  const [title, ...rest] = full.split(' ')
+  return rest.length > 2 ? `${title} ${rest.slice(-2).join(' ')}` : full
+}
 
 export function LandingNav({ wordmark }: { wordmark: string }) {
   const { isAuthenticated } = useAuth()
@@ -93,10 +100,10 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
       <nav
         aria-label="Primary"
         className={cn(
-          'lp-nav-pill mx-auto flex h-14 w-max max-w-full items-center gap-1 rounded-full border px-2.5',
+          'lp-nav-pill max-w-content mx-auto flex h-14 w-full items-center justify-between gap-1 rounded-full border px-2.5',
           scrolled || open
             ? 'border-border bg-surface/85 shadow-sm backdrop-blur-xl backdrop-saturate-150'
-            : 'border-transparent bg-surface/40 backdrop-blur-md',
+            : 'bg-surface/40 border-transparent backdrop-blur-md',
           /* An open menu pins the pill in place — its close button lives in
              it, so it can never be allowed to scroll away. */
           retracted && !open && 'lp-nav-hide',
@@ -111,17 +118,19 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
           aria-label={`${wordmark} — back to top`}
-          className="mr-2 flex min-h-11 items-center gap-2 rounded-full pr-1 font-semibold tracking-tight lg:mr-2"
+          className="mr-1 flex min-h-11 min-w-0 items-center gap-2 rounded-full pr-1 font-semibold tracking-tight sm:mr-2"
         >
           <Monogram />
-          {/* Mark only below `lg`. Stacked on a phone the pill sits directly
-              above the hero H1, which states the same full name — two identical
-              lines about 50px apart read as a rendering fault, not as branding.
-              The split layout at `lg` separates them into different zones, so
-              the wordmark comes back. The name is never lost to assistive tech:
-              it is the anchor's `aria-label` at every width. */}
-          <span className="lp-serif hidden text-[1.3rem] leading-none text-text lg:inline">
-            {wordmark}
+          {/* Shown at every width: a bare ring tells nobody whose site this is.
+              Below `sm` it is the compact "Dr. Deb Roy" at a small size, so the
+              hero H1 stating the full name just underneath reads as a logo over
+              a headline rather than a duplicate line. From `sm` the full name
+              returns. `truncate` is the 320px safety net — the secondary pills
+              hide first and this only clips if the name itself cannot fit. The
+              full name is the anchor's `aria-label` at every width. */}
+          <span className="lp-serif text-text truncate text-[1.05rem] leading-none sm:text-[1.2rem] lg:text-[1.3rem]">
+            <span className="sm:hidden">{compactName(wordmark)}</span>
+            <span className="hidden sm:inline">{wordmark}</span>
           </span>
         </a>
 
@@ -132,7 +141,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
               key={l.id}
               type="button"
               onClick={() => go(l.id)}
-              className="text-label text-text-muted hover:text-text hover:bg-surface-hover inline-flex min-h-11 items-center rounded-full px-3.5 font-medium transition-colors duration-fast"
+              className="text-label text-text-muted hover:text-text hover:bg-surface-hover duration-fast inline-flex min-h-11 items-center rounded-full px-3.5 font-medium transition-colors"
             >
               {l.label}
             </button>
@@ -154,9 +163,10 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
           {isAuthenticated && (
             <a
               href={staffUrl('/dashboard')}
-              className="text-label text-text-muted hover:text-text hidden min-h-11 items-center rounded-full px-3 font-medium transition-colors duration-fast sm:inline-flex"
+              className="text-label text-text-muted hover:text-text hover:bg-surface-hover border-border duration-fast hidden min-h-11 items-center gap-1.5 rounded-full border px-3.5 font-medium transition-colors sm:inline-flex"
             >
-              Enter dashboard
+              <LayoutDashboard aria-hidden className="size-4" />
+              Dashboard
             </a>
           )}
 
@@ -164,15 +174,15 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
             ref={bookRef}
             href={booking.href}
             {...(booking.channel === 'whatsapp' ? { target: '_blank', rel: 'noreferrer' } : {})}
-            {...(booking.labelSuffix ? { 'aria-label': `Book${booking.labelSuffix}` } : {})}
+            {...(booking.labelSuffix ? { 'aria-label': `Book visit${booking.labelSuffix}` } : {})}
             onClick={(e) => {
               if (booking.external) return
               e.preventDefault()
               go('book')
             }}
-            className="group bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] hover:bg-[color:var(--lp-accent-strong)] text-label hidden h-11 items-center gap-1.5 rounded-full px-4 font-semibold shadow-sm transition-[background-color,box-shadow] duration-fast sm:inline-flex"
+            className="group text-label duration-fast hidden h-11 items-center gap-1.5 rounded-full bg-[color:var(--lp-accent)] px-4 font-semibold whitespace-nowrap text-[color:var(--lp-accent-fg)] shadow-sm transition-[background-color,box-shadow] hover:bg-[color:var(--lp-accent-strong)] min-[360px]:inline-flex"
           >
-            Book
+            Book visit
             <CtaArrow />
           </a>
 
@@ -183,7 +193,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
             aria-expanded={open}
             aria-controls="landing-mobile-menu"
             onClick={() => setOpen((v) => !v)}
-            className="relative grid size-11 place-items-center rounded-full text-text transition-colors duration-fast hover:bg-surface-hover lg:hidden"
+            className="text-text duration-fast hover:bg-surface-hover relative grid size-11 place-items-center rounded-full transition-colors lg:hidden"
           >
             <span
               aria-hidden
@@ -207,7 +217,7 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
       <div
         id="landing-mobile-menu"
         hidden={!open}
-        className="fixed inset-0 -z-10 bg-bg/95 backdrop-blur-2xl lg:hidden"
+        className="bg-bg/95 fixed inset-0 -z-10 backdrop-blur-2xl lg:hidden"
       >
         <div className="flex h-full flex-col justify-center gap-1 px-8 pt-16">
           {LINKS.map((l, i) => (
@@ -234,16 +244,16 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
             <a
               href={booking.href}
               {...(booking.channel === 'whatsapp' ? { target: '_blank', rel: 'noreferrer' } : {})}
-              {...(booking.labelSuffix ? { 'aria-label': `Book${booking.labelSuffix}` } : {})}
+              {...(booking.labelSuffix ? { 'aria-label': `Book visit${booking.labelSuffix}` } : {})}
               onClick={(e) => {
                 setOpen(false)
                 if (booking.external) return
                 e.preventDefault()
                 go('book')
               }}
-              className="group bg-[color:var(--lp-accent)] text-[color:var(--lp-accent-fg)] text-label inline-flex h-12 items-center justify-center gap-2 rounded-full font-semibold"
+              className="group text-label inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[color:var(--lp-accent)] font-semibold text-[color:var(--lp-accent-fg)]"
             >
-              Book
+              Book visit
               <CtaArrow />
             </a>
             {/* Same rule as the pill: signed-in only, never a sign-in door. */}
@@ -251,9 +261,10 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
               <a
                 href={staffUrl('/dashboard')}
                 onClick={() => setOpen(false)}
-                className="text-label text-text-muted inline-flex h-12 items-center justify-center rounded-full border border-border font-medium"
+                className="text-label text-text-muted border-border inline-flex h-12 items-center justify-center gap-2 rounded-full border font-medium"
               >
-                Enter dashboard
+                <LayoutDashboard aria-hidden className="size-4" />
+                Dashboard
               </a>
             )}
           </div>
@@ -264,27 +275,19 @@ export function LandingNav({ wordmark }: { wordmark: string }) {
 }
 
 /**
- * A tiny authored brand mark: two shafts meeting at a joint, in a ring.
- * Abstract on purpose — a literal bone reads as a warning sign at 16px, and
- * the joint is the thing an orthopaedic surgeon actually treats.
+ * The brand mark: a bone in a tinted ring. The earlier two-shafts-and-a-joint
+ * glyph was abstract enough that nobody could say what it was; a bone is the
+ * one shape a patient reads as "orthopaedic" before reading a word, and the
+ * ring keeps it a mark rather than clip-art. Lucide's `Bone` is drawn on a 24px
+ * grid and holds up at the 16px used here.
  */
 export function Monogram() {
   return (
     <span
       aria-hidden
-      className="grid size-8 place-items-center rounded-full border-[1.5px] border-[color:var(--lp-accent-line)] text-[color:var(--lp-accent)]"
+      className="grid size-8 shrink-0 place-items-center rounded-full border-[1.5px] border-[color:var(--lp-accent-line)] bg-[color:var(--lp-accent-tint)] text-[color:var(--lp-accent)]"
     >
-      <svg
-        viewBox="0 0 24 24"
-        className="size-4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      >
-        <path d="M12 4v4.4M12 15.6V20" />
-        <circle cx="12" cy="12" r="2.4" />
-      </svg>
+      <Bone className="size-4" strokeWidth={2} />
     </span>
   )
 }

@@ -13,6 +13,7 @@ import {
 } from './ClinicDetailsSections'
 import { DoctorProfileSection } from './DoctorProfileSection'
 import { PrintTemplatesSection } from './PrintTemplatesSection'
+import { CustomizeLayoutButton } from '@/features/prescriptions/layout/PadLayoutEditor'
 import type { ClinicSettingsResponse, DoctorProfileResponse } from '@/api/schema'
 
 function SectionSkeleton({ rows = 2 }: { rows?: number }) {
@@ -77,6 +78,16 @@ export function ClinicSettingsScreen() {
       ) : null}
 
       <PrintTemplatesSection canWrite={canWrite} />
+
+      {can('prescription.write') && (
+        <Card>
+          <CardHeader
+            title="Prescription layout"
+            description="Which sections your pad and printed prescriptions show, in what order, and under what names. This is your own layout; other doctors keep theirs."
+            action={<CustomizeLayoutButton variant="secondary" />}
+          />
+        </Card>
+      )}
     </div>
   )
 }

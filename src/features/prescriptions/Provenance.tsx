@@ -105,6 +105,21 @@ export function ProvenanceTag({
   )
 }
 
+/** The small secondary Bengali text that sits beside an English label or option. */
+export function BnTag({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <span lang="bn" className={cn('ml-1.5 font-normal normal-case text-text-subtle', className)}>
+      · {children}
+    </span>
+  )
+}
+
 /**
  * The pad's standard field label: name, provenance, and a slot on the right
  * for the per-field microphone. Every labelled control on the pad uses this, so

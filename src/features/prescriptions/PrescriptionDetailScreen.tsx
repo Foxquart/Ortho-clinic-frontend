@@ -357,6 +357,11 @@ export function PrescriptionDetailScreen() {
         <div className="grid gap-4 px-4 py-3 sm:grid-cols-2">
           <Meta label="Chief complaint" value={rx.chief_complaint} />
           <Meta label="Diagnosis" value={rx.diagnosis} />
+          {rx.examination_findings && (
+            <div className="sm:col-span-2">
+              <Meta label="Examination findings" value={rx.examination_findings} />
+            </div>
+          )}
         </div>
 
         <div className="border-border border-t">
@@ -396,6 +401,15 @@ export function PrescriptionDetailScreen() {
             </div>
           </div>
         </div>
+
+        {/* The doctor's own sections, as written: the label is a snapshot. */}
+        {rx.extra_fields && rx.extra_fields.length > 0 && (
+          <div className="border-border grid gap-4 border-t px-4 py-3 sm:grid-cols-2">
+            {rx.extra_fields.map((f) => (
+              <Meta key={f.key} label={f.label} value={f.value} />
+            ))}
+          </div>
+        )}
 
         {rx.notes && (
           <div className="border-border border-t px-4 py-3">
