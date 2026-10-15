@@ -1333,19 +1333,6 @@ export interface SpeechConfigResponse {
   /** Not in `required`; server default is `16`. */
   bits_per_sample?: number
   /**
-   * Whether this deployment can translate a transcript at all. Reports
-   * configuration only — a provider can be present here and still be refused by
-   * IAM on the first call, which surfaces as a 502 `upstream_error`.
-   * Not in `required`; server default is `false`.
-   */
-  translation_available?: boolean
-  /**
-   * ISO 639-1 targets the client may request, e.g. `["bn"]`. Note these are not
-   * the locale codes Transcribe uses: `bn`, not `bn-IN`.
-   * Not in `required`; server default is `[]`.
-   */
-  translation_target_languages?: string[]
-  /**
    * Whether dictation can be analysed into a prescription draft by the model.
    * Configuration only — a key can be present and still be rejected on the
    * first call, which surfaces as a 502 `upstream_error`.
@@ -1408,27 +1395,6 @@ export interface ExtractionResponse {
   provider: string
   model: string
   duration_ms: number
-}
-
-/** `TranslationRequest` — body of `POST /speech/translate`. */
-export interface TranslationRequest {
-  /** 1–5000 characters. */
-  text: string
-  /** ISO 639-1. Server default is `en`. AWS also accepts `auto`. */
-  source_language_code?: string
-  /** ISO 639-1, e.g. `bn`. */
-  target_language_code: string
-}
-
-/** `TranslationResponse` — 200 body of `POST /speech/translate`. */
-export interface TranslationResponse {
-  provider: string
-  /** Echo of the submitted text. */
-  text: string
-  translated_text: string
-  /** What the provider resolved — differs from the request when `auto` was sent. */
-  source_language_code: string
-  target_language_code: string
 }
 
 /** `Body_transcribe_file_api_v1_speech_transcribe_post` — `multipart/form-data` body of `POST /speech/transcribe`. */

@@ -3,7 +3,7 @@
  * presets, food timing, the live frequency and days line), shown small beside
  * the English so the doctor sees what the patient will read on the printed
  * page. Field and section labels carry no Bengali. Free text the doctor types
- * is translated server-side at print time.
+ * is matched against the clinic phrasebook server-side at print time.
  */
 
 /** "After food" is the wording the printed page already uses. */

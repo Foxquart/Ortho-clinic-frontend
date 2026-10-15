@@ -50,15 +50,12 @@ export interface Dictation {
 /**
  * The React layer both dictation modes share.
  *
- * Three things it guarantees, all of them learned the hard way:
+ * Two things it guarantees, both learned the hard way:
  *
  *  - **The language is pinned to `en-IN` here, in the client.** The server's
  *    own default was what produced Bengali gibberish from English speech. That
  *    default has been changed, but a prescription must not depend on a server
  *    setting anyone can flip.
- *  - **No translation.** `translateTo` stays null: translation is a separate
- *    feature and on this path it would only add latency to a transcript nobody
- *    is going to read in Bengali.
  *  - **Only `is_final` text ever reaches a caller.** Partials are hypotheses;
  *    acting on one means writing a word the doctor did not say.
  */
@@ -149,7 +146,7 @@ export function useDictation(options: DictationOptions = {}): Dictation {
       setTarget(next)
 
       try {
-        await connect({ languageCode: ENGLISH_ASR_LANGUAGE, translateTo: null })
+        await connect({ languageCode: ENGLISH_ASR_LANGUAGE })
         await micStart()
       } catch (raw) {
         disconnect()

@@ -3,29 +3,10 @@ import { websocketUrl } from '@/api/http'
 
 /** One settled (`is_final`) chunk of the live transcript. */
 export interface TranscriptLine {
-  /**
-   * 0-based index of this final chunk within the connection. This is the key
-   * the server's `translation` messages carry in `sequence`, so it — and not
-   * array position — is what ties an English line to its Bengali one.
-   */
+  /** 0-based index of this final chunk within the connection. */
   sequence: number
   text: string
   languageCode: string | null
-}
-
-/**
- * What happened to one line's translation. A line with no entry at all is
- * either still in flight or was never attempted; the screen decides which,
- * because only it knows whether the stream is still open.
- */
-export interface TranslationLine {
-  status: 'done' | 'failed'
-  /** The translated text. Empty when `status` is `failed`. */
-  text: string
-  /** The server's own words for the failure. Never our invention. */
-  message?: string
-  sourceLanguageCode?: string | null
-  targetLanguageCode?: string | null
 }
 
 export type StreamStatus = 'idle' | 'connecting' | 'ready' | 'closing' | 'closed' | 'error'
@@ -39,8 +20,6 @@ export interface SpeechStreamOptions {
   languageCode?: string | null
   /** Detect among the server's configured options instead of pinning. */
   identifyMultipleLanguages?: boolean
-  /** Target language for per-final translation, e.g. `bn`. Omit to disable. */
-  translateTo?: string | null
 }
 
 interface ServerReady {
@@ -49,19 +28,12 @@ interface ServerReady {
   sample_rate_hz?: number
   language_code?: string | null
   identify_multiple_languages?: boolean
-  /**
-   * What the server will *actually* translate to on this connection. `null`
-   * means it will not — including when we asked and it could not. This is the
-   * authoritative answer; what we put in the query string is only a request.
-   */
-  translate_to?: string | null
 }
 
 /** The server's confirmation of what this connection is really doing. */
 export interface NegotiatedStream {
   languageCode: string | null
   identifyMultipleLanguages: boolean
-  translateTo: string | null
 }
 interface ServerTranscript {
   type: 'transcript'
@@ -69,29 +41,14 @@ interface ServerTranscript {
   is_final: boolean
   language_code?: string | null
 }
-interface ServerTranslation {
-  type: 'translation'
-  text: string
-  source_text?: string
-  source_language_code?: string | null
-  target_language_code?: string | null
-  sequence: number
-}
 interface ServerError {
   type: 'error'
   message: string
-  /**
-   * `"translation"` means one chunk's translation failed and the transcription
-   * stream is still alive. An error with **no** scope is the old, fatal kind.
-   */
-  scope?: string
-  /** Present only if the server can attribute the failure to one chunk. */
-  sequence?: number
 }
 interface ServerClosed {
   type: 'closed'
 }
-type ServerMessage = ServerReady | ServerTranscript | ServerTranslation | ServerError | ServerClosed
+type ServerMessage = ServerReady | ServerTranscript | ServerError | ServerClosed
 
 function buildStreamUrl(options: SpeechStreamOptions): string {
   const params = new URLSearchParams()
@@ -102,7 +59,6 @@ function buildStreamUrl(options: SpeechStreamOptions): string {
   } else if (options.languageCode) {
     params.set('language_code', options.languageCode)
   }
-  if (options.translateTo) params.set('translate_to', options.translateTo)
   const query = params.toString()
   return websocketUrl('/speech/stream') + (query ? `?${query}` : '')
 }
@@ -110,24 +66,18 @@ function buildStreamUrl(options: SpeechStreamOptions): string {
 /**
  * Live transcription socket.
  *
- * Three kinds of text arrive here and they are kept strictly apart:
+ * Two kinds of text arrive here and they are kept strictly apart:
  *
  *  - **partials** (`is_final: false`) are hypotheses that get replaced as the
- *    speaker continues. Display-only, never translated, never copied.
+ *    speaker continues. Display-only, never copied.
  *  - **finals** are stable and are the only thing anything downstream may act
  *    on.
- *  - **translations** arrive *after* the final they belong to, with a delay,
- *    and may never arrive at all. They are stored in a map keyed by `sequence`
- *    rather than appended to a list, so a late or missing translation can never
- *    shift a Bengali line onto the wrong English one.
  */
 export function useSpeechStream() {
   const [status, setStatus] = useState<StreamStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [finals, setFinals] = useState<TranscriptLine[]>([])
   const [partial, setPartial] = useState<string>('')
-  const [translations, setTranslations] = useState<Record<number, TranslationLine>>({})
-  const [translationNotice, setTranslationNotice] = useState<string | null>(null)
   const [serverSampleRate, setServerSampleRate] = useState<number | null>(null)
   const [negotiated, setNegotiated] = useState<NegotiatedStream | null>(null)
 
@@ -147,8 +97,6 @@ export function useSpeechStream() {
   const reset = useCallback(() => {
     setFinals([])
     setPartial('')
-    setTranslations({})
-    setTranslationNotice(null)
     setNegotiated(null)
     setError(null)
     sequenceRef.current = 0
@@ -181,7 +129,6 @@ export function useSpeechStream() {
             setNegotiated({
               languageCode: message.language_code ?? null,
               identifyMultipleLanguages: message.identify_multiple_languages ?? false,
-              translateTo: message.translate_to ?? null,
             })
             setStatus('ready')
             statusRef.current = 'ready'
@@ -209,48 +156,7 @@ export function useSpeechStream() {
             }
             break
 
-          case 'translation':
-            setTranslations((prev) => ({
-              ...prev,
-              // Unconditional overwrite: a translation that lands after we gave
-              // up on a line is still the right answer for it.
-              [message.sequence]: {
-                status: 'done',
-                text: message.text,
-                sourceLanguageCode: message.source_language_code ?? null,
-                targetLanguageCode: message.target_language_code ?? null,
-              },
-            }))
-            break
-
           case 'error':
-            if (message.scope === 'translation') {
-              // Scoped: translation failed, transcription did not. The stream
-              // stays open and the English column keeps filling.
-              setTranslationNotice(message.message)
-              setTranslations((prev) => {
-                const next = { ...prev }
-                if (typeof message.sequence === 'number') {
-                  next[message.sequence] = {
-                    status: 'failed',
-                    text: '',
-                    message: message.message,
-                  }
-                } else {
-                  // No `sequence` means the whole connection cannot translate —
-                  // the server sends exactly one of these right after `ready`.
-                  // Any line already waiting is therefore dead; mark those, and
-                  // let a later `translation` message overwrite any we misjudged.
-                  for (let i = 0; i < sequenceRef.current; i++) {
-                    if (!next[i]) {
-                      next[i] = { status: 'failed', text: '', message: message.message }
-                    }
-                  }
-                }
-                return next
-              })
-              break
-            }
             setError(message.message)
             setStatus('error')
             statusRef.current = 'error'
@@ -329,33 +235,14 @@ export function useSpeechStream() {
   useEffect(() => () => socketRef.current?.close(), [])
 
   const transcript = finals.map((f) => f.text).join(' ')
-  const translatedTranscript = finals
-    .map((f) => translations[f.sequence])
-    .filter((t): t is TranslationLine => t?.status === 'done')
-    .map((t) => t.text)
-    .join(' ')
-
-  /**
-   * True while a translation could still arrive. `closing` is deliberately
-   * included: after `{"type":"stop"}` the server waits up to its
-   * `translation_timeout_seconds` for in-flight translations before it sends
-   * `closed`, so Bengali lines legitimately keep landing after the doctor has
-   * already pressed Stop. Clearing pending rows at that moment would throw away
-   * text that is seconds from arriving.
-   */
-  const translationsPossible = status === 'connecting' || status === 'ready' || status === 'closing'
 
   return {
     status,
     error,
     finals,
     partial,
-    translations,
-    translationNotice,
-    translationsPossible,
     negotiated,
     transcript,
-    translatedTranscript,
     serverSampleRate,
     connect,
     sendAudio,

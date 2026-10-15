@@ -438,15 +438,6 @@ export const endpoints = {
     /** POST `multipart/form-data` (`TranscribeFileBody`, field name `audio`) + `TranscribeParams` as QUERY params -> `TranscriptionResponse`. [WRITE: needs CSRF] */
     transcribe: '/speech/transcribe',
     /**
-     * POST `TranslationRequest` -> `TranslationResponse`. [WRITE: needs CSRF]
-     *
-     * Separate from transcription because ASR returns one transcript in one
-     * language; an English *and* a Bengali version means recognising once and
-     * translating that result. Returns 502 `upstream_error` when the server has
-     * no translation provider or the vendor refuses.
-     */
-    translate: '/speech/translate',
-    /**
      * POST `ExtractionRequest` -> `ExtractionResponse`. [WRITE: needs CSRF]
      *
      * Reads a prescription draft out of a dictated transcript. Returns 502

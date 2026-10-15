@@ -165,7 +165,7 @@ export function SpeechScreen() {
             )}
           </div>
           <p className="text-caption text-text-subtle">
-            Not translated. Not stored anywhere until you send it.
+            Not stored anywhere until you send it.
           </p>
 
           {dictation.error && (
@@ -270,7 +270,7 @@ export function SpeechScreen() {
           />
           Transcription settings
           <span className="text-caption text-text-subtle font-normal">
-            language mode, Bengali translation, file comparison
+            language mode, file comparison
           </span>
         </button>
         {labOpen && (
