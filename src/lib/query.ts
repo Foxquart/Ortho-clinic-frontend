@@ -100,6 +100,11 @@ export const qk = {
     all: () => ['advice-presets'] as const,
     list: (includeInactive: boolean) => ['advice-presets', { includeInactive }] as const,
   },
+  bengaliPhrases: {
+    all: () => ['bengali-phrases'] as const,
+    list: () => ['bengali-phrases', 'list'] as const,
+    missing: (limit: number) => ['bengali-phrases', 'missing', limit] as const,
+  },
   speech: {
     config: () => ['speech', 'config'] as const,
   },

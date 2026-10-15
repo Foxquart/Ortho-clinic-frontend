@@ -36,6 +36,7 @@ const presetSchema = z.object({
     .min(1, 'Enter the advice text')
     .max(256, 'Keep the advice to 256 characters or fewer'),
   category: z.string().trim().max(64, 'Keep the category to 64 characters or fewer'),
+  label_bn: z.string().trim().max(1024, 'Keep the Bengali to 1024 characters or fewer'),
   sort_order: z
     .string()
     .trim()
@@ -44,7 +45,7 @@ const presetSchema = z.object({
 
 type PresetFormValues = z.infer<typeof presetSchema>
 
-const PRESET_FIELD_KEYS = ['label', 'category', 'sort_order'] as const
+const PRESET_FIELD_KEYS = ['label', 'label_bn', 'category', 'sort_order'] as const
 
 function isPresetFieldKey(key: string): key is keyof PresetFormValues {
   return (PRESET_FIELD_KEYS as readonly string[]).includes(key)
@@ -53,6 +54,7 @@ function isPresetFieldKey(key: string): key is keyof PresetFormValues {
 function presetValuesOf(preset: AdvicePresetResponse | null): PresetFormValues {
   return {
     label: preset?.label ?? '',
+    label_bn: preset?.label_bn ?? '',
     category: preset?.category ?? '',
     sort_order: preset ? String(preset.sort_order) : '',
   }
@@ -61,8 +63,10 @@ function presetValuesOf(preset: AdvicePresetResponse | null): PresetFormValues {
 function createPresetBody(values: PresetFormValues): AdvicePresetCreate {
   const category = values.category.trim()
   const sortOrder = values.sort_order.trim()
+  const labelBn = values.label_bn.trim()
   return {
     label: values.label.trim(),
+    label_bn: labelBn === '' ? undefined : labelBn,
     category: category === '' ? undefined : category,
     sort_order: sortOrder === '' ? undefined : Number(sortOrder),
   }
@@ -71,9 +75,11 @@ function createPresetBody(values: PresetFormValues): AdvicePresetCreate {
 function updatePresetBody(values: PresetFormValues): AdvicePresetUpdate {
   const category = values.category.trim()
   const sortOrder = values.sort_order.trim()
+  const labelBn = values.label_bn.trim()
   return {
     label: values.label.trim(),
-    // `null` clears a category that was previously set.
+    // `null` clears a Bengali line (or category) that was previously set.
+    label_bn: labelBn === '' ? null : labelBn,
     category: category === '' ? null : category,
     sort_order: sortOrder === '' ? undefined : Number(sortOrder),
   }
@@ -156,7 +162,7 @@ function AdvicePresetDialog({
   return (
     <DialogRoot open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        size="md"
+        size="lg"
         title={editing ? 'Edit advice' : 'Add advice'}
         description={
           editing
@@ -196,23 +202,43 @@ function AdvicePresetDialog({
             </p>
           )}
 
-          <Field
-            label="Advice"
-            hint="Exactly as it should print, e.g. Apply ice for 15 minutes, three times a day."
-            error={errors.label?.message}
-            required
-          >
-            {(a) => (
-              <Textarea
-                {...a}
-                {...register('label')}
-                autoFocus
-                rows={2}
-                maxLength={256}
-                placeholder="Apply ice for 15 minutes, three times a day"
-              />
-            )}
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Advice (English)"
+              hint="Exactly as it should print, e.g. Apply ice for 15 minutes, three times a day."
+              error={errors.label?.message}
+              required
+            >
+              {(a) => (
+                <Textarea
+                  {...a}
+                  {...register('label')}
+                  autoFocus
+                  rows={3}
+                  maxLength={256}
+                  placeholder="Apply ice for 15 minutes, three times a day"
+                />
+              )}
+            </Field>
+
+            <Field
+              label="Bengali"
+              hint="Printed in brackets after the English."
+              error={errors.label_bn?.message}
+              optionalLabel
+            >
+              {(a) => (
+                <Textarea
+                  {...a}
+                  {...register('label_bn')}
+                  lang="bn"
+                  rows={3}
+                  maxLength={1024}
+                  placeholder="বাংলায় লিখুন"
+                />
+              )}
+            </Field>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
             <Field
@@ -284,14 +310,16 @@ function PresetRow({
   const inactive = !preset.is_active
   return (
     <li className="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-3 last:border-b-0">
-      <p
-        className={cn(
-          'text-body min-w-0 flex-1 basis-56',
-          inactive ? 'text-text-subtle' : 'text-text',
+      <div className="min-w-0 flex-1 basis-56">
+        <p className={cn('text-body', inactive ? 'text-text-subtle' : 'text-text')}>
+          {preset.label}
+        </p>
+        {preset.label_bn && (
+          <p lang="bn" className="text-caption text-text-muted mt-0.5">
+            {preset.label_bn}
+          </p>
         )}
-      >
-        {preset.label}
-      </p>
+      </div>
 
       {inactive && <Badge tone="neutral">Inactive</Badge>}
 

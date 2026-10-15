@@ -398,6 +398,21 @@ export const endpoints = {
   },
 
   /**
+   * Tag `bengali-phrases` — the clinic-wide English -> Bengali phrasebook the printed
+   * prescription reads (no translation API). Read: `prescription.read`; write: `prescription.write`.
+   */
+  bengaliPhrases: {
+    /** GET -> `BengaliPhraseResponse[]`, no pagination (`?q=` substring on english or bengali). */
+    list: '/bengali-phrases',
+    /** POST `BengaliPhraseCreate` -> 201 `BengaliPhraseResponse`; duplicate -> 409. [WRITE: needs CSRF] */
+    create: '/bengali-phrases',
+    /** GET `?limit=50` (1..500) -> `MissingPhrase[]`, most used first (last 180 days, case/spacing variants merged). */
+    missing: '/bengali-phrases/missing',
+    /** PATCH `BengaliPhraseUpdate` -> `BengaliPhraseResponse` · DELETE -> 204. [WRITE: needs CSRF] */
+    byId: (id: UUID) => `/bengali-phrases/${id}`,
+  },
+
+  /**
    * Tag `prescription-templates` — the signed-in doctor's own named templates
    * (never shared; another user's id is a 404). Duplicate name -> 409.
    */

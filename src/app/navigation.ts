@@ -3,6 +3,7 @@ import {
   FileText,
   Globe,
   LayoutDashboard,
+  Languages,
   LayoutTemplate,
   ListChecks,
   Mic,
@@ -46,6 +47,7 @@ import type { Permission } from '@/lib/permissions'
  * | `g m` | Medicines                                                 |
  * | `g l` | Advice library                                            |
  * | `g e` | Templates                                                 |
+ * | `g b` | Bengali phrases                                           |
  * | `g s` | Settings                                                  |
  * | `g d` | Dashboard (demoted)                                       |
  * | `g a` | Appointments (demoted)                                    |
@@ -136,6 +138,14 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     goKey: 'e',
     requires: 'prescription.write',
     hint: 'Saved prescriptions the pad can fill in',
+  },
+  {
+    to: '/bengali',
+    label: 'Bengali phrases',
+    icon: Languages,
+    goKey: 'b',
+    requires: 'prescription.write',
+    hint: 'The Bengali printed after each English line',
   },
 ] as const
 

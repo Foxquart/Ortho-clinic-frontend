@@ -1466,6 +1466,8 @@ export interface TranscriptionResponse {
 export interface AdvicePresetResponse {
   id: UUID
   label: string
+  /** The Bengali printed after `label`. Null when none has been written. */
+  label_bn: string | null
   /** The condition it belongs to, e.g. `Knee pain`. Null means general. */
   category: string | null
   sort_order: number
@@ -1478,6 +1480,7 @@ export interface AdvicePresetResponse {
 export interface AdvicePresetCreate {
   /** 1..256 */
   label: string
+  label_bn?: string | null
   /** <=64 */
   category?: string | null
   sort_order?: number
@@ -1486,9 +1489,43 @@ export interface AdvicePresetCreate {
 /** Body of `PATCH /advice-presets/{id}`. [admin] */
 export interface AdvicePresetUpdate {
   label?: string
+  /** `null` clears it. */
+  label_bn?: string | null
   category?: string | null
   sort_order?: number
   is_active?: boolean
+}
+
+/** `BengaliPhraseResponse` — one English line and its hardcoded Bengali, clinic-wide. Printed in brackets after the English. */
+export interface BengaliPhraseResponse {
+  id: UUID
+  english: string
+  bengali: string
+  /** The normalised match key: trimmed, whitespace collapsed, lower-cased, trailing `.` stripped. */
+  english_key: string
+  created_at: DateTimeString
+  updated_at: DateTimeString
+}
+
+/** Body of `POST /bengali-phrases`. Duplicate normalised `english` -> 409. */
+export interface BengaliPhraseCreate {
+  /** 1..512 */
+  english: string
+  /** 1..1024 */
+  bengali: string
+}
+
+/** Body of `PATCH /bengali-phrases/{id}`. */
+export interface BengaliPhraseUpdate {
+  english?: string
+  bengali?: string
+}
+
+/** One row of `GET /bengali-phrases/missing`: a line used on recent prescriptions that has no phrase yet. */
+export interface MissingPhrase {
+  english: string
+  /** Times it appears on prescriptions from the last 180 days. */
+  uses: number
 }
 
 /** One medicine row of a prescription template. No FK: a deleted medicine is skipped on apply. */

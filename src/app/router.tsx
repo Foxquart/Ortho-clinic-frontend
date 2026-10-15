@@ -75,6 +75,9 @@ const AdviceLibraryScreen = lazy(() =>
 const TemplatesScreen = lazy(() =>
   import('@/features/templates/TemplatesScreen').then((m) => ({ default: m.TemplatesScreen })),
 )
+const PhrasebookScreen = lazy(() =>
+  import('@/features/phrasebook/PhrasebookScreen').then((m) => ({ default: m.PhrasebookScreen })),
+)
 const SiteCmsScreen = lazy(() =>
   import('@/features/portfolio/SiteCmsScreen').then((m) => ({ default: m.SiteCmsScreen })),
 )
@@ -210,6 +213,13 @@ const appRoutes = {
                      gated by the same grant as the pad itself. */
                   element: <RequireCapability capability="prescription.write" />,
                   children: [{ path: 'templates', element: <TemplatesScreen /> }],
+                },
+                {
+                  /* The printed Bengali is part of the prescription, so the
+                     phrasebook is gated like the pad: whoever writes the
+                     prescription may teach it its Bengali. */
+                  element: <RequireCapability capability="prescription.write" />,
+                  children: [{ path: 'bengali', element: <PhrasebookScreen /> }],
                 },
                 {
                   element: <RequireCapability capability="speech.use" />,

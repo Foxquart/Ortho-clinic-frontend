@@ -156,9 +156,15 @@ export function RxAdvicePicker({
                         />
                         <label
                           htmlFor={id}
-                          className="flex min-h-tap min-w-0 flex-1 cursor-pointer items-center text-body text-text lg:min-h-10"
+                          className="flex min-h-tap min-w-0 flex-1 cursor-pointer flex-col justify-center py-1 text-body text-text lg:min-h-10"
                         >
                           {preset.label}
+                          {/* What will print after the English, so the doctor can see it before ticking. */}
+                          {preset.label_bn && (
+                            <span lang="bn" className="text-caption text-text-subtle">
+                              {preset.label_bn}
+                            </span>
+                          )}
                         </label>
                       </li>
                     )
