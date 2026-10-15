@@ -644,7 +644,7 @@ export function toPreviewRequest(draft: RxDraft): Record<string, unknown> {
   }
 }
 
-export function toApiRequest(draft: RxDraft): Record<string, unknown> {
+export function toApiRequest(draft: RxDraft, clientRequestId?: string): Record<string, unknown> {
   const issues = draftIssues(draft)
   if (issues.length > 0) {
     throw new Error(`Draft is not ready: ${issues.map((i) => i.message).join(', ')}`)
@@ -700,6 +700,7 @@ export function toApiRequest(draft: RxDraft): Record<string, unknown> {
     vitals_pulse_bpm: wholeNumber(draft.vitalsPulse.value),
     vitals_weight_kg: weightKg(draft.vitalsWeight.value),
     follow_up_date: text(draft.followUpDate),
+    ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
     items: draft.rows.map(toApiItem),
   }
 }

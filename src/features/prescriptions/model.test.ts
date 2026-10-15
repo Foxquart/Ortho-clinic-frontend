@@ -155,6 +155,12 @@ describe('examination findings and custom sections', () => {
     expect(toApiRequest(ready(newDraft())).extra_fields).toEqual([])
   })
 
+  test('client_request_id rides along when given and is absent otherwise', () => {
+    const draft = ready(newDraft())
+    expect(toApiRequest(draft, 'req-1').client_request_id).toBe('req-1')
+    expect('client_request_id' in toApiRequest(draft)).toBe(false)
+  })
+
   test('shownSections: layout order, hidden skipped unless filled, orphan customs last', () => {
     const layout = normalizeLayout({
       sections: [

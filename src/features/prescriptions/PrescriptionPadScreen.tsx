@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Eye, History, Lock, Plus, Printer, Save } from 'lucide-react'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Eye,
+  FileText,
+  History,
+  Lock,
+  Plus,
+  Printer,
+  Save,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { API_BASE_URL, apiGet, apiPost, resolveApiUrl } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
@@ -47,6 +57,7 @@ import {
   issueFieldId,
   mapServerFieldErrors,
   metaFor,
+  newClientRequestId,
   nextRowKey,
   provenanceControlClass,
   rowFieldId,
@@ -228,12 +239,38 @@ const SECTION_UI: Record<
   },
 }
 
+/** The API serves a complete A4 document; the browser prints it best from its own tab. */
+const printUrl = (id: string) =>
+  resolveApiUrl(`${API_BASE_URL}${endpoints.prescriptions.printView(id)}`)
+
+/**
+ * A pad is one draft, and one draft saves once. "New prescription" navigates
+ * with a fresh `state.pad`, which remounts the pad — every field, the lock and
+ * the `client_request_id` start over — in the same commit that drops
+ * `?patientId=` and `?from=` from the URL, so the new pad cannot re-read them.
+ */
 export function PrescriptionPadScreen() {
+  const { state } = useLocation()
+  return <PrescriptionPad key={(state as { pad?: string } | null)?.pad} />
+}
+
+function PrescriptionPad() {
   const [params, setParams] = useSearchParams()
+  const { state: locationState } = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [draft, setDraft] = useState<RxDraft>(() => newDraft())
+  /* One id per draft, sent with every attempt to save it: if the answer to a
+     save is lost (timeout, dropped connection) the retry carries the same id,
+     so the API hands back the prescription it already wrote instead of a
+     second one. */
+  const [clientRequestId] = useState(newClientRequestId)
+  /* Set by a successful save and never cleared: this pad has been written. */
+  const [saved, setSaved] = useState<{ id: string; number: string } | null>(null)
+  /* True from the moment a save starts until it fails. A ref, not state, so a
+     second click or a held-down ⌘Enter in the same tick sees it immediately. */
+  const submitLock = useRef(false)
   /* Never blocks prescribing: while the layout loads, or if it fails, the pad
      is the standard one. */
   const layoutQuery = usePadLayout()
@@ -377,9 +414,9 @@ export function PrescriptionPadScreen() {
     if (patientId && patientId !== params.get('patientId')) {
       const next = new URLSearchParams(params)
       next.set('patientId', patientId)
-      setParams(next, { replace: true })
+      setParams(next, { replace: true, state: locationState })
     }
-  }, [patientId, params, setParams])
+  }, [patientId, params, setParams, locationState])
 
   const clearPatient = useCallback(() => {
     setDraft((d) => ({
@@ -389,9 +426,9 @@ export function PrescriptionPadScreen() {
     setQuickAdd(false)
     const next = new URLSearchParams(params)
     next.delete('patientId')
-    setParams(next, { replace: true })
+    setParams(next, { replace: true, state: locationState })
     requestAnimationFrame(() => focusField(FIELD_IDS.patient))
-  }, [params, setParams])
+  }, [params, setParams, locationState])
 
   /* -------------------------- continue previous --------------------------- */
 
@@ -669,36 +706,40 @@ export function PrescriptionPadScreen() {
 
   const submit = useCallback(
     async (thenPrint: boolean) => {
+      // Buttons disable themselves while saving, the keyboard shortcuts do not.
+      if (submitLock.current) return
       if (!ready) {
         focusFirstProblem()
         return
       }
+      submitLock.current = true
       setSubmitting(true)
       setServerErrors({})
+      let created: PrescriptionDetailResponse | undefined
       try {
-        const created = await apiPost<PrescriptionDetailResponse>(
+        created = await apiPost<PrescriptionDetailResponse>(
           endpoints.prescriptions.create,
-          toApiRequest(outgoing),
+          toApiRequest(outgoing, clientRequestId),
         )
+        setSaved({ id: created.id, number: created.prescription_number })
 
         void queryClient.invalidateQueries({ queryKey: qk.prescriptions.all() })
         void queryClient.invalidateQueries({ queryKey: qk.patients.all() })
         void queryClient.invalidateQueries({ queryKey: qk.dashboard.summary() })
 
         if (thenPrint) {
-          // The API serves a complete A4 document; the browser prints it best
-          // from its own tab, not from an iframe inside the SPA.
-          window.open(
-            resolveApiUrl(`${API_BASE_URL}${endpoints.prescriptions.printView(created.id)}`),
-            '_blank',
-            'noopener',
-          )
+          // Its own tab, not an iframe inside the SPA. Opened after an await, a
+          // popup blocker may refuse it; "Print again" on the saved pad is the
+          // click that cannot be refused.
+          window.open(printUrl(created.id), '_blank', 'noopener')
         }
         toast.success(
           `${created.prescription_number} saved${draft.patient.id ? '' : ' — patient record created'}`,
         )
         navigate(`/prescriptions/${created.id}`, { replace: true })
       } catch (error) {
+        // Only a failed save frees the pad; a saved one stays locked.
+        if (!created) submitLock.current = false
         const apiError = toApiError(error)
         if (apiError.isValidation) {
           const mapped = mapServerFieldErrors(apiError.fieldErrors(), draft)
@@ -711,7 +752,7 @@ export function PrescriptionPadScreen() {
         setSubmitting(false)
       }
     },
-    [draft, focusFirstProblem, navigate, outgoing, queryClient, ready],
+    [clientRequestId, draft, focusFirstProblem, navigate, outgoing, queryClient, ready],
   )
 
   /* ------------------------------ shortcuts ------------------------------- */
@@ -737,7 +778,7 @@ export function PrescriptionPadScreen() {
       // (DESIGN.md §5) and must not be borrowed for anything else.
       if (e.altKey && e.key === 'Enter') {
         e.preventDefault()
-        shortcuts.current.addRowAndFocus()
+        if (!submitLock.current) shortcuts.current.addRowAndFocus()
         return
       }
       if (e.key === '/' && !isTypingTarget(e.target)) {
@@ -905,6 +946,21 @@ export function PrescriptionPadScreen() {
         </p>
       </header>
 
+      {/* The lock, said out loud. The form below is `inert` once this shows. */}
+      {saved && (
+        <div
+          role="status"
+          className="border-success/30 bg-success-muted text-success-muted-fg text-body flex items-start gap-2 rounded-lg border px-4 py-3 min-[1400px]:shrink-0"
+        >
+          <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <p>
+            <span className="font-mono font-semibold">{saved.number}</span> is saved, so this pad is
+            locked and can&rsquo;t be saved a second time. View it, print it again, or start a new
+            prescription.
+          </p>
+        </div>
+      )}
+
       {/*
         Below 1400px the column wrappers are `display: contents`, so every card is
         a direct flex item of this container and the explicit `order-N`s carry
@@ -916,7 +972,10 @@ export function PrescriptionPadScreen() {
         left, and on the right the live preview of the printed page.
       */}
       <div className="flex flex-col gap-4 min-[1400px]:grid min-[1400px]:min-h-0 min-[1400px]:flex-1 min-[1400px]:grid-cols-[minmax(440px,1fr)_1.15fr] min-[1400px]:items-stretch min-[1400px]:gap-6">
-        <div className="min-[1400px]:no-scrollbar contents min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-y-auto min-[1400px]:pb-28">
+        <div
+          inert={saved ? true : undefined}
+          className="min-[1400px]:no-scrollbar contents min-[1400px]:flex min-[1400px]:min-h-0 min-[1400px]:min-w-0 min-[1400px]:flex-col min-[1400px]:gap-4 min-[1400px]:overflow-y-auto min-[1400px]:pb-28"
+        >
           {/* --------------------------- template ---------------------------- */}
           <div className="order-0">
             <RxTemplatePicker draft={draft} onApply={applyPickedTemplate} />
@@ -1169,14 +1228,21 @@ export function PrescriptionPadScreen() {
             bar is the same flex row it always was. */}
         <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2 sm:px-6 xl:max-w-none xl:px-10">
           <div className="min-w-0 sm:flex-1">
-            <RxMissingSummary
-              issues={issues}
-              draft={draft}
-              allergyBlocked={allergyBlocked}
-              patientChosen={patientChosen}
-              onFocus={focusField}
-              onResolveAllergy={() => focusField('rx-allergy-conflict')}
-            />
+            {saved ? (
+              <p className="text-caption text-success flex items-center gap-1.5 font-medium">
+                <CheckCircle2 aria-hidden className="size-3.5 shrink-0" />
+                Saved <span className="font-mono">{saved.number}</span>
+              </p>
+            ) : (
+              <RxMissingSummary
+                issues={issues}
+                draft={draft}
+                allergyBlocked={allergyBlocked}
+                patientChosen={patientChosen}
+                onFocus={focusField}
+                onResolveAllergy={() => focusField('rx-allergy-conflict')}
+              />
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:contents">
@@ -1196,28 +1262,68 @@ export function PrescriptionPadScreen() {
               Preview prescription
             </Button>
 
-            <Button
-              variant="secondary"
-              onClick={() => void submit(false)}
-              loading={submitting}
-              iconLeft={<Save className="size-4" />}
-              className={cn(TAP_TARGET, 'flex-1 basis-24 sm:flex-none')}
-            >
-              Save
-            </Button>
+            {/* Once saved, the pad has no Save at all: the only ways forward are
+                to read it, print it again, or start over on a fresh pad. */}
+            {saved ? (
+              <>
+                <Button
+                  variant="secondary"
+                  asChild
+                  className={cn(TAP_TARGET, 'flex-1 basis-24 sm:flex-none')}
+                >
+                  <Link to={`/prescriptions/${saved.id}`}>
+                    <FileText aria-hidden className="size-4" />
+                    View
+                  </Link>
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => window.open(printUrl(saved.id), '_blank', 'noopener')}
+                  iconLeft={<Printer className="size-4" />}
+                  className={cn(TAP_TARGET, 'flex-1 basis-24 sm:flex-none')}
+                >
+                  Print again
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() =>
+                    navigate('/prescriptions/new?focus=patient', {
+                      replace: true,
+                      state: { pad: String(Date.now()) },
+                    })
+                  }
+                  iconLeft={<Plus className="size-4" />}
+                  className={cn(TAP_TARGET, 'flex-1 basis-40 sm:flex-none')}
+                >
+                  New prescription
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => void submit(false)}
+                  loading={submitting}
+                  iconLeft={<Save className="size-4" />}
+                  className={cn(TAP_TARGET, 'flex-1 basis-24 sm:flex-none')}
+                >
+                  Save
+                </Button>
 
-            <Button
-              variant="primary"
-              onClick={() => void submit(true)}
-              loading={submitting}
-              iconLeft={<Printer className="size-4" />}
-              aria-describedby={ready ? undefined : 'rx-blocked-hint'}
-              className={cn(TAP_TARGET, 'flex-1 basis-40 sm:flex-none', !ready && 'opacity-60')}
-            >
-              Save &amp; print
-            </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => void submit(true)}
+                  loading={submitting}
+                  iconLeft={<Printer className="size-4" />}
+                  aria-describedby={ready ? undefined : 'rx-blocked-hint'}
+                  className={cn(TAP_TARGET, 'flex-1 basis-40 sm:flex-none', !ready && 'opacity-60')}
+                >
+                  Save &amp; print
+                </Button>
+              </>
+            )}
           </div>
-          {!ready && (
+          {!saved && !ready && (
             <span id="rx-blocked-hint" className="sr-only">
               Blocked: fill in everything listed as still needed.
             </span>

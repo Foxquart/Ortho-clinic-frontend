@@ -775,6 +775,11 @@ export interface PrescriptionCreateRequest {
   /** max 4000 chars. */
   notes?: string | null
   follow_up_date?: DateString | null
+  /**
+   * One per pad draft. The API answers a repeat of the same id with the
+   * prescription it already created instead of writing a second one.
+   */
+  client_request_id?: string | null
   /** 1..50 entries. */
   items: PrescriptionItemCreate[]
 }
