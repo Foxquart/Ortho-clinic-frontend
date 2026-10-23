@@ -58,7 +58,12 @@ export function applyMedicineDefaults(row: RxRow, medicine: MedicineResponse): R
   const prev = appliedByRow.get(row.key)
   const swap = row.medicineId !== null && row.medicineId !== medicine.id
 
-  let next: RxRow = { ...row, medicineId: medicine.id, medicineName: medicine.name }
+  let next: RxRow = {
+    ...row,
+    medicineId: medicine.id,
+    medicineName: medicine.name,
+    dosageForm: medicine.dosage_form ?? null,
+  }
 
   if (swap) {
     // Drug A's defaults must not survive onto drug B. `defaulted` provenance

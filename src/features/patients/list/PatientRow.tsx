@@ -14,7 +14,7 @@
 import { Link } from 'react-router-dom'
 import { ChevronRight, FilePlus2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { fullName, patientAge } from '@/lib/format'
+import { fullName } from '@/lib/format'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Feedback'
@@ -23,6 +23,7 @@ import { shortGender } from '../api'
 import { AllergyChip } from '../AllergyDisplay'
 import { PatientAvatar } from '../PatientAvatar'
 import { relativeDay } from '../relativeDay'
+import { formatAge } from '../age'
 
 /** Programmatic-focus target of a row, so arrow keys can walk the list. */
 const FOCUS_MARK = { 'data-row-focus': '' } as const
@@ -35,7 +36,7 @@ export function PatientRow({
   canPrescribe: boolean
 }) {
   const name = fullName(patient.first_name, patient.last_name)
-  const age = patientAge(patient.date_of_birth)
+  const age = formatAge(patient.date_of_birth)
   const visit = relativeDay(patient.last_visit_date)
   const visits = patient.prescription_count
   const visitsLabel = visits === 1 ? 'visit' : 'visits'
@@ -73,10 +74,10 @@ export function PatientRow({
         </div>
 
         <p className="text-caption text-text-muted flex flex-wrap items-center gap-x-2">
-          {age !== null && (
+          {age && (
             <span data-numeric>
               <span className="sr-only">
-                {age} years old, {patient.gender ?? 'gender not recorded'}.{' '}
+                {age} old, {patient.gender ?? 'gender not recorded'}.{' '}
               </span>
               <span aria-hidden>
                 {age} · {shortGender(patient.gender)}

@@ -1,9 +1,9 @@
 import { useEffect, useId, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { CalendarOff } from 'lucide-react'
+import { CalendarOff, UserPlus, X } from 'lucide-react'
 import type {
   AppointmentDetailResponse,
   PatientSearchResult,
@@ -12,6 +12,7 @@ import type {
 import { toApiError } from '@/api/errors'
 import { Button } from '@/components/ui/Button'
 import { Combobox } from '@/components/ui/Combobox'
+import { Select } from '@/components/ui/Controls'
 import { DialogContent, DialogRoot } from '@/components/ui/Dialog'
 import { Field, Input, Textarea } from '@/components/ui/Input'
 import { Skeleton } from '@/components/ui/Feedback'
@@ -26,23 +27,68 @@ import {
   usePatientSearch,
 } from './queries'
 import { DAY_LABEL, dayOfWeekFor, hhmm, hoursForDate, occupiesSlot } from './model'
+import {
+  BLANK_NEW_PATIENT,
+  newPatientIssues,
+  seedFromQuery,
+  toInlinePatient,
+  type NewPatientValues,
+} from './newPatient'
 
 /**
  * Mirrors `AppointmentCreateRequest`'s declared bounds so a 422 is never the
- * first the doctor hears of a problem. One deviation from the schema: the
- * document marks `patient_id` optional, but the staff booking route rejects a
- * body without one (`patient_id is required for admin booking.`), so the form
- * requires it.
+ * first the doctor hears of a problem. The staff route takes exactly one of
+ * `patient_id` (someone on file) or an inline `patient` (a new walk-in), so
+ * `mode` decides which half of the form is validated.
  */
-const schema = z.object({
-  patient_id: z.string().min(1, 'Choose who this appointment is for'),
-  appointment_date: z.string().min(1, 'Pick a date'),
-  start_time: z.string().min(1, 'Pick a time'),
-  reason: z.string().max(512, 'Keep the reason under 512 characters').optional(),
-  notes: z.string().max(1024, 'Keep notes under 1024 characters').optional(),
-})
+const schema = z
+  .object({
+    mode: z.enum(['existing', 'new']),
+    patient_id: z.string(),
+    first_name: z.string(),
+    last_name: z.string(),
+    phone: z.string(),
+    gender: z.enum(['', 'male', 'female', 'other']),
+    age_years: z.string(),
+    age_months: z.string(),
+    appointment_date: z.string().min(1, 'Pick a date'),
+    start_time: z.string().min(1, 'Pick a time'),
+    reason: z.string().max(512, 'Keep the reason under 512 characters').optional(),
+    notes: z.string().max(1024, 'Keep notes under 1024 characters').optional(),
+  })
+  .superRefine((v, ctx) => {
+    const issues: Record<string, string | undefined> =
+      v.mode === 'new'
+        ? newPatientIssues(v)
+        : { patient_id: v.patient_id ? undefined : 'Choose who this appointment is for' }
+    for (const [path, message] of Object.entries(issues)) {
+      if (message) ctx.addIssue({ code: 'custom', path: [path], message })
+    }
+  })
 
 type FormValues = z.infer<typeof schema>
+
+const BLANK_FORM = {
+  mode: 'existing',
+  patient_id: '',
+  ...BLANK_NEW_PATIENT,
+  reason: '',
+  notes: '',
+} as const satisfies Partial<FormValues>
+
+/** Server error path -> form field. The DOB is typed as an age, so it lands there. */
+const SERVER_FIELD: Record<string, keyof FormValues> = {
+  patient_id: 'patient_id',
+  'patient.first_name': 'first_name',
+  'patient.last_name': 'last_name',
+  'patient.phone': 'phone',
+  'patient.gender': 'gender',
+  'patient.date_of_birth': 'age_years',
+  appointment_date: 'appointment_date',
+  start_time: 'start_time',
+  reason: 'reason',
+  notes: 'notes',
+}
 
 export interface BookAppointmentDialogProps {
   open: boolean
@@ -76,6 +122,10 @@ export function BookAppointmentDialog({
     reset,
     setValue,
     setError,
+    setFocus,
+    clearErrors,
+    control,
+    getValues,
     watch,
     formState: { errors },
   } = useForm<FormValues>({
@@ -83,27 +133,41 @@ export function BookAppointmentDialog({
     mode: 'onBlur',
     reValidateMode: 'onChange',
     defaultValues: {
-      patient_id: '',
+      ...BLANK_FORM,
       appointment_date: initialDate,
       start_time: initialStartTime ?? '',
-      reason: '',
-      notes: '',
     },
   })
 
   const date = watch('appointment_date')
   const startTime = watch('start_time')
+  const adding = watch('mode') === 'new'
+
+  const startNewPatient = () => {
+    const seeded = getValues('first_name') || getValues('last_name') || getValues('phone')
+    if (!seeded) {
+      for (const [k, v] of Object.entries(seedFromQuery(patientQuery))) {
+        setValue(k as keyof NewPatientValues, v)
+      }
+    }
+    setPatient(null)
+    setValue('patient_id', '')
+    clearErrors('patient_id')
+    setValue('mode', 'new')
+    // Moving focus out of the popover is what closes it.
+    requestAnimationFrame(() => setFocus('first_name'))
+  }
+
+  const cancelNewPatient = () => {
+    for (const [k, v] of Object.entries(BLANK_NEW_PATIENT)) setValue(k as keyof NewPatientValues, v)
+    setValue('mode', 'existing')
+    setFocus('patient_id')
+  }
 
   // Re-open is a fresh booking: nothing from the last one should linger.
   useEffect(() => {
     if (!open) return
-    reset({
-      patient_id: '',
-      appointment_date: initialDate,
-      start_time: initialStartTime ?? '',
-      reason: '',
-      notes: '',
-    })
+    reset({ ...BLANK_FORM, appointment_date: initialDate, start_time: initialStartTime ?? '' })
     setPatient(null)
     setPatientQuery('')
   }, [open, initialDate, initialStartTime, reset])
@@ -148,7 +212,9 @@ export function BookAppointmentDialog({
   const onSubmit = handleSubmit((values) => {
     book.mutate(
       {
-        patient_id: values.patient_id,
+        ...(values.mode === 'new'
+          ? { patient: toInlinePatient(values) }
+          : { patient_id: values.patient_id }),
         appointment_date: values.appointment_date,
         // The API accepts HH:MM and emits HH:MM:SS; send the short form.
         start_time: hhmm(values.start_time),
@@ -173,17 +239,11 @@ export function BookAppointmentDialog({
           const e = toApiError(error)
 
           if (e.isValidation) {
-            const fields = e.fieldErrors()
             let matched = false
-            for (const [path, message] of Object.entries(fields)) {
-              if (
-                path === 'patient_id' ||
-                path === 'appointment_date' ||
-                path === 'start_time' ||
-                path === 'reason' ||
-                path === 'notes'
-              ) {
-                setError(path, { message })
+            for (const [path, message] of Object.entries(e.fieldErrors())) {
+              const field = SERVER_FIELD[path]
+              if (field) {
+                setError(field, { message })
                 matched = true
               }
             }
@@ -253,6 +313,7 @@ export function BookAppointmentDialog({
                 value={patient}
                 onChange={(item) => {
                   setPatient(item)
+                  setValue('mode', 'existing')
                   setValue('patient_id', item.id, { shouldValidate: true })
                 }}
                 query={patientQuery}
@@ -261,12 +322,31 @@ export function BookAppointmentDialog({
                 loading={patients.isFetching}
                 getKey={(item) => item.id}
                 getLabel={(item) => `${fullName(item.first_name, item.last_name)} · ${item.phone}`}
-                placeholder="Search by name or phone…"
+                placeholder={adding ? 'New patient — filling in below' : 'Search by name or phone…'}
                 searchPlaceholder="Name or phone…"
                 emptyMessage={
                   patientQuery.trim().length === 0
                     ? 'Type a name or phone number'
                     : `No patient matches “${patientQuery.trim()}”`
+                }
+                footer={
+                  <button
+                    type="button"
+                    onClick={startNewPatient}
+                    className={cn(
+                      'flex min-h-tap w-full items-center gap-2 rounded-md px-2 text-left text-body lg:min-h-0 lg:py-1.5',
+                      'text-text transition-colors duration-instant ease-standard',
+                      'hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none',
+                    )}
+                  >
+                    <UserPlus aria-hidden className="size-4 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">
+                      Add new patient
+                      {patientQuery.trim() && (
+                        <span className="text-text-subtle"> — “{patientQuery.trim()}”</span>
+                      )}
+                    </span>
+                  </button>
                 }
                 renderItem={(item) => (
                   <span className="flex min-w-0 flex-col">
@@ -281,6 +361,15 @@ export function BookAppointmentDialog({
               />
             )}
           </Field>
+
+          {adding && (
+            <NewPatientFields
+              register={register}
+              control={control}
+              errors={errors}
+              onCancel={cancelNewPatient}
+            />
+          )}
 
           <Field label="Date" required error={errors.appointment_date?.message}>
             {(a) => (
@@ -405,6 +494,120 @@ export function BookAppointmentDialog({
         </form>
       </DialogContent>
     </DialogRoot>
+  )
+}
+
+type FormErrors = ReturnType<typeof useForm<FormValues>>['formState']['errors']
+
+const UNSET = '__unset__'
+
+/** Name, phone, sex and age — everything optional beyond the three the API demands. */
+function NewPatientFields({
+  register,
+  control,
+  errors,
+  onCancel,
+}: {
+  register: ReturnType<typeof useForm<FormValues>>['register']
+  control: ReturnType<typeof useForm<FormValues>>['control']
+  errors: FormErrors
+  onCancel: () => void
+}) {
+  return (
+    <div className="rounded-lg border border-accent/30 bg-accent-muted/40 p-3">
+      <div className="mb-2.5 flex items-center gap-2">
+        <UserPlus aria-hidden className="size-4 shrink-0 text-accent" />
+        <p className="min-w-0 flex-1 text-label font-medium text-text">
+          New patient
+          <span className="ml-2 text-caption font-normal text-text-muted">
+            Created with the booking. Same name and phone as someone on file reuses their record.
+          </span>
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Cancel new patient"
+          onClick={onCancel}
+        >
+          <X aria-hidden className="size-4" />
+        </Button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="First name" required error={errors.first_name?.message}>
+          {(a) => <Input {...a} {...register('first_name')} maxLength={64} autoComplete="off" />}
+        </Field>
+        <Field label="Last name" required error={errors.last_name?.message}>
+          {(a) => <Input {...a} {...register('last_name')} maxLength={64} autoComplete="off" />}
+        </Field>
+        <Field label="Phone" required error={errors.phone?.message}>
+          {(a) => (
+            <Input
+              {...a}
+              {...register('phone')}
+              maxLength={20}
+              inputMode="tel"
+              autoComplete="off"
+            />
+          )}
+        </Field>
+        <Field label="Sex" optionalLabel error={errors.gender?.message}>
+          {(a) => (
+            <Controller
+              control={control}
+              name="gender"
+              render={({ field }) => (
+                <Select
+                  id={a.id}
+                  aria-describedby={a['aria-describedby']}
+                  aria-invalid={a['aria-invalid']}
+                  placeholder="Not recorded"
+                  value={field.value === '' ? UNSET : field.value}
+                  onChange={(v) => field.onChange(v === UNSET ? '' : v)}
+                  options={[
+                    { value: UNSET, label: 'Not recorded' },
+                    { value: 'male', label: 'Male' },
+                    { value: 'female', label: 'Female' },
+                    { value: 'other', label: 'Other' },
+                  ]}
+                />
+              )}
+            />
+          )}
+        </Field>
+        <Field
+          label="Age"
+          optionalLabel
+          error={errors.age_years?.message ?? errors.age_months?.message}
+          className="sm:col-span-2"
+        >
+          {(a) => (
+            <div className="flex gap-2">
+              <Input
+                {...a}
+                {...register('age_years')}
+                inputMode="numeric"
+                maxLength={3}
+                autoComplete="off"
+                slotRight={<span className="text-caption">yrs</span>}
+                className="w-28"
+              />
+              <Input
+                aria-label="Age, months"
+                aria-invalid={errors.age_months ? true : undefined}
+                {...register('age_months')}
+                inputMode="numeric"
+                maxLength={2}
+                autoComplete="off"
+                slotRight={<span className="text-caption">mos</span>}
+                className="w-28"
+              />
+            </div>
+          )}
+        </Field>
+      </div>
+    </div>
   )
 }
 

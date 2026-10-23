@@ -13,7 +13,7 @@ import { Select } from '@/components/ui/Controls'
 import { Tooltip } from '@/components/ui/Menu'
 import type { MedicineResponse, Page_MedicineResponse_ } from '@/api/schema'
 import { BnTag, FieldLabel, ProvenanceField, TAP_ICON, TAP_TARGET } from './Provenance'
-import { BN_FOOD, BN_FREQUENCY_PRESET, daysBn, frequencyBn } from './bn'
+import { BN_FOOD, BN_FREQUENCY_PRESET, daysBn, frequencyBn, frequencyEn } from './bn'
 // Per-field mic icons hidden at user request. Import commented out with the
 // action={...} block below — restore both together.
 // import { RxFieldStateMic } from './RxMic'
@@ -40,6 +40,12 @@ const FREQUENCY_PRESETS = [
   { value: '0-0-1', label: 'At night' },
   { value: 'SOS', label: 'As needed' },
 ] as const
+
+/** Liquids are dosed in spoons or drops, not tablets: say which unit the 1-0-1 counts. */
+const FREQUENCY_UNIT_HINT: Partial<Record<string, string>> = {
+  syrup: 'spoons per dose: morning-afternoon-night',
+  drops: 'drops per dose: morning-afternoon-night',
+}
 
 /** How the formulary is browsed when nothing has been typed yet. */
 const BROWSE_PARAMS = { page: 1, page_size: 10, sort_by: 'name', sort_order: 'asc' } as const
@@ -140,12 +146,16 @@ export function RxRowEditor({
     meta.spokenName !== null &&
     normaliseMedicineName(meta.spokenName) !== normaliseMedicineName(row.medicineName)
   const allergyHit = row.medicineName ? matchesAllergy(row.medicineName, allergies) : null
+  // The live readback of the printed dose line, in the unit of this medicine's
+  // dosage form (a syrup is "1 tsp", not "1"). Unknown form reads as a tablet.
+  const enSummary = frequencyEn(row.frequency.value, row.dosageForm)
   const bnSummary = [
-    frequencyBn(row.frequency.value),
+    frequencyBn(row.frequency.value, row.dosageForm),
     row.durationDays.value ? daysBn(row.durationDays.value) : '',
   ]
     .filter(Boolean)
     .join(' · ')
+  const unitHint = row.dosageForm ? FREQUENCY_UNIT_HINT[row.dosageForm] : undefined
   const quantityHint = suggestQuantity(row.frequency.value, row.durationDays.value)
 
   const selected: MedicineResponse | null = row.medicineId
@@ -285,6 +295,11 @@ export function RxRowEditor({
                 hint="When it is taken. 1-0-1 means one in the morning, none at midday, one at night. SOS means only when needed."
               >
                 Frequency
+                {unitHint && (
+                  <span className="text-text-subtle ml-1.5 font-normal normal-case">
+                    · {unitHint}
+                  </span>
+                )}
               </FieldLabel>
               <ProvenanceField provenance={row.frequency.provenance}>
                 <Input
@@ -332,9 +347,11 @@ export function RxRowEditor({
           {/* One line under both fields, not one under each: a hint under only
               one of the two bottom-aligned columns would push its input out of
               line with the other. */}
-          {bnSummary && (
-            <p lang="bn" className="text-caption text-text-subtle mt-1.5">
-              {bnSummary}
+          {(enSummary || bnSummary) && (
+            <p className="text-caption text-text-subtle mt-1.5">
+              {enSummary}
+              {enSummary && bnSummary && ' · '}
+              <span lang="bn">{bnSummary}</span>
             </p>
           )}
 

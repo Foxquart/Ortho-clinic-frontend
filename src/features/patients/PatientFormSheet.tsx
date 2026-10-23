@@ -30,6 +30,7 @@ import { Field, Input, Textarea } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Controls'
 import { conflictingPatientId, useCreatePatient, useUpdatePatient } from './api'
 import { TagInput } from './TagInput'
+import { ageToDob, dobToAge } from './age'
 import {
   hasMeasurements,
   readVitals,
@@ -60,12 +61,16 @@ const schema = z.object({
     .trim()
     .min(6, 'A phone number needs at least 6 characters')
     .max(20, 'Use 20 characters or fewer'),
-  date_of_birth: z
+  // Age is typed as years + months and stored as a date of birth (see age.ts).
+  // Either box may be left empty when the other is filled; both empty = unknown.
+  age_years: z
     .string()
     .trim()
-    .refine((v) => v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v), 'Use the date picker')
-    .refine((v) => v === '' || v <= todayIso(), 'A date of birth cannot be in the future')
-    .refine((v) => v === '' || v >= '1900-01-01', 'That date is too far back'),
+    .refine((v) => v === '' || (/^\d{1,3}$/.test(v) && Number(v) <= 120), 'Years: 0 to 120'),
+  age_months: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || (/^\d{1,2}$/.test(v) && Number(v) <= 11), 'Months: 0 to 11'),
   gender: z.enum(['', 'male', 'female', 'other']),
   email: z.union([z.literal(''), z.email('Enter a valid email address')]),
   city: z.string().trim().max(128, 'Use 128 characters or fewer'),
@@ -108,7 +113,8 @@ const FIELD_KEYS = [
   'first_name',
   'last_name',
   'phone',
-  'date_of_birth',
+  'age_years',
+  'age_months',
   'gender',
   'email',
   'city',
@@ -127,7 +133,8 @@ const BLANK: FormValues = {
   first_name: '',
   last_name: '',
   phone: '',
-  date_of_birth: '',
+  age_years: '',
+  age_months: '',
   gender: '',
   email: '',
   city: '',
@@ -148,6 +155,22 @@ function measurementsFromValues(values: FormValues): VitalsMeasurements {
   if (values.vitals_spo2) out.spo2 = Number(values.vitals_spo2)
   if (values.vitals_pulse) out.pulse_bpm = Number(values.vitals_pulse)
   return out
+}
+
+/**
+ * The date of birth to store. Re-saving an unchanged age keeps the exact DOB on
+ * file instead of nudging it to "today minus that age".
+ */
+function dobFromValues(values: FormValues, existing?: PatientResponse): string | null {
+  if (values.age_years === '' && values.age_months === '') return null
+  const years = Number(values.age_years || 0)
+  const months = Number(values.age_months || 0)
+  const prior = existing?.date_of_birth
+  if (prior) {
+    const was = dobToAge(prior)
+    if (was.years === years && was.months === months) return prior
+  }
+  return ageToDob(years, months)
 }
 
 /**
@@ -176,7 +199,7 @@ function toPayload(values: FormValues, existing?: PatientResponse): PatientCreat
     first_name: values.first_name,
     last_name: values.last_name,
     phone: values.phone,
-    date_of_birth: values.date_of_birth || null,
+    date_of_birth: dobFromValues(values, existing),
     gender: values.gender === '' ? null : values.gender,
     email: values.email || null,
     address: values.address || null,
@@ -189,11 +212,13 @@ function toPayload(values: FormValues, existing?: PatientResponse): PatientCreat
 
 function fromPatient(patient: PatientResponse): FormValues {
   const vitals = readVitals(patient.medical_history)
+  const age = patient.date_of_birth ? dobToAge(patient.date_of_birth) : null
   return {
     first_name: patient.first_name,
     last_name: patient.last_name,
     phone: patient.phone,
-    date_of_birth: patient.date_of_birth ?? '',
+    age_years: age ? String(age.years) : '',
+    age_months: age ? String(age.months) : '',
     gender: patient.gender ?? '',
     email: patient.email ?? '',
     city: patient.city ?? '',
@@ -293,8 +318,10 @@ export function PatientFormSheet({
       const fields = error.fieldErrors()
       let matched = false
       for (const [path, message] of Object.entries(fields)) {
-        if (!isFieldKey(path)) continue
-        setError(path, { message }, { shouldFocus: !matched })
+        // The server speaks `date_of_birth`; the form shows it as the age boxes.
+        const key = path === 'date_of_birth' ? 'age_years' : path
+        if (!isFieldKey(key)) continue
+        setError(key, { message }, { shouldFocus: !matched })
         matched = true
       }
       // A validation error with nowhere to land must still be visible.
@@ -458,11 +485,36 @@ export function PatientFormSheet({
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Date of birth" error={errors.date_of_birth?.message} optionalLabel>
-              {(a) => (
-                <Input {...a} {...register('date_of_birth')} type="date" max={todayIso()} />
-              )}
-            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Age (years)" error={errors.age_years?.message} optionalLabel>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('age_years')}
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={120}
+                    step={1}
+                    placeholder="Y"
+                  />
+                )}
+              </Field>
+              <Field label="Months" error={errors.age_months?.message}>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('age_months')}
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={11}
+                    step={1}
+                    placeholder="M"
+                  />
+                )}
+              </Field>
+            </div>
 
             {/* Visible label is "Sex"; the API field stays `gender`. */}
             <Field label="Sex" error={errors.gender?.message} optionalLabel>

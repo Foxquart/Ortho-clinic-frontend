@@ -45,9 +45,9 @@ import {
   formatTime,
   fullName,
   humanizeEnum,
-  patientAge,
 } from '@/lib/format'
 import { useAuth } from '@/app/AuthProvider'
+import { formatAge } from './age'
 import { Button } from '@/components/ui/Button'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/Surface'
@@ -258,7 +258,7 @@ export function PatientDetailScreen() {
   }, [history.data])
 
   const name = patient ? fullName(patient.first_name, patient.last_name) : ''
-  const age = patientAge(patient?.date_of_birth)
+  const age = formatAge(patient?.date_of_birth)
   const allergyCount = cleanAllergies(patient?.allergies).length
   const vitals = useMemo(
     () =>
@@ -331,7 +331,7 @@ export function PatientDetailScreen() {
                       </h1>
                       <p className="text-body text-text-muted mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span data-numeric>
-                          {age === null ? 'Age not recorded' : `${age} yrs`}
+                          {age || 'Age not recorded'}
                           {' · '}
                           {patient.gender ? humanizeEnum(patient.gender) : 'Sex not recorded'}
                           {patient.blood_group ? ` · ${patient.blood_group}` : ''}
@@ -568,8 +568,8 @@ export function PatientDetailScreen() {
                      the grid actually has rather than conjuring a second
                      implicit column at the narrow size. */
                   <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-                    <Fact label="Date of birth">
-                      <span data-numeric>{formatDate(patient.date_of_birth, 'Not recorded')}</span>
+                    <Fact label="Age">
+                      <span data-numeric>{formatAge(patient.date_of_birth) || 'Not recorded'}</span>
                     </Fact>
                     <Fact label="Blood group">{patient.blood_group || 'Not recorded'}</Fact>
                     <Fact label="City">{patient.city || 'Not recorded'}</Fact>

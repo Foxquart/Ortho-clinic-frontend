@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { PrescriptionTemplateResponse } from '@/api/schema'
+import type { MedicineResponse, PrescriptionTemplateResponse } from '@/api/schema'
 import {
   applyPrevious,
   applyTemplate,
@@ -9,6 +9,7 @@ import {
   hasTemplateContent,
   newDraft,
   newRow,
+  rowFromPrevious,
   setExtraField,
   shownSections,
   templateFromDraft,
@@ -18,6 +19,7 @@ import {
   type RxDraft,
 } from './model'
 import { DEFAULT_PAD_LAYOUT, normalizeLayout } from './layout/usePadLayout'
+import { applyMedicineDefaults } from './medicineDefaults'
 
 const template: PrescriptionTemplateResponse = {
   id: 't1',
@@ -190,5 +192,35 @@ describe('examination findings and custom sections', () => {
     const orphan = setExtraField(newDraft(), 'custom:old', 'Old section', entered('kept'))
     const shown = shownSections(orphan, layout)
     expect(shown.at(-1)).toEqual({ key: 'custom:old', label: 'Old section', visible: true })
+  })
+})
+
+describe('dosage form on a row', () => {
+  const syrup = { id: 'm1', name: 'Calpol', dosage_form: 'syrup' } as MedicineResponse
+  const tablet = { id: 'm2', name: 'Dolo', dosage_form: 'tablet' } as MedicineResponse
+
+  test('picking a medicine sets it, and a swap replaces it', () => {
+    const row = applyMedicineDefaults(newRow('r1'), syrup)
+    expect(row.dosageForm).toBe('syrup')
+    expect(applyMedicineDefaults(row, tablet).dosageForm).toBe('tablet')
+  })
+
+  test('a row from a template takes it from the item', () => {
+    const syrupTemplate = {
+      ...template,
+      items: [
+        { medicine_id: 'm1', medicine_name: 'Calpol', dosage_form: 'syrup', frequency: '1-0-1' },
+        { medicine_id: 'm2', medicine_name: 'Dolo', frequency: '1-0-1' },
+      ],
+    } as PrescriptionTemplateResponse
+    const rows = applyTemplate(newDraft(), syrupTemplate, () => 'k').rows
+    expect(rows.map((r) => r.dosageForm)).toEqual(['syrup', null])
+  })
+
+  test('a row from history keeps it', () => {
+    const item = { medicine_id: 'm1', frequency: '1-0-1' }
+    expect(rowFromPrevious('r', { ...item, dosage_form: 'syrup' }).dosageForm).toBe('syrup')
+    expect(rowFromPrevious('r', item).dosageForm).toBeNull()
+    expect(newRow('r').dosageForm).toBeNull()
   })
 })

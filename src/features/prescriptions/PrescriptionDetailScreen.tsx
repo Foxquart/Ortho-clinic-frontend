@@ -8,7 +8,8 @@ import { errorMessage, toApiError } from '@/api/errors'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
 import { cn } from '@/lib/cn'
-import { formatDate, formatDateTime, fullName, patientAge } from '@/lib/format'
+import { formatDate, formatDateTime, fullName } from '@/lib/format'
+import { formatAge } from '@/features/patients/age'
 import { useAuth } from '@/app/AuthProvider'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -236,9 +237,9 @@ export function PrescriptionDetailScreen() {
       ? 'unavailable'
       : 'ready'
 
-  const age = patientAge(patientQuery.data?.date_of_birth)
+  const age = formatAge(patientQuery.data?.date_of_birth)
   const identity = [
-    age !== null ? `${age} yrs` : null,
+    age || null,
     patientQuery.data?.gender ?? null,
     patientQuery.data?.blood_group ? `Blood group ${patientQuery.data.blood_group}` : null,
     rx.patient?.phone ?? patientQuery.data?.phone ?? null,

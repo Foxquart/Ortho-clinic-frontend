@@ -881,8 +881,10 @@ export interface AppointmentDetailResponse {
 
 /** `AppointmentCreateRequest` — body of `POST /appointments` (staff-side booking). */
 export interface AppointmentCreateRequest {
-  /** Plain `string` in the schema (no `format: uuid`). Optional and nullable. */
+  /** Plain `string` in the schema (no `format: uuid`). Exactly one of `patient_id` / `patient` for staff bookings. */
   patient_id?: UUID | null
+  /** Inline new patient, found-or-created by phone like `PrescriptionCreateRequest.patient`. */
+  patient?: PatientUpsert | null
   appointment_date: DateString
   start_time: TimeString
   /** max 512 chars. */
@@ -1510,6 +1512,8 @@ export interface PrescriptionTemplateItem {
 /** `PrescriptionTemplateItem` as returned: adds the resolved name, `null` when the medicine is gone. */
 export interface PrescriptionTemplateItemResponse extends PrescriptionTemplateItem {
   medicine_name: string | null
+  /** The medicine's dosage form, so the pad can say doses in spoons or drops; `null` when the medicine is gone. */
+  dosage_form?: MedicineDosageForm | null
 }
 
 /** Body of `POST /prescription-templates`. Never carries patient or vitals fields. */

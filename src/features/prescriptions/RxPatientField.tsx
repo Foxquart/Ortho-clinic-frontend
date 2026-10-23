@@ -1,21 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Phone, Plus, UserPlus, UserRound, X } from 'lucide-react'
 import { apiGet } from '@/api/http'
 import { endpoints } from '@/api/endpoints'
 import { qk } from '@/lib/query'
 import { cn } from '@/lib/cn'
-import { fullName } from '@/lib/format'
+import { fullName, humanizeEnum } from '@/lib/format'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { Button } from '@/components/ui/Button'
 import { Combobox } from '@/components/ui/Combobox'
+import { Select } from '@/components/ui/Controls'
 import { Input } from '@/components/ui/Input'
 import { Kbd } from '@/components/ui/Badge'
-import type { Page_PatientResponse_, PatientSearchResult } from '@/api/schema'
+import { GENDERS } from '@/api/schema'
+import type { Page_PatientResponse_, PatientResponse, PatientSearchResult } from '@/api/schema'
+import { useUpdatePatient } from '@/features/patients/api'
+import { ageToDob, formatAge } from '@/features/patients/age'
 import { FIELD_IDS, focusField } from './padState'
 import { TAP_ICON, TAP_TARGET } from './Provenance'
-import type { RxPatient } from './model'
+import { patientDob, type RxPatient } from './model'
 
 /* -------------------------------------------------------------------------- */
 /*  Shape detection — one field, no mode switch                                */
@@ -51,6 +56,24 @@ function seedFromQuery(query: string): Pick<RxPatient, 'firstName' | 'lastName' 
   }
 }
 
+/** Digits only, at most `len` of them, clamped to `max` — so an age box can never hold a bad value. */
+const clampDigits = (max: number, len: number) => (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, len)
+  return digits !== '' && Number(digits) > max ? String(max) : digits
+}
+const clampYears = clampDigits(120, 3)
+const clampMonths = clampDigits(11, 2)
+
+const AGE_YEARS_ID = 'rx-patient-age-years'
+const AGE_MONTHS_ID = 'rx-patient-age-months'
+const SEX_ID = 'rx-patient-sex'
+const UNSET = '__unset__'
+
+const SEX_OPTIONS = [
+  { value: UNSET, label: 'Not recorded' },
+  ...GENDERS.map((g) => ({ value: g as string, label: humanizeEnum(g) })),
+]
+
 /* -------------------------------------------------------------------------- */
 
 /** How the register is browsed when nothing has been typed yet. */
@@ -74,9 +97,10 @@ export interface RxPatientFieldProps {
  * Prescribing must not require creating a patient first. Searching and
  * creating are the same control: type a name or a number, and if nobody
  * matches, the same list offers to prescribe for someone new. That opens
- * exactly three fields, because those are exactly the three the API demands.
- * No date of birth, no address, no blood group — the record is created as a
- * side effect of prescribing and completed later, if it ever needs to be.
+ * name, phone, and the age and sex that print on the prescription. Only the
+ * first three are required by the API. No address, no blood group — the record
+ * is created as a side effect of prescribing and completed later, if it ever
+ * needs to be.
  */
 export function RxPatientField({
   patient,
@@ -163,6 +187,8 @@ export function RxPatientField({
 
   const set = (field: 'firstName' | 'lastName' | 'phone') => (value: string) =>
     onChange({ ...patient, [field]: value })
+  const setAge = (field: 'ageYears' | 'ageMonths') => (value: string) =>
+    onChange({ ...patient, [field]: field === 'ageYears' ? clampYears(value) : clampMonths(value) })
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -242,6 +268,9 @@ export function RxPatientField({
           onFirstName={set('firstName')}
           onLastName={set('lastName')}
           onPhone={set('phone')}
+          onAgeYears={setAge('ageYears')}
+          onAgeMonths={setAge('ageMonths')}
+          onGender={(gender) => onChange({ ...patient, gender })}
           onCancel={cancelQuickAdd}
         />
       )}
@@ -250,7 +279,7 @@ export function RxPatientField({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  The three fields. Exactly three.                                           */
+/*  The walk-in form: three required fields, then age and sex.                */
 /* -------------------------------------------------------------------------- */
 
 function QuickAdd({
@@ -259,6 +288,9 @@ function QuickAdd({
   onFirstName,
   onLastName,
   onPhone,
+  onAgeYears,
+  onAgeMonths,
+  onGender,
   onCancel,
 }: {
   patient: RxPatient
@@ -266,6 +298,9 @@ function QuickAdd({
   onFirstName: (value: string) => void
   onLastName: (value: string) => void
   onPhone: (value: string) => void
+  onAgeYears: (value: string) => void
+  onAgeMonths: (value: string) => void
+  onGender: (value: string) => void
   onCancel: () => void
 }) {
   return (
@@ -275,9 +310,10 @@ function QuickAdd({
         <div className="min-w-0 flex-1">
           <p className="text-label font-medium text-text">New patient</p>
           <p className="text-caption text-text-muted">
-            Three fields is all it takes to prescribe. The record is created when you print, and
-            it starts <strong className="font-medium text-text">incomplete</strong> — date of
-            birth, address, allergies and history are added later from the{' '}
+            Name and phone are all it takes to prescribe; age and sex print on the prescription, so
+            add them if you can. The record is created when you print, and it starts{' '}
+            <strong className="font-medium text-text">incomplete</strong> — address, allergies and
+            history are added later from the{' '}
             <Link to="/patients" className="text-accent underline-offset-4 hover:underline">
               patient screen
             </Link>
@@ -326,6 +362,37 @@ function QuickAdd({
           icon={<Phone aria-hidden className="size-3.5" />}
           hint="6–20 digits"
         />
+        <QuickAddInput
+          id={AGE_YEARS_ID}
+          label="Age (years)"
+          value={patient.ageYears ?? ''}
+          onChange={onAgeYears}
+          inputMode="numeric"
+          maxLength={3}
+          autoComplete="off"
+        />
+        <QuickAddInput
+          id={AGE_MONTHS_ID}
+          label="Months"
+          value={patient.ageMonths ?? ''}
+          onChange={onAgeMonths}
+          inputMode="numeric"
+          maxLength={2}
+          autoComplete="off"
+        />
+        <div className="flex flex-col gap-1">
+          <label htmlFor={SEX_ID} className="text-micro uppercase text-text-muted">
+            Sex
+          </label>
+          <Select
+            id={SEX_ID}
+            placeholder="Not recorded"
+            value={patient.gender ? patient.gender : UNSET}
+            onChange={(v) => onGender(v === UNSET ? '' : v)}
+            options={SEX_OPTIONS}
+            className={TAP_TARGET}
+          />
+        </div>
       </div>
     </div>
   )
@@ -391,49 +458,155 @@ function QuickAddInput({
 /**
  * Who this prescription is for, once that is settled.
  *
+ * Age and sex print on the prescription, so they sit beside the name in the
+ * same weight as the name: "34 Y 2 M · Male". A patient on file who lacks
+ * either gets a small inline form to fill the gap (it PATCHes the record).
+ *
  * A brand-new walk-in gets a different line from a patient on file: their
  * record is deliberately partial, and pretending otherwise would be the start
  * of trusting an empty allergy list.
  */
 export function RxPatientIdentity({
   patient,
-  age,
-  gender,
+  record,
   onClear,
 }: {
   patient: RxPatient
-  age?: number | null
-  gender?: string | null
+  /** The loaded patient record, once it has arrived. Absent for a walk-in. */
+  record?: PatientResponse | null
   onClear: () => void
 }) {
   const name = `${patient.firstName} ${patient.lastName}`.trim()
   if (!name && !patient.phone) return null
 
+  // A chosen patient's age comes from the record; a walk-in's from what was typed.
+  const dob = patient.id ? record?.date_of_birth : patientDob(patient)
+  const gender = patient.id ? record?.gender : patient.gender
+  const demographics = [formatAge(dob), gender ? humanizeEnum(gender) : ''].filter(Boolean).join(' · ')
+
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-muted">
-      <span className="inline-flex items-center gap-1.5 text-text">
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-muted">
+        <span className="inline-flex flex-wrap items-center gap-x-2.5 text-body text-text">
+          <span className="inline-flex items-center gap-1.5">
+            {patient.id ? (
+              <UserRound aria-hidden className="size-3.5 text-text-subtle" />
+            ) : (
+              <Plus aria-hidden className="size-3.5 text-accent" />
+            )}
+            <span className="font-medium">{name || 'Unnamed'}</span>
+          </span>
+          {demographics && (
+            <span data-numeric className="font-semibold">
+              {demographics}
+            </span>
+          )}
+        </span>
+        {patient.phone && <span className="font-mono">{patient.phone}</span>}
         {patient.id ? (
-          <UserRound aria-hidden className="size-3.5 text-text-subtle" />
+          <Link
+            to={`/patients/${patient.id}`}
+            className="text-accent underline-offset-4 hover:underline"
+          >
+            Open record
+          </Link>
         ) : (
-          <Plus aria-hidden className="size-3.5 text-accent" />
+          <span className="text-text-subtle">New record — created when you print</span>
         )}
-        <span className="font-medium">{name || 'Unnamed'}</span>
-      </span>
-      {patient.phone && <span className="font-mono">{patient.phone}</span>}
-      {age != null && <span>{age} years</span>}
-      {gender && <span className="capitalize">{gender}</span>}
-      {patient.id ? (
-        <Link
-          to={`/patients/${patient.id}`}
-          className="text-accent underline-offset-4 hover:underline"
-        >
-          Open record
-        </Link>
-      ) : (
-        <span className="text-text-subtle">New record — created when you print</span>
+        <Button variant="ghost" size="sm" className={cn(TAP_TARGET, 'ml-auto')} onClick={onClear}>
+          Change patient
+        </Button>
+      </div>
+      {patient.id && record && (!record.date_of_birth || !record.gender) && (
+        <FillDemographics record={record} />
       )}
-      <Button variant="ghost" size="sm" className={cn(TAP_TARGET, 'ml-auto')} onClick={onClear}>
-        Change patient
+    </div>
+  )
+}
+
+/** Age and sex for a patient on file who has neither (or one of them). Saves straight to the record. */
+function FillDemographics({ record }: { record: PatientResponse }) {
+  const [years, setYears] = useState('')
+  const [months, setMonths] = useState('')
+  const [sex, setSex] = useState('')
+  const update = useUpdatePatient(record.id)
+
+  const needsAge = !record.date_of_birth
+  const needsSex = !record.gender
+  const ageGiven = years !== '' || months !== ''
+  const ready = (needsAge && ageGiven) || (needsSex && sex !== '')
+
+  const save = () => {
+    update.mutate(
+      {
+        ...(needsAge && ageGiven
+          ? { date_of_birth: ageToDob(Number(years || 0), Number(months || 0)) }
+          : {}),
+        ...(needsSex && sex !== '' ? { gender: sex as (typeof GENDERS)[number] } : {}),
+      },
+      {
+        onSuccess: () => toast.success('Patient updated'),
+        onError: (error) => toast.error(error.message),
+      },
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2.5 rounded-lg border border-dashed border-provenance-blank p-2.5">
+      <p className="w-full text-caption text-text-muted">
+        {needsAge && needsSex ? 'Age and sex are' : needsAge ? 'Age is' : 'Sex is'} not on this
+        record yet. They print on the prescription.
+      </p>
+      {needsAge && (
+        <>
+          <div className="w-24">
+            <QuickAddInput
+              id={AGE_YEARS_ID}
+              label="Age (years)"
+              value={years}
+              onChange={(v) => setYears(clampYears(v))}
+              inputMode="numeric"
+              maxLength={3}
+              autoComplete="off"
+            />
+          </div>
+          <div className="w-20">
+            <QuickAddInput
+              id={AGE_MONTHS_ID}
+              label="Months"
+              value={months}
+              onChange={(v) => setMonths(clampMonths(v))}
+              inputMode="numeric"
+              maxLength={2}
+              autoComplete="off"
+            />
+          </div>
+        </>
+      )}
+      {needsSex && (
+        <div className="flex w-36 flex-col gap-1">
+          <label htmlFor={SEX_ID} className="text-micro uppercase text-text-muted">
+            Sex
+          </label>
+          <Select
+            id={SEX_ID}
+            placeholder="Not recorded"
+            value={sex ? sex : UNSET}
+            onChange={(v) => setSex(v === UNSET ? '' : v)}
+            options={SEX_OPTIONS}
+            className={TAP_TARGET}
+          />
+        </div>
+      )}
+      <Button
+        variant="secondary"
+        size="sm"
+        className={TAP_TARGET}
+        disabled={!ready}
+        loading={update.isPending}
+        onClick={save}
+      >
+        Save to record
       </Button>
     </div>
   )

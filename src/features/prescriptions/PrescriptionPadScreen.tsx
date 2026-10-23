@@ -18,7 +18,7 @@ import { endpoints } from '@/api/endpoints'
 import { toApiError } from '@/api/errors'
 import { qk } from '@/lib/query'
 import { cn } from '@/lib/cn'
-import { formatDate, patientAge, todayIso } from '@/lib/format'
+import { formatDate, todayIso } from '@/lib/format'
 import { isTypingTarget } from '@/app/useGoToShortcuts'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -448,6 +448,7 @@ function PrescriptionPad() {
       rowFromPrevious(nextRowKey(), {
         medicine_id: item.medicine.id,
         medicine_name: item.medicine.name,
+        dosage_form: item.medicine.dosage_form,
         frequency: item.frequency,
         duration_days: item.duration_days,
         quantity: item.quantity,
@@ -895,7 +896,6 @@ function PrescriptionPad() {
     )
   }
 
-  const age = patientAge(patientRecord.data?.date_of_birth)
   const namedPatient = Boolean(
     draft.patient.id || draft.patient.firstName || draft.patient.lastName || draft.patient.phone,
   )
@@ -995,8 +995,7 @@ function PrescriptionPad() {
               {namedPatient && (
                 <RxPatientIdentity
                   patient={draft.patient}
-                  age={age}
-                  gender={patientRecord.data?.gender}
+                  record={patientRecord.data}
                   onClear={clearPatient}
                 />
               )}

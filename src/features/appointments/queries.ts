@@ -59,8 +59,7 @@ export function useAvailableSlots(date: string | null) {
 export function useWeeklyAvailability() {
   return useQuery({
     queryKey: qk.appointments.availability(),
-    queryFn: () =>
-      apiGet<WeeklyAvailabilityResponse[]>(endpoints.appointments.availability),
+    queryFn: () => apiGet<WeeklyAvailabilityResponse[]>(endpoints.appointments.availability),
     staleTime: 5 * 60_000,
   })
 }
@@ -93,10 +92,15 @@ function useInvalidateAppointments() {
 
 export function useBookAppointment() {
   const invalidate = useInvalidateAppointments()
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (body: AppointmentCreateRequest) =>
       apiPost<AppointmentDetailResponse>(endpoints.appointments.create, body),
-    onSuccess: invalidate,
+    onSuccess: (_created, body) => {
+      invalidate()
+      // A new patient may have just been created; the register must show them.
+      if (body.patient) void queryClient.invalidateQueries({ queryKey: qk.patients.all() })
+    },
   })
 }
 

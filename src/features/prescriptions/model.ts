@@ -13,7 +13,9 @@
  */
 
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
+import { ageToDob } from '../patients/age'
 import type {
+  MedicineDosageForm,
   PrescriptionTemplateCreate,
   PrescriptionTemplateResponse,
   RxExtraField,
@@ -75,6 +77,11 @@ export interface RxRow {
   key: string
   medicineId: string | null
   medicineName: string
+  /**
+   * The picked medicine's dosage form, for the live dose wording (tsp for syrup,
+   * drops for drops). `null` when not known: the pad then says it the tablet way.
+   */
+  dosageForm: MedicineDosageForm | null
   /** Free-text frequency, e.g. "1-0-1" or "before bed". Sent verbatim. */
   frequency: FieldState<string>
   durationDays: FieldState<number | null>
@@ -92,6 +99,7 @@ export function newRow(key: string): RxRow {
     key,
     medicineId: null,
     medicineName: '',
+    dosageForm: null,
     frequency: blank(''),
     durationDays: blank(null),
     quantity: blank(null),
@@ -260,6 +268,7 @@ export function rowFromPrevious(
   item: {
     medicine_id: string
     medicine_name?: string | null
+    dosage_form?: MedicineDosageForm | null
     frequency: string
     duration_days?: number | null
     quantity?: number | null
@@ -284,6 +293,7 @@ export function rowFromPrevious(
     key,
     medicineId: item.medicine_id,
     medicineName: item.medicine_name ?? '',
+    dosageForm: item.dosage_form ?? null,
     // The stored string travels back verbatim — "1-0-1" and "SOS" alike.
     frequency: defaulted(item.frequency),
     durationDays: item.duration_days != null ? defaulted(item.duration_days) : blank(null),
@@ -318,6 +328,10 @@ export interface RxPatient {
   phone: string
   /** Display only, carried from a selected patient so allergies stay visible. */
   allergies: string[]
+  /** Walk-in only: typed age (digits, '' = unknown) and sex (`male|female|other`, '' = unknown). */
+  ageYears?: string
+  ageMonths?: string
+  gender?: string
 }
 
 export const EMPTY_PATIENT: RxPatient = {
@@ -330,6 +344,26 @@ export const EMPTY_PATIENT: RxPatient = {
 
 export function patientName(patient: RxPatient): string {
   return `${patient.firstName} ${patient.lastName}`.trim()
+}
+
+/** A walk-in's typed age as a date of birth, or null when neither box is filled. */
+export function patientDob(patient: RxPatient): string | null {
+  const years = (patient.ageYears ?? '').trim()
+  const months = (patient.ageMonths ?? '').trim()
+  if (!years && !months) return null
+  return ageToDob(Number(years || 0), Number(months || 0))
+}
+
+/** The inline `patient` body for a walk-in: the three required fields plus age and sex when given. */
+function inlinePatient<T extends string | null>(patient: RxPatient, trim: (v: string) => T) {
+  const dob = patientDob(patient)
+  return {
+    first_name: trim(patient.firstName),
+    last_name: trim(patient.lastName),
+    phone: trim(patient.phone),
+    ...(dob ? { date_of_birth: dob } : {}),
+    ...(patient.gender ? { gender: patient.gender } : {}),
+  }
 }
 
 /** The three fields the API actually demands, and nothing more. */
@@ -609,13 +643,7 @@ export function toPreviewRequest(draft: RxDraft): Record<string, unknown> {
   return {
     ...(draft.patient.id
       ? { patient_id: draft.patient.id }
-      : {
-          patient: {
-            first_name: draft.patient.firstName.trim() || null,
-            last_name: draft.patient.lastName.trim() || null,
-            phone: draft.patient.phone.trim() || null,
-          },
-        }),
+      : { patient: inlinePatient(draft.patient, (v) => v.trim() || null) }),
     diagnosis: text(draft.diagnosis),
     examination_findings: text(draft.examinationFindings),
     extra_fields: extraPayload(draft.extraFields),
@@ -677,13 +705,7 @@ export function toApiRequest(draft: RxDraft, clientRequestId?: string): Record<s
   return {
     ...(draft.patient.id
       ? { patient_id: draft.patient.id }
-      : {
-          patient: {
-            first_name: draft.patient.firstName.trim(),
-            last_name: draft.patient.lastName.trim(),
-            phone: draft.patient.phone.trim(),
-          },
-        }),
+      : { patient: inlinePatient(draft.patient, (v) => v.trim()) }),
     diagnosis: text(draft.diagnosis),
     examination_findings: text(draft.examinationFindings),
     extra_fields: extraPayload(draft.extraFields),
@@ -768,6 +790,7 @@ export function applyTemplate(
             ...newRow(newKey()),
             medicineId: item.medicine_id,
             medicineName: item.medicine_name,
+            dosageForm: item.dosage_form ?? null,
             frequency: entered(item.frequency),
             durationDays: item.duration_days != null ? entered(item.duration_days) : blank(null),
             quantity: item.quantity != null ? entered(item.quantity) : blank(null),
@@ -801,7 +824,7 @@ export interface RepeatSource {
     quantity: number | null
     instructions: string | null
     food_timing?: 'before' | 'after' | 'with' | null
-    medicine: { id: string; name: string }
+    medicine: { id: string; name: string; dosage_form?: MedicineDosageForm }
   }[]
 }
 
@@ -851,6 +874,7 @@ export function applyPrevious(draft: RxDraft, rx: RepeatSource, newKey: () => st
       rowFromPrevious(newKey(), {
         medicine_id: item.medicine.id,
         medicine_name: item.medicine.name,
+        dosage_form: item.medicine.dosage_form,
         frequency: item.frequency,
         duration_days: item.duration_days,
         quantity: item.quantity,
