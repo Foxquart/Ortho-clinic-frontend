@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
@@ -19,6 +19,13 @@ import type {
   MedicineUpdateRequest,
 } from '@/api/schema'
 import { useCreateMedicine, useUpdateMedicine } from './useMedicines'
+import { frequencyBn, frequencyEn } from '../prescriptions/bn'
+
+/** Same unit words the pad shows next to Frequency. */
+const DOSE_UNIT_HINT: Partial<Record<string, string>> = {
+  syrup: 'spoons (tsp) per dose',
+  drops: 'drops per dose',
+}
 
 /**
  * Food timing choices for the defaults section. `none` is the form's own
@@ -239,6 +246,9 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
     mode: 'onBlur',
     reValidateMode: 'onChange',
   })
+  // The dose unit follows the form: a syrup's 1-0-1 is spoons, not tablets.
+  const dosageForm = useWatch({ control, name: 'dosage_form' })
+  const unitHint = DOSE_UNIT_HINT[dosageForm]
 
   // Re-seed every time the sheet opens, so a cancelled edit never leaks into
   // the next one.
@@ -464,8 +474,12 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
             </div>
 
             <Field
-              label="Default frequency"
-              hint="Tap a preset or type your own. 1-0-1 means morning and night."
+              label={unitHint ? `Default frequency · ${unitHint}` : 'Default frequency'}
+              hint={
+                unitHint
+                  ? `Tap a preset or type your own. 1-0-1 means 1 ${unitHint.split(' ')[0].replace(/s$/, '')} morning and night.`
+                  : 'Tap a preset or type your own. 1-0-1 means morning and night.'
+              }
               error={errors.default_frequency?.message}
               optionalLabel
             >
@@ -484,6 +498,12 @@ export function MedicineSheet({ open, onOpenChange, medicine, initialName }: Med
                         spellCheck={false}
                         placeholder='1-0-1, or "before bed"'
                       />
+                      {frequencyEn(field.value, dosageForm) && (
+                        <p className="text-caption text-text-muted" aria-live="polite">
+                          {frequencyEn(field.value, dosageForm)} ·{' '}
+                          <span lang="bn">{frequencyBn(field.value, dosageForm)}</span>
+                        </p>
+                      )}
                       <div
                         role="group"
                         aria-label="Frequency presets"
