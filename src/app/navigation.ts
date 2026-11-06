@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  ClipboardList,
   FileText,
   Globe,
   LayoutDashboard,
@@ -46,6 +47,7 @@ import type { Permission } from '@/lib/permissions'
  * | `g p` | Patients                                                  |
  * | `g m` | Medicines                                                 |
  * | `g l` | Advice library                                            |
+ * | `g i` | Test catalogue                                            |
  * | `g e` | Templates                                                 |
  * | `g b` | Bengali phrases                                           |
  * | `g s` | Settings                                                  |
@@ -130,6 +132,14 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     goKey: 'l',
     requires: 'advice.write',
     hint: 'Saved instructions to append to a prescription',
+  },
+  {
+    to: '/investigations',
+    label: 'Test catalogue',
+    icon: ClipboardList,
+    goKey: 'i',
+    requires: 'medicine.write',
+    hint: 'Tests the pad offers in its Investigations picker',
   },
   {
     to: '/templates',

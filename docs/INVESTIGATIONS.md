@@ -2,9 +2,29 @@
 
 The pad's **Investigations** section is a searchable, grouped checklist backed
 by a clinic-wide catalogue (`GET /investigations`). This file is the contract
-the backend and the print template need to implement. The frontend side is
-already in place and degrades to the old free-text behaviour when these
-endpoints are absent.
+the backend and the print template need to implement.
+
+## Status
+
+Implemented end to end.
+
+- **API** — `app/models/investigation.py`, `app/schemas/investigation.py`,
+  `app/routers/investigations.py`, registered in `app/api/api.py`.
+  Writes reuse `medicine.read` / `medicine.write`, so no role changes are
+  needed.
+- **Database** — apply `db/schema/014_investigations.sql`, then run the seed
+  (`uv run python -m app.scripts.seed` or the project's seed task). The seed
+  inserts the 20 starting tests, but only when the table is empty.
+- **Frontend** — the pad picker (`RxInvestigationsPicker`) and the management
+  screen at `/investigations` (sidebar: **Test catalogue**, `g i`) for adding,
+  editing, deactivating and deleting tests.
+- **Print** — `app/templates/prescription_print.html` ticks the pre-printed
+  boxes from the prescription's `investigations` text.
+
+`investigation_ids` (below) is sent by the pad but not yet stored by the API;
+the print path does not need it, because the name is what prints and matches.
+The pad re-derives ids from the text whenever the catalogue loads.
+
 
 ## Endpoints
 
@@ -18,8 +38,10 @@ Mirror `advice-presets`.
 | `PATCH` | `/api/v1/investigations/{id}` | `InvestigationUpdate` | `InvestigationResponse` | admin |
 | `DELETE` | `/api/v1/investigations/{id}` | — | `MessageResponse` | admin |
 
-`DELETE` should be a soft delete (`is_active = false`) if prescriptions refer to
-the row, so an old prescription keeps its label.
+`DELETE` removes the row outright. Retiring a test should use
+`PATCH { "is_active": false }` instead: the pad hides inactive rows, the row
+stays in the management screen, and no prescription text is affected (the pad
+stores the test's name, not a foreign key).
 
 ### Shapes
 
@@ -143,3 +165,5 @@ check as the fallback for freehand lines.
   `src/features/prescriptions/model.ts`.
 - The picker is `src/features/prescriptions/RxInvestigationsPicker.tsx`; the
   catalogue fetch is `src/features/investigations/useInvestigations.ts`.
+- The management screen at `/investigations` shows a calm "needs the latest
+  backend" state on the same 404 instead of an error.

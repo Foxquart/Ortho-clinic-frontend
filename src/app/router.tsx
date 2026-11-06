@@ -72,6 +72,11 @@ const AdviceLibraryScreen = lazy(() =>
     default: m.AdviceLibraryScreen,
   })),
 )
+const InvestigationsLibraryScreen = lazy(() =>
+  import('@/features/investigations/InvestigationsLibraryScreen').then((m) => ({
+    default: m.InvestigationsLibraryScreen,
+  })),
+)
 const TemplatesScreen = lazy(() =>
   import('@/features/templates/TemplatesScreen').then((m) => ({ default: m.TemplatesScreen })),
 )
@@ -207,6 +212,13 @@ const appRoutes = {
                      own. */
                   element: <RequireCapability capability="advice.write" />,
                   children: [{ path: 'advice', element: <AdviceLibraryScreen /> }],
+                },
+                {
+                  /* The test catalogue is curated alongside the formulary, so
+                     it rides on `medicine.write`: a clinic that can maintain
+                     the medicine list can maintain the tests it orders. */
+                  element: <RequireCapability capability="medicine.write" />,
+                  children: [{ path: 'investigations', element: <InvestigationsLibraryScreen /> }],
                 },
                 {
                   /* A template is written from the pad's fields, so it is
