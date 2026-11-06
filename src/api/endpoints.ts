@@ -398,6 +398,22 @@ export const endpoints = {
   },
 
   /**
+   * Tag `investigations` — the clinic's catalogue of tests, rendered as a
+   * grouped, searchable checklist on the pad. Reads: any signed-in user.
+   * Writes: admin. Ships ahead of the backend deploy: a 404 means the backend
+   * does not have the catalogue yet, and the pad falls back to a built-in list
+   * that writes text only.
+   */
+  investigations: {
+    /** GET -> `InvestigationResponse[]` (`?include_inactive=true` for admin UIs). */
+    list: '/investigations',
+    /** POST `InvestigationCreate` -> `InvestigationResponse`. [WRITE: needs CSRF, admin] */
+    create: '/investigations',
+    /** PATCH `InvestigationUpdate` / DELETE -> `MessageResponse`. [WRITE, admin] */
+    byId: (id: UUID) => `/investigations/${id}`,
+  },
+
+  /**
    * Tag `bengali-phrases` — the clinic-wide English -> Bengali phrasebook the printed
    * prescription reads (no translation API). Read: `prescription.read`; write: `prescription.write`.
    */

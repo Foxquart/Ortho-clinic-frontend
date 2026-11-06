@@ -100,6 +100,10 @@ export const qk = {
     all: () => ['advice-presets'] as const,
     list: (includeInactive: boolean) => ['advice-presets', { includeInactive }] as const,
   },
+  investigations: {
+    all: () => ['investigations'] as const,
+    list: (includeInactive: boolean) => ['investigations', { includeInactive }] as const,
+  },
   bengaliPhrases: {
     all: () => ['bengali-phrases'] as const,
     list: () => ['bengali-phrases', 'list'] as const,

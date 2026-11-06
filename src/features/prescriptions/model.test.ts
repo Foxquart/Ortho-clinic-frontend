@@ -205,6 +205,19 @@ describe('examination findings and custom sections', () => {
     ])
   })
 
+  test('investigation ids ride beside the text and are omitted when empty', () => {
+    const draft = {
+      ...ready(newDraft()),
+      investigations: entered('CBC\nKFT'),
+      investigationIds: ['i1', 'i2'],
+    }
+    for (const body of [toApiRequest(draft), toPreviewRequest(draft)]) {
+      expect(body.investigations).toBe('CBC\nKFT')
+      expect(body.investigation_ids).toEqual(['i1', 'i2'])
+    }
+    expect('investigation_ids' in toApiRequest(ready(newDraft()))).toBe(false)
+  })
+
   test('client_request_id rides along when given and is absent otherwise', () => {
     const draft = ready(newDraft())
     expect(toApiRequest(draft, 'req-1').client_request_id).toBe('req-1')

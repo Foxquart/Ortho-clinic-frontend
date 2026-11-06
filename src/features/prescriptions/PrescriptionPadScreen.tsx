@@ -39,7 +39,10 @@ import { RxRowEditor } from './RxRowEditor'
 import { RxPatientField, RxPatientIdentity } from './RxPatientField'
 import { RxNarrativeField } from './RxNarrativeField'
 import { RxAdvicePicker } from './RxAdvicePicker'
+import { RxInvestigationsPicker } from './RxInvestigationsPicker'
 import { RxTemplatePicker } from './RxTemplatePicker'
+import { reconcileInvestigationIds } from '@/features/investigations/catalog'
+import { useInvestigations } from '@/features/investigations/useInvestigations'
 import { applyMedicineDefaults, forgetAppliedDefaults } from './medicineDefaults'
 import { RxMissingSummary } from './RxMissingSummary'
 // DICTATION-PANEL: import { RxDictationPanel } from './RxDictationPanel'
@@ -275,6 +278,10 @@ function PrescriptionPad() {
      is the standard one. */
   const layoutQuery = usePadLayout()
   const layout = layoutQuery.data ?? DEFAULT_PAD_LAYOUT
+  /* The investigation catalogue. A 404 on an older backend is expected: the
+     picker falls back to the built-in list and no ids are sent. */
+  const investigations = useInvestigations()
+  const investigationOptions = investigations.options
   const sections = useMemo(() => shownSections(draft, layout), [draft, layout])
   /* What leaves the pad: custom values re-stamped with the labels on screen. */
   const outgoing = useMemo(() => withLayoutLabels(draft, layout), [draft, layout])
@@ -332,6 +339,50 @@ function PrescriptionPad() {
       setDraft((d) => ({ ...d, [key]: next })),
     [],
   )
+
+  /**
+   * Investigations move together: the printable text and the catalogue ids.
+   *
+   * `ids` is only passed when the picker already knows the exact selection;
+   * a plain text edit carries none and is reconciled from the lines against
+   * the catalogue, so deleting a line also drops its id.
+   */
+  const setInvestigations = useCallback(
+    (next: FieldState<string>, ids?: readonly string[]) => {
+      setDraft((d) => ({
+        ...d,
+        investigations: next,
+        investigationIds: reconcileInvestigationIds(
+          ids ?? d.investigationIds,
+          next.value,
+          investigationOptions,
+        ),
+      }))
+    },
+    [investigationOptions],
+  )
+
+  /* Adopt ids for lines that arrived from somewhere other than the picker —
+     dictation, a template, "repeat last prescription" — once the catalogue is
+     available. Text stays the source of truth; this just gives an existing
+     line its structured identity back. */
+  useEffect(() => {
+    if (investigations.isLoading) return
+    setDraft((d) => {
+      const next = reconcileInvestigationIds(
+        d.investigationIds,
+        d.investigations.value,
+        investigationOptions,
+      )
+      if (
+        next.length === d.investigationIds.length &&
+        next.every((id, index) => id === d.investigationIds[index])
+      ) {
+        return d
+      }
+      return { ...d, investigationIds: next }
+    })
+  }, [investigationOptions, investigations.isLoading])
 
   const updateRow = useCallback((key: string, next: RxRow) => {
     setDraft((d) => ({ ...d, rows: d.rows.map((r) => (r.key === key ? next : r)) }))
@@ -877,13 +928,29 @@ function PrescriptionPad() {
         labelHint={ui.labelHint}
         hint={ui.hint}
         field={draft[ui.field]}
-        onChange={setField(ui.field)}
+        onChange={section.key === 'investigations' ? setInvestigations : setField(ui.field)}
         rows={ui.rows}
         maxLength={ui.maxLength}
         error={serverErrors[ui.id]}
         className={ui.wide ? 'sm:col-span-2' : undefined}
       />
     )
+    // The catalogue is the only way to pick a test without typing it. It
+    // renders nothing until the fallback list exists (never, in practice), so
+    // the field below always stands on its own.
+    if (section.key === 'investigations') {
+      return (
+        <div key={section.key} className="flex min-w-0 flex-col gap-3 sm:col-span-2">
+          <RxInvestigationsPicker
+            field={draft.investigations}
+            selectedIds={draft.investigationIds}
+            options={investigationOptions}
+            onChange={(next, ids) => setInvestigations(next, ids)}
+          />
+          {field}
+        </div>
+      )
+    }
     // One tap per line of advice. Renders nothing until the backend serves the
     // library, so the field below stands alone exactly as before.
     return section.key === 'advice' ? (

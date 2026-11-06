@@ -441,8 +441,23 @@ export interface RxDraft {
   extraFields: ExtraFieldDraft[]
   rows: RxRow[]
   advice: FieldState<string>
-  /** Sent as `investigations` — a real column since 2026-08-25. */
+  /**
+   * Sent as `investigations` — the human-readable lines the template prints.
+   *
+   * The picker keeps it in step with {@link investigationIds}, but this remains
+   * the source of truth for what prints: a dictated test, a line carried over
+   * from a template, or one the doctor typed freehand only exists here.
+   */
   investigations: FieldState<string>
+  /**
+   * Catalogue ids for the investigations above (`POST /investigations`).
+   *
+   * Sent alongside the text as `investigation_ids` so the server can tick the
+   * exact boxes on the printed page instead of guessing from labels. Empty for
+   * freehand lines and whenever the catalogue itself is unavailable — the
+   * backend then stores the text alone, which is what it did before.
+   */
+  investigationIds: string[]
   notes: FieldState<string>
   /** Sent as `procedure`. Routinely "NA" on his pad. */
   procedure: FieldState<string>
@@ -564,6 +579,7 @@ export function newDraft(): RxDraft {
     rows: [],
     advice: blank(''),
     investigations: blank(''),
+    investigationIds: [],
     notes: blank(''),
     procedure: blank(''),
     consult: blank(''),
@@ -672,6 +688,7 @@ export function toPreviewRequest(draft: RxDraft): Record<string, unknown> {
     advice: text(draft.advice),
     notes: text(draft.notes),
     investigations: text(draft.investigations),
+    ...(draft.investigationIds.length > 0 ? { investigation_ids: draft.investigationIds } : {}),
     procedure: text(draft.procedure),
     consult: text(draft.consult),
     vitals_bp: text(draft.vitalsBp),
@@ -736,6 +753,7 @@ export function toApiRequest(draft: RxDraft, clientRequestId?: string): Record<s
     advice: text(draft.advice),
     notes: text(draft.notes),
     investigations: text(draft.investigations),
+    ...(draft.investigationIds.length > 0 ? { investigation_ids: draft.investigationIds } : {}),
     procedure: text(draft.procedure),
     consult: text(draft.consult),
     vitals_bp: text(draft.vitalsBp),
@@ -836,6 +854,8 @@ export interface RepeatSource {
   advice: string | null
   notes: string | null
   investigations?: string | null
+  /** Catalogue ids for those lines, when the API has the catalogue. */
+  investigation_ids?: string[] | null
   procedure?: string | null
   consult?: string | null
   follow_up_date: string | null
@@ -890,6 +910,7 @@ export function applyPrevious(draft: RxDraft, rx: RepeatSource, newKey: () => st
   out.extraFields = out.extraFields.map((f) =>
     draft.extraFields.includes(f) ? f : { ...f, value: defaulted(f.value.value) },
   )
+  if (rx.investigation_ids?.length) out.investigationIds = [...rx.investigation_ids]
   if (rx.items.length > 0) {
     out.rows = rx.items.map((item) =>
       rowFromPrevious(newKey(), {

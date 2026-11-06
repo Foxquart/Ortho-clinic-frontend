@@ -772,6 +772,10 @@ export interface PrescriptionCreateRequest {
   extra_fields?: RxExtraField[]
   /** max 4000 chars. */
   advice?: string | null
+  /** Newline-separated investigations, as the pad writes them. */
+  investigations?: string | null
+  /** Catalogue ids for the same selection; the printed template ticks boxes from these. */
+  investigation_ids?: UUID[] | null
   /** max 4000 chars. */
   notes?: string | null
   follow_up_date?: DateString | null
@@ -809,6 +813,8 @@ export interface PrescriptionResponse {
   examination_findings?: string | null
   extra_fields?: RxExtraField[]
   advice: string | null
+  /** Absent on an older API. */
+  investigations?: string | null
   notes: string | null
   follow_up_date: DateString | null
   status: PrescriptionStatus
@@ -838,6 +844,10 @@ export interface PrescriptionDetailResponse {
   examination_findings?: string | null
   extra_fields?: RxExtraField[]
   advice: string | null
+  /** Absent on an older API. */
+  investigations?: string | null
+  /** Catalogue ids for the investigations above. Absent on an older API. */
+  investigation_ids?: UUID[]
   notes: string | null
   follow_up_date: DateString | null
   status: PrescriptionStatus
@@ -1430,8 +1440,43 @@ export interface TranscriptionResponse {
   duration_seconds?: number | null
 }
 
-/** `AdvicePresetResponse` — one line of the doctor's advice library. */
-export interface AdvicePresetResponse {
+/**
+ * `InvestigationResponse` — one test the doctor can tick on the pad.
+ *
+ * The catalogue is clinic-wide. `name` is what prints; the print template
+ * matches a selection by `id` and falls back to `name` for a line that has no
+ * catalogue row (a one-off test the doctor typed).
+ */
+export interface InvestigationResponse {
+  id: UUID
+  name: string
+  /** Grouping heading on the pad and on paper: `Blood`, `Radiology / Pathology`, `Cardiovascular`. Null means general. */
+  category: string | null
+  sort_order: number
+  is_active: boolean
+  created_at: DateTimeString
+  updated_at: DateTimeString
+}
+
+/** Body of `POST /investigations`. [admin] */
+export interface InvestigationCreate {
+  /** 1..128 */
+  name: string
+  /** <=64 */
+  category?: string | null
+  sort_order?: number
+}
+
+/** Body of `PATCH /investigations/{id}`. [admin] */
+export interface InvestigationUpdate {
+  name?: string
+  /** `null` clears it. */
+  category?: string | null
+  sort_order?: number
+  is_active?: boolean
+}
+
+/** `AdvicePresetResponse` — one line of the doctor's advice library. */ export interface AdvicePresetResponse {
   id: UUID
   label: string
   /** The Bengali printed after `label`. Null when none has been written. */
