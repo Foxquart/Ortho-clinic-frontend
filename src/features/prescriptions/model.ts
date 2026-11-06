@@ -314,11 +314,12 @@ export function rowFromPrevious(
  * become a fully-filled patient record before they can be handed a
  * prescription.
  *
- * `PatientUpsert` requires exactly `first_name`, `last_name` and `phone`, and
+ * `PatientUpsert` requires `first_name` and `last_name`, and
  * `PrescriptionCreateRequest` accepts an inline `patient` object — so those
- * three fields are the entire cost of prescribing for someone new. Everything
- * else on the patient record stays empty and can be filled in later from the
- * patient screen.
+ * two fields are the entire cost of prescribing for someone new. `phone` is
+ * optional: when it is blank it is omitted from the payload rather than sent
+ * as an empty string. Everything else on the patient record stays empty and
+ * can be filled in later from the patient screen.
  */
 export interface RxPatient {
   /** Set when an existing patient was chosen. `null` means "create this one". */
@@ -354,19 +355,33 @@ export function patientDob(patient: RxPatient): string | null {
   return ageToDob(Number(years || 0), Number(months || 0))
 }
 
-/** The inline `patient` body for a walk-in: the three required fields plus age and sex when given. */
+/**
+ * The inline `patient` body for a walk-in: the two required names, plus phone,
+ * age and sex only when they were given.
+ *
+ * A blank phone is omitted rather than sent as `''`. The field is optional in
+ * the pad, and the API only bounds a phone that is actually present (6..20),
+ * so an empty string would be the one shape it rejects.
+ */
 function inlinePatient<T extends string | null>(patient: RxPatient, trim: (v: string) => T) {
   const dob = patientDob(patient)
+  const phone = trim(patient.phone)
   return {
     first_name: trim(patient.firstName),
     last_name: trim(patient.lastName),
-    phone: trim(patient.phone),
+    ...(phone ? { phone } : {}),
     ...(dob ? { date_of_birth: dob } : {}),
     ...(patient.gender ? { gender: patient.gender } : {}),
   }
 }
 
-/** The three fields the API actually demands, and nothing more. */
+/**
+ * What still stands between this walk-in and a prescription.
+ *
+ * Names are required. Phone is not — but if one was typed it has to be a
+ * valid one, because the API's 6..20 bound applies whenever the field is
+ * present. Checking it here keeps that 422 on the field instead of in a toast.
+ */
 export function patientIssues(patient: RxPatient): RowIssue[] {
   const issues: RowIssue[] = []
   if (!patient.firstName.trim()) {
@@ -375,8 +390,13 @@ export function patientIssues(patient: RxPatient): RowIssue[] {
   if (!patient.lastName.trim()) {
     issues.push({ rowKey: 'patient', field: 'medicine', message: 'Last name needed' })
   }
-  if (!patient.phone.trim()) {
-    issues.push({ rowKey: 'patient', field: 'medicine', message: 'Phone number needed' })
+  const phone = patient.phone.trim()
+  if (phone && (phone.length < 6 || phone.length > 20)) {
+    issues.push({
+      rowKey: 'patient',
+      field: 'medicine',
+      message: 'Phone number must be 6–20 digits',
+    })
   }
   return issues
 }
@@ -612,8 +632,9 @@ export function allergyConflicts(
  * Build the `POST /prescriptions` body.
  *
  * Sends `patient_id` for an existing patient, or an inline `patient` with the
- * three required fields for a walk-in. Like `toApiItem`, this throws rather
- * than inventing anything — call `canSubmitDraft` first.
+ * required names (plus phone, age and sex when given) for a walk-in. Like
+ * `toApiItem`, this throws rather than inventing anything — call
+ * `canSubmitDraft` first.
  */
 /**
  * The same draft, shaped for `POST /prescriptions/preview` — the server-side

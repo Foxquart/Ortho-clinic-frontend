@@ -10,9 +10,9 @@ session; it stores nothing itself.
 - **Dictate a prescription.** Speak English; the transcript is read into
   prescription rows — drug, dose, `1-0-1` timing, duration, food timing — which
   you check and sign.
-- **Prescribe for a walk-in in three fields.** First name, last name, phone.
-  The patient record is created as a side effect of prescribing; the rest can be
-  filled in later.
+- **Prescribe for a walk-in in two fields.** First name and last name; phone,
+  age and sex are optional and print only when given. The patient record is
+  created as a side effect of prescribing; the rest can be filled in later.
 - **Blank means blank.** A field you never spoke and never typed renders
   visibly empty and *blocks printing*. Nothing is invented on your behalf.
 

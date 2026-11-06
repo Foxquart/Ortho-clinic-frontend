@@ -193,7 +193,7 @@ export function RxPatientField({
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col gap-1">
-        <label htmlFor={FIELD_IDS.patient} className="text-micro uppercase text-text-muted">
+        <label htmlFor={FIELD_IDS.patient} className="text-micro text-text-muted uppercase">
           Patient
         </label>
         <Combobox<PatientSearchResult>
@@ -235,8 +235,8 @@ export function RxPatientField({
           }
           renderItem={(p) => (
             <span className="flex items-baseline justify-between gap-3">
-              <span className="truncate text-text">{fullName(p.first_name, p.last_name)}</span>
-              <span className="shrink-0 font-mono text-caption text-text-subtle">{p.phone}</span>
+              <span className="text-text truncate">{fullName(p.first_name, p.last_name)}</span>
+              <span className="text-caption text-text-subtle shrink-0 font-mono">{p.phone}</span>
             </span>
           )}
           footer={
@@ -244,8 +244,8 @@ export function RxPatientField({
               type="button"
               onClick={openQuickAdd}
               className={cn(
-                'flex min-h-tap w-full items-center gap-2 rounded-md px-2 text-left text-body lg:min-h-0 lg:py-1.5',
-                'text-text transition-colors duration-instant ease-standard',
+                'min-h-tap text-body flex w-full items-center gap-2 rounded-md px-2 text-left lg:min-h-0 lg:py-1.5',
+                'text-text duration-instant ease-standard transition-colors',
                 'hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none',
                 noMatches && 'bg-accent-muted text-accent-muted-fg hover:bg-accent-muted',
               )}
@@ -304,16 +304,16 @@ function QuickAdd({
   onCancel: () => void
 }) {
   return (
-    <div className="rounded-lg border border-accent/30 bg-accent-muted/40 p-3">
+    <div className="border-accent/30 bg-accent-muted/40 rounded-lg border p-3">
       <div className="mb-2.5 flex items-start gap-2">
-        <UserPlus aria-hidden className="mt-0.5 size-4 shrink-0 text-accent" />
+        <UserPlus aria-hidden className="text-accent mt-0.5 size-4 shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="text-label font-medium text-text">New patient</p>
+          <p className="text-label text-text font-medium">New patient</p>
           <p className="text-caption text-text-muted">
-            Name and phone are all it takes to prescribe; age and sex print on the prescription, so
-            add them if you can. The record is created when you print, and it starts{' '}
-            <strong className="font-medium text-text">incomplete</strong> — address, allergies and
-            history are added later from the{' '}
+            First and last name are all it takes to prescribe; phone, age and sex print on the
+            prescription, so add them if you can. The record is created when you print, and it
+            starts <strong className="text-text font-medium">incomplete</strong> — address,
+            allergies and history are added later from the{' '}
             <Link to="/patients" className="text-accent underline-offset-4 hover:underline">
               patient screen
             </Link>
@@ -360,7 +360,7 @@ function QuickAdd({
           inputMode="tel"
           autoComplete="off"
           icon={<Phone aria-hidden className="size-3.5" />}
-          hint="6–20 digits"
+          hint="Optional · 6–20 digits"
         />
         <QuickAddInput
           id={AGE_YEARS_ID}
@@ -381,7 +381,7 @@ function QuickAdd({
           autoComplete="off"
         />
         <div className="flex flex-col gap-1">
-          <label htmlFor={SEX_ID} className="text-micro uppercase text-text-muted">
+          <label htmlFor={SEX_ID} className="text-micro text-text-muted uppercase">
             Sex
           </label>
           <Select
@@ -421,7 +421,7 @@ function QuickAddInput({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-micro uppercase text-text-muted">
+      <label htmlFor={id} className="text-micro text-text-muted uppercase">
         {label}
       </label>
       <Input
@@ -436,7 +436,7 @@ function QuickAddInput({
         // required field is a value the doctor never gave, dressed as a hint.
         placeholder="—"
         onChange={(e) => onChange(e.target.value)}
-        className={cn(TAP_TARGET, missing && !error && 'border-dashed border-provenance-blank')}
+        className={cn(TAP_TARGET, missing && !error && 'border-provenance-blank border-dashed')}
       />
       {error ? (
         <p id={`${id}-error`} className="text-caption text-danger">
@@ -482,17 +482,19 @@ export function RxPatientIdentity({
   // A chosen patient's age comes from the record; a walk-in's from what was typed.
   const dob = patient.id ? record?.date_of_birth : patientDob(patient)
   const gender = patient.id ? record?.gender : patient.gender
-  const demographics = [formatAge(dob), gender ? humanizeEnum(gender) : ''].filter(Boolean).join(' · ')
+  const demographics = [formatAge(dob), gender ? humanizeEnum(gender) : '']
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-muted">
-        <span className="inline-flex flex-wrap items-center gap-x-2.5 text-body text-text">
+      <div className="text-caption text-text-muted flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-body text-text inline-flex flex-wrap items-center gap-x-2.5">
           <span className="inline-flex items-center gap-1.5">
             {patient.id ? (
-              <UserRound aria-hidden className="size-3.5 text-text-subtle" />
+              <UserRound aria-hidden className="text-text-subtle size-3.5" />
             ) : (
-              <Plus aria-hidden className="size-3.5 text-accent" />
+              <Plus aria-hidden className="text-accent size-3.5" />
             )}
             <span className="font-medium">{name || 'Unnamed'}</span>
           </span>
@@ -552,8 +554,8 @@ function FillDemographics({ record }: { record: PatientResponse }) {
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-2.5 rounded-lg border border-dashed border-provenance-blank p-2.5">
-      <p className="w-full text-caption text-text-muted">
+    <div className="border-provenance-blank flex flex-wrap items-end gap-2.5 rounded-lg border border-dashed p-2.5">
+      <p className="text-caption text-text-muted w-full">
         {needsAge && needsSex ? 'Age and sex are' : needsAge ? 'Age is' : 'Sex is'} not on this
         record yet. They print on the prescription.
       </p>
@@ -585,7 +587,7 @@ function FillDemographics({ record }: { record: PatientResponse }) {
       )}
       {needsSex && (
         <div className="flex w-36 flex-col gap-1">
-          <label htmlFor={SEX_ID} className="text-micro uppercase text-text-muted">
+          <label htmlFor={SEX_ID} className="text-micro text-text-muted uppercase">
             Sex
           </label>
           <Select

@@ -44,7 +44,7 @@ describe('repeat last prescription', () => {
     expect(
       canSubmitDraft({
         ...out,
-        patient: { ...out.patient, firstName: 'A', lastName: 'B', phone: '1' },
+        patient: { ...out.patient, firstName: 'A', lastName: 'B', phone: '' },
       }),
     ).toBe(true)
   })

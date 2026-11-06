@@ -157,7 +157,7 @@ export const rowFieldId = {
 /**
  * Which control does this issue point at?
  *
- * `patientIssues` reports all three name/phone problems with the same
+ * `patientIssues` reports every patient problem with the same
  * `field: 'medicine'` discriminator — the model's `RowIssue` shape predates
  * the inline patient and I am not allowed to widen it — so the message text is
  * the only thing left to switch on. Kept in one function so the coupling is in

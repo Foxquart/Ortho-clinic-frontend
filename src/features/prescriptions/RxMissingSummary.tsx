@@ -35,12 +35,10 @@ export function RxMissingSummary({
 }) {
   const [expanded, setExpanded] = useState(false)
 
-  // Before a patient exists at all, "First name needed / Last name needed /
-  // Phone number needed" is three ways of saying one thing the doctor has not
-  // got to yet. Collapse them until they have committed to a walk-in.
-  const shown = patientChosen
-    ? issues
-    : issues.filter((issue) => issueSection(issue) !== 'patient')
+  // Before a patient exists at all, "First name needed / Last name needed" is
+  // two ways of saying one thing the doctor has not got to yet. Collapse them
+  // until they have committed to a walk-in.
+  const shown = patientChosen ? issues : issues.filter((issue) => issueSection(issue) !== 'patient')
 
   const entries: { key: string; label: string; fieldId: string }[] = []
 
@@ -57,7 +55,7 @@ export function RxMissingSummary({
 
   if (entries.length === 0 && !allergyBlocked) {
     return (
-      <p className="flex items-center gap-1.5 text-caption text-success">
+      <p className="text-caption text-success flex items-center gap-1.5">
         <CheckCircle2 aria-hidden className="size-3.5 shrink-0" />
         Everything needed is filled in. Ready to print.
       </p>
@@ -69,10 +67,10 @@ export function RxMissingSummary({
 
   return (
     <div aria-live="polite" className="flex min-w-0 flex-col gap-1.5">
-      <p className="flex items-center gap-1.5 text-caption font-medium text-provenance-blank">
+      <p className="text-caption text-provenance-blank flex items-center gap-1.5 font-medium">
         <span
           aria-hidden
-          className="inline-block size-2.5 shrink-0 rounded-xs border border-dashed border-provenance-blank"
+          className="border-provenance-blank inline-block size-2.5 shrink-0 rounded-xs border border-dashed"
         />
         {entries.length > 0
           ? `${entries.length} thing${entries.length === 1 ? '' : 's'} still needed before printing`
@@ -86,9 +84,9 @@ export function RxMissingSummary({
               type="button"
               onClick={onResolveAllergy}
               className={cn(
-                'inline-flex min-h-9 items-center gap-1.5 rounded-sm bg-allergy px-2.5',
-                'text-caption font-medium text-allergy-fg lg:min-h-0 lg:px-2 lg:py-0.5',
-                'transition-opacity duration-instant ease-standard hover:opacity-90',
+                'bg-allergy inline-flex min-h-9 items-center gap-1.5 rounded-sm px-2.5',
+                'text-caption text-allergy-fg font-medium lg:min-h-0 lg:px-2 lg:py-0.5',
+                'duration-instant ease-standard transition-opacity hover:opacity-90',
               )}
             >
               <ShieldAlert aria-hidden className="size-3 shrink-0" />
@@ -109,9 +107,9 @@ export function RxMissingSummary({
                     plus two buttons would claim a third of the screen the
                     doctor is trying to write on. Every field they point at is
                     a full 44px where it actually lives. */
-                'inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-dashed border-provenance-blank',
-                'bg-provenance-blank-muted px-2.5 text-caption text-text lg:min-h-0 lg:px-2 lg:py-0.5',
-                'transition-colors duration-instant ease-standard',
+                'border-provenance-blank inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-dashed',
+                'bg-provenance-blank-muted text-caption text-text px-2.5 lg:min-h-0 lg:px-2 lg:py-0.5',
+                'duration-instant ease-standard transition-colors',
                 'hover:border-accent hover:bg-accent-muted hover:text-accent-muted-fg',
               )}
             >
@@ -131,7 +129,7 @@ export function RxMissingSummary({
                 <ChevronDown
                   aria-hidden
                   className={cn(
-                    'size-3.5 transition-transform duration-fast ease-standard',
+                    'duration-fast ease-standard size-3.5 transition-transform',
                     expanded && 'rotate-180',
                   )}
                 />

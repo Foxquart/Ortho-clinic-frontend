@@ -9,6 +9,7 @@ import {
   hasTemplateContent,
   newDraft,
   newRow,
+  patientIssues,
   rowFromPrevious,
   setExtraField,
   shownSections,
@@ -33,7 +34,13 @@ const template: PrescriptionTemplateResponse = {
   notes: null,
   follow_up_days: 14,
   items: [
-    { medicine_id: 'm1', medicine_name: 'Paracetamol', frequency: '1-0-1', duration_days: 5, food_timing: 'after' },
+    {
+      medicine_id: 'm1',
+      medicine_name: 'Paracetamol',
+      frequency: '1-0-1',
+      duration_days: 5,
+      food_timing: 'after',
+    },
     { medicine_id: 'm2', medicine_name: null, frequency: 'SOS' },
   ],
   created_at: '',
@@ -52,15 +59,32 @@ describe('templates', () => {
     expect(out.followUpDate.provenance).toBe('entered')
     expect(out.rows).toHaveLength(1)
     const row = out.rows[0]
-    expect([row.medicineId, row.frequency, row.quantity, row.food]).toEqual(['m1', entered('1-0-1'), blank(null), 'after'])
+    expect([row.medicineId, row.frequency, row.quantity, row.food]).toEqual([
+      'm1',
+      entered('1-0-1'),
+      blank(null),
+      'after',
+    ])
   })
 
   test('saving the applied pad gives the template back (minus the gone medicine)', () => {
     const out = applyTemplate(newDraft(), template, () => 'k')
     const body = templateFromDraft(out, ' Knee OA ')
-    expect([body.name, body.diagnosis, body.follow_up_days, body.advice]).toEqual(['Knee OA', 'Osteoarthritis', 14, null])
+    expect([body.name, body.diagnosis, body.follow_up_days, body.advice]).toEqual([
+      'Knee OA',
+      'Osteoarthritis',
+      14,
+      null,
+    ])
     expect(body.items).toEqual([
-      { medicine_id: 'm1', frequency: '1-0-1', duration_days: 5, quantity: null, instructions: null, food_timing: 'after' },
+      {
+        medicine_id: 'm1',
+        frequency: '1-0-1',
+        duration_days: 5,
+        quantity: null,
+        instructions: null,
+        food_timing: 'after',
+      },
     ])
   })
 
@@ -82,7 +106,7 @@ describe('examination findings and custom sections', () => {
   /** A draft the API would accept, so toApiRequest does not throw. */
   const ready = (draft: RxDraft): RxDraft => ({
     ...draft,
-    patient: { ...draft.patient, firstName: 'A', lastName: 'B', phone: '1' },
+    patient: { ...draft.patient, firstName: 'A', lastName: 'B', phone: '' },
     rows: [{ ...newRow('r'), medicineId: 'm1', frequency: entered('1-0-1') }],
   })
 
@@ -106,7 +130,10 @@ describe('examination findings and custom sections', () => {
   })
 
   test('template round-trip: apply then save gives both back', () => {
-    const body = templateFromDraft(applyTemplate(newDraft(), withExtras, () => 'k'), 'T')
+    const body = templateFromDraft(
+      applyTemplate(newDraft(), withExtras, () => 'k'),
+      'T',
+    )
     expect(body.examination_findings).toBe('Medial joint line tender, ROM 0-110')
     expect(body.extra_fields).toEqual([{ key: 'custom:gait', label: 'Gait', value: 'Antalgic' }])
     expect(templateFromDraft(newDraft(), 'T').extra_fields).toEqual([])
@@ -145,9 +172,14 @@ describe('examination findings and custom sections', () => {
     const layout = normalizeLayout({
       sections: [{ key: 'custom:gait', label: 'Walking', visible: true }],
     })
-    for (const body of [toApiRequest(withLayoutLabels(draft, layout)), toPreviewRequest(withLayoutLabels(draft, layout))]) {
+    for (const body of [
+      toApiRequest(withLayoutLabels(draft, layout)),
+      toPreviewRequest(withLayoutLabels(draft, layout)),
+    ]) {
       expect(body.examination_findings).toBe('Medial joint line tender, ROM 0-110')
-      expect(body.extra_fields).toEqual([{ key: 'custom:gait', label: 'Walking', value: 'Antalgic' }])
+      expect(body.extra_fields).toEqual([
+        { key: 'custom:gait', label: 'Walking', value: 'Antalgic' },
+      ])
     }
     // A key the layout no longer has keeps its snapshot label.
     const orphan = toApiRequest(withLayoutLabels(draft, DEFAULT_PAD_LAYOUT))
@@ -155,6 +187,22 @@ describe('examination findings and custom sections', () => {
     // And an untouched pad sends nothing.
     expect(toApiRequest(ready(newDraft())).examination_findings).toBeNull()
     expect(toApiRequest(ready(newDraft())).extra_fields).toEqual([])
+  })
+
+  test('phone is optional: blank is omitted, a short number is still caught', () => {
+    const draft = ready(newDraft())
+    const created = toApiRequest(draft)
+    const previewed = toPreviewRequest(draft)
+    expect('phone' in (created.patient as Record<string, unknown>)).toBe(false)
+    expect('phone' in (previewed.patient as Record<string, unknown>)).toBe(false)
+
+    const withPhone = { ...draft, patient: { ...draft.patient, phone: '9990001111' } }
+    expect((toApiRequest(withPhone).patient as Record<string, unknown>).phone).toBe('9990001111')
+
+    expect(patientIssues(draft.patient)).toEqual([])
+    expect(patientIssues({ ...draft.patient, phone: '123' })).toEqual([
+      { rowKey: 'patient', field: 'medicine', message: 'Phone number must be 6–20 digits' },
+    ])
   })
 
   test('client_request_id rides along when given and is absent otherwise', () => {

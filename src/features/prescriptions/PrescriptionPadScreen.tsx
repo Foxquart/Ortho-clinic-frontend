@@ -96,7 +96,7 @@ const MAX_ROWS = 50
  *
  *  1. **A walk-in can be prescribed for in one control.** Searching for a
  *     patient and creating one are the same combobox; a new patient costs
- *     three fields, and the record is a side effect of prescribing rather than
+ *     two fields, and the record is a side effect of prescribing rather than
  *     a prerequisite for it.
  *  2. **Nothing is invented.** A field nobody spoke and nobody typed renders
  *     visibly blank and blocks printing. The pad never substitutes a
