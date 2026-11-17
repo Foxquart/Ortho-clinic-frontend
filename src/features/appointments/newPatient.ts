@@ -26,7 +26,7 @@ export const BLANK_NEW_PATIENT: NewPatientValues = {
   age_months: '',
 }
 
-/** Mirrors `PatientUpsert`'s bounds (1..64, 1..64, 6..20) plus a sane age range. */
+/** Mirrors `PatientUpsert`'s bounds (1..64, 1..64, 6..20 when a phone is given) plus a sane age range. */
 export function newPatientIssues(v: NewPatientValues): Partial<Record<keyof NewPatientValues, string>> {
   const out: Partial<Record<keyof NewPatientValues, string>> = {}
   const name = (value: string, missing: string) =>
@@ -37,8 +37,11 @@ export function newPatientIssues(v: NewPatientValues): Partial<Record<keyof NewP
   if (first) out.first_name = first
   if (last) out.last_name = last
 
+  // No phone is a legitimate walk-in. A phone that IS given must still fit the
+  // column, so the server never has to reject it.
   const phone = v.phone.trim()
-  if (phone.length < 6 || phone.length > 20) out.phone = 'Phone must be 6–20 characters'
+  if (phone !== '' && (phone.length < 6 || phone.length > 20))
+    out.phone = 'Phone must be 6–20 characters'
 
   const years = v.age_years.trim()
   const months = v.age_months.trim()
@@ -49,10 +52,12 @@ export function newPatientIssues(v: NewPatientValues): Partial<Record<keyof NewP
 
 export function toInlinePatient(v: NewPatientValues, today = new Date()): PatientUpsert {
   const hasAge = v.age_years.trim() !== '' || v.age_months.trim() !== ''
+  const phone = v.phone.trim()
   return {
     first_name: v.first_name.trim(),
     last_name: v.last_name.trim(),
-    phone: v.phone.trim(),
+    // Omitted, not `''`: the API treats a present-but-short phone as invalid.
+    ...(phone !== '' && { phone }),
     ...(v.gender && { gender: v.gender }),
     ...(hasAge && {
       date_of_birth: ageToDob(Number(v.age_years) || 0, Number(v.age_months) || 0, today),

@@ -9,7 +9,7 @@ import { toApiError } from '@/api/errors'
 import { useAuth } from '@/app/AuthProvider'
 import { Button } from '@/components/ui/Button'
 import { SegmentedControl, Select } from '@/components/ui/Controls'
-import { Input } from '@/components/ui/Input'
+import { DateField } from '@/components/ui/DateField'
 import { PageHeader } from '@/components/ui/Surface'
 import { formatDate, formatTime, fullName, humanizeEnum, parseApiDate, toIsoDate, todayIso } from '@/lib/format'
 import { AvailabilitySheet } from './AvailabilitySheet'
@@ -225,11 +225,10 @@ export function AppointmentsScreen() {
           <label htmlFor={dateInputId} className="sr-only">
             {view === 'week' ? 'Week containing date' : 'Date'}
           </label>
-          <Input
+          <DateField
             id={dateInputId}
-            type="date"
             value={date}
-            onChange={(event) => setDate(event.target.value || todayIso())}
+            onChange={(next) => setDate(next || todayIso())}
             className="min-w-0 flex-1 sm:w-40 sm:flex-none"
           />
           <Button

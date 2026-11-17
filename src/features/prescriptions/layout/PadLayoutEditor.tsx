@@ -303,7 +303,7 @@ export function PadLayoutEditor({
 
               <p className="text-caption text-text-muted flex items-center gap-1.5 text-pretty">
                 <Lock aria-hidden className="text-text-subtle size-3.5 shrink-0" />
-                Patient, vitals and medicines are always shown.
+                Patient and medicines are always shown.
               </p>
             </div>
 
@@ -551,7 +551,7 @@ function MiniSheet({ shown, total }: { shown: PadLayoutSection[]; total: number 
           </span>
         </p>
         <ol className="border-border bg-surface text-caption flex flex-col overflow-hidden rounded-lg border shadow-xs">
-          <Fixed>Patient and vitals</Fixed>
+          <Fixed>Patient</Fixed>
           {shown.map((s) => (
             <li
               key={s.key}

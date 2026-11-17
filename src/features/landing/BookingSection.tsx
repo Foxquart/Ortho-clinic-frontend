@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { DateField } from '@/components/ui/DateField'
 import { Field, Input, Textarea } from '@/components/ui/Input'
 import { ApiError } from '@/api/errors'
 import type { AppointmentDetailResponse, ClinicSettingsResponse } from '@/api/schema'
@@ -41,7 +42,7 @@ import {
  * bounced by a server 422 the form could have caught first:
  *   patient_first_name  required, 1..64
  *   patient_last_name   required, 1..64
- *   patient_phone       required, 6..20
+ *   patient_phone       optional; 6..20 when given
  *   reason              optional, <= 512
  * `appointment_date` and `start_time` come from the date and slot pickers, so
  * they are validated separately (see `onSubmit`).
@@ -60,8 +61,10 @@ const bookingSchema = z.object({
   patient_phone: z
     .string()
     .trim()
-    .min(6, 'Please enter a phone number of at least 6 characters')
-    .max(20, 'Phone number must be 20 characters or fewer'),
+    .refine(
+      (v) => v === '' || (v.length >= 6 && v.length <= 20),
+      'Phone number must be 6–20 characters',
+    ),
   reason: z.string().trim().max(512, 'Please keep this under 512 characters').optional(),
 })
 
@@ -278,7 +281,7 @@ export function BookingSection(): JSX.Element {
       const appointment = await booking.mutateAsync({
         patient_first_name: values.patient_first_name,
         patient_last_name: values.patient_last_name,
-        patient_phone: values.patient_phone,
+        ...(values.patient_phone.trim() && { patient_phone: values.patient_phone.trim() }),
         appointment_date: date,
         start_time: slot,
         reason: values.reason ? `${prefix} ${values.reason}` : prefix || null,
@@ -470,17 +473,13 @@ export function BookingSection(): JSX.Element {
                           hint="Appointments can be booked up to a year ahead."
                         >
                           {(a) => (
-                            <Input
-                              {...a}
-                              type="date"
-                              inputSize="lg"
-                              min={todayIso()}
+                            <DateField
+                              id={a.id}
+                              aria-describedby={a['aria-describedby']}
                               value={date ?? ''}
-                              onChange={(event) => chooseDate(event.target.value)}
-                              // `inputSize="lg"` is a 40px control — correct in
-                              // the clinical UI, one finger-width short here.
+                              min={todayIso()}
+                              onChange={chooseDate}
                               className="min-h-tap max-w-xs"
-                              iconLeft={<CalendarDays />}
                             />
                           )}
                         </Field>
@@ -642,7 +641,8 @@ export function BookingSection(): JSX.Element {
                       {date
                         ? `For ${longDayLabel(date)} at ${formatTime(slot)}. `
                         : ''}
-                      We only need a name and a phone number to hold the appointment.
+                      We only need a name to hold the appointment; a phone number lets us confirm
+                      it.
                     </p>
                   </div>
 
@@ -684,8 +684,8 @@ export function BookingSection(): JSX.Element {
 
                     <Field
                       label="Phone number"
-                      required
-                      hint="The clinic will call this number to confirm your appointment."
+                      optionalLabel
+                      hint="Optional. A number lets the clinic confirm your appointment."
                       error={form.formState.errors.patient_phone?.message}
                     >
                       {(a) => (

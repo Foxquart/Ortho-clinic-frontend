@@ -18,9 +18,18 @@ test('blank age and sex are omitted; age becomes a date of birth', () => {
   expect(toInlinePatient({ ...ok, age_months: '8' }, today).date_of_birth).toBe('2026-02-23')
 })
 
+test('a blank phone is omitted, not sent as an empty string', () => {
+  expect(toInlinePatient({ ...ok, phone: '' }, today)).toEqual({
+    first_name: 'Ana',
+    last_name: 'Roy',
+  })
+  expect('phone' in toInlinePatient({ ...ok, phone: '   ' }, today)).toBe(false)
+})
+
 test('validation mirrors PatientUpsert and the age ranges', () => {
   expect(newPatientIssues(ok)).toEqual({})
-  expect(Object.keys(newPatientIssues(BLANK_NEW_PATIENT))).toEqual(['first_name', 'last_name', 'phone'])
+  expect(Object.keys(newPatientIssues(BLANK_NEW_PATIENT))).toEqual(['first_name', 'last_name'])
+  expect(newPatientIssues({ ...BLANK_NEW_PATIENT, first_name: 'Ana', last_name: 'Roy' })).toEqual({})
   expect(newPatientIssues({ ...ok, phone: '12345' }).phone).toBeTruthy()
   expect(newPatientIssues({ ...ok, age_years: '121' }).age_years).toBeTruthy()
   expect(newPatientIssues({ ...ok, age_months: '12' }).age_months).toBeTruthy()

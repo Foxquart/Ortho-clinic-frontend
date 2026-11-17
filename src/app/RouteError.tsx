@@ -9,7 +9,7 @@ export function RouteError() {
   const e = toApiError(error)
 
   return (
-    <div className="grid min-h-dvh place-items-center bg-bg px-4">
+    <div className="grid min-h-screen place-items-center bg-bg px-4 supports-[height:100dvh]:min-h-dvh">
       <div className="w-full max-w-md text-center">
         <EmptyState
           icon={<RotateCcw />}

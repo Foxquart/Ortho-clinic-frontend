@@ -39,7 +39,14 @@ export function DialogContent({
       <RD.Content
         className={cn(
           'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2',
-          'flex max-h-[85dvh] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-overlay',
+          /* `dvh` is the honest unit on a phone, but Chrome before 108 and a
+             few embedded webviews do not know it. Without a fallback the whole
+             max-height declaration is dropped, the dialog grows past the
+             viewport, and its inner scroll area has no bounded height — the
+             content simply cannot be reached. The `vh` value stands first and
+             the `dvh` one takes over only where it is understood. */
+          'flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-overlay',
+          'supports-[height:100dvh]:max-h-[85dvh]',
           'data-[state=open]:animate-[dialog-in_200ms_var(--ease-out-quint)]',
           'data-[state=closed]:animate-[dialog-out_130ms_var(--ease-standard)]',
           SIZES[size],
@@ -114,7 +121,7 @@ export function DrawerContent({
   children,
   footer,
   className,
-  height = 'h-[80dvh]',
+  height = 'h-[80vh] supports-[height:100dvh]:h-[80dvh]',
   action,
 }: Omit<DialogProps, 'size'> & {
   height?: string

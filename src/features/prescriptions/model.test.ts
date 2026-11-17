@@ -48,12 +48,11 @@ const template: PrescriptionTemplateResponse = {
 }
 
 describe('templates', () => {
-  test('apply fills non-patient fields as entered, skips gone medicines, spares patient and vitals', () => {
-    const draft = { ...newDraft(), vitalsBp: entered('120/80'), advice: entered('Rest') }
+  test('apply fills non-patient fields as entered, skips gone medicines, spares the patient', () => {
+    const draft = { ...newDraft(), advice: entered('Rest') }
     let n = 0
     const out = applyTemplate(draft, template, () => `k${++n}`)
     expect(out.patient).toBe(draft.patient)
-    expect(out.vitalsBp).toEqual(entered('120/80'))
     expect(out.advice).toEqual(entered('Rest')) // template has none: kept
     expect(out.diagnosis).toEqual(entered('Osteoarthritis'))
     expect(out.followUpDate.provenance).toBe('entered')

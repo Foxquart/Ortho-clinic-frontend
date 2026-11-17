@@ -591,8 +591,12 @@ export interface PatientUpsert {
   first_name: string
   /** 1..64 chars. */
   last_name: string
-  /** 6..20 chars. */
-  phone: string
+  /**
+   * 6..20 chars when given. Optional as of the booking-vitals change: a
+   * walk-in with no number can still be booked. Absent (never `""`) when the
+   * desk leaves it blank.
+   */
+  phone?: string
   date_of_birth?: DateString | null
   /** max 10 chars. Free string here — NOT the `Gender` enum. */
   gender?: string | null
@@ -887,16 +891,41 @@ export interface AppointmentDetailResponse {
   source: string
   created_at: DateTimeString
   patient: PatientSummary
+  /** Measured at booking. Absent on an older API, and null when not taken. */
+  vitals_bp?: string | null
+  vitals_spo2?: number | null
+  vitals_height_cm?: number | string | null
+  vitals_pulse_bpm?: number | null
+  vitals_weight_kg?: number | string | null
+}
+
+/** Vitals recorded when the appointment is booked; every field is optional. */
+export interface AppointmentVitals {
+  /** Free text, max 32 — `"120/80"`, qualifiers allowed. */
+  vitals_bp?: string
+  /** 0..100. */
+  vitals_spo2?: number
+  /** 0..300 cm, at most two decimals. */
+  vitals_height_cm?: number
+  /** 20..300 bpm. */
+  vitals_pulse_bpm?: number
+  /** 0..500 kg, at most two decimals. */
+  vitals_weight_kg?: number
 }
 
 /** `AppointmentCreateRequest` — body of `POST /appointments` (staff-side booking). */
-export interface AppointmentCreateRequest {
+export interface AppointmentCreateRequest extends AppointmentVitals {
   /** Plain `string` in the schema (no `format: uuid`). Exactly one of `patient_id` / `patient` for staff bookings. */
   patient_id?: UUID | null
   /** Inline new patient, found-or-created by phone like `PrescriptionCreateRequest.patient`. */
   patient?: PatientUpsert | null
   appointment_date: DateString
-  start_time: TimeString
+  /**
+   * Optional as of the booking-vitals change. Omit it and the server assigns
+   * the first free slot on that date (409 when the day is full). The response
+   * carries the time that was used.
+   */
+  start_time?: TimeString
   /** max 512 chars. */
   reason?: string | null
   /** max 1024 chars. */
@@ -914,8 +943,11 @@ export interface AppointmentCreateByPatientRequest {
   patient_first_name: string
   /** 1..64 chars. */
   patient_last_name: string
-  /** 6..20 chars. */
-  patient_phone: string
+  /**
+   * 6..20 chars when given. Optional as of the booking-vitals change; the
+   * landing form omits it rather than sending an empty string.
+   */
+  patient_phone?: string
   appointment_date: DateString
   start_time: TimeString
   /** max 512 chars. */

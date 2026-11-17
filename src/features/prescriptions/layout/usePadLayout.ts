@@ -23,7 +23,7 @@ export interface PadLayout {
 }
 
 /**
- * Patient, vitals and medicines are always shown and are not part of the layout.
+ * Patient and medicines are always shown and are not part of the layout.
  * Labels must match the API's defaults exactly: the printed page uses a
  * built-in's layout label only when it differs from the default.
  */

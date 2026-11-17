@@ -17,6 +17,8 @@
 
   body {
     margin: 0;
+    /* `vh` is the fallback for browsers that do not know `dvh`. */
+    min-height: 100vh;
     min-height: 100dvh;
     background-color: var(--color-bg);
     color: var(--color-text);

@@ -413,21 +413,6 @@ export function patientIssues(patient: RxPatient): RowIssue[] {
  */
 export interface RxDraft {
   patient: RxPatient
-  /**
-   * Vitals as measured AT THIS VISIT, in the doctor's own order: BP, SpO2,
-   * heart rate, weight. Strings, not numbers — a blood pressure is written
-   * and read as `120/80`, and he may qualify it (`140/90 right arm`). Parsing
-   * it would only be able to lose information.
-   *
-   * Sent as real columns (`vitals_bp`, `vitals_spo2`, `vitals_pulse_bpm`,
-   * `vitals_weight_kg`) — they live on the PRESCRIPTION, not the patient,
-   * because a printed prescription must show what was measured at that visit
-   * and must not change when the patient is weighed again.
-   */
-  vitalsBp: FieldState<string>
-  vitalsSpo2: FieldState<string>
-  vitalsPulse: FieldState<string>
-  vitalsWeight: FieldState<string>
   diagnosis: FieldState<string>
   /** Sent as `examination_findings` — what the doctor found on examining the patient. */
   examinationFindings: FieldState<string>
@@ -568,10 +553,6 @@ function extraPayload(fields: readonly ExtraFieldDraft[]): RxExtraField[] {
 export function newDraft(): RxDraft {
   return {
     patient: { ...EMPTY_PATIENT },
-    vitalsBp: blank(''),
-    vitalsSpo2: blank(''),
-    vitalsPulse: blank(''),
-    vitalsWeight: blank(''),
     diagnosis: blank(''),
     examinationFindings: blank(''),
     chiefComplaint: blank(''),
@@ -662,20 +643,11 @@ export function allergyConflicts(
  * blank dose or frequency is sent as-is rather than throwing.
  *
  * `patient_id` matters more than it looks: the server reads the patient from
- * the database and the printed vitals line lives inside the patient block, so
- * sending only inline details silently drops the vitals from the preview.
- * Send the id whenever there is one.
+ * the database, so sending only inline details can drop details from the
+ * preview. Send the id whenever there is one.
  */
 export function toPreviewRequest(draft: RxDraft): Record<string, unknown> {
   const text = (field: FieldState<string>): string | null => field.value.trim() || null
-  const wholeNumber = (raw: string): number | null => {
-    const digits = raw.match(/\d+/)?.[0]
-    return digits ? Number(digits) : null
-  }
-  const weightKg = (raw: string): string | null => {
-    const n = Number.parseFloat(raw.replace(/[^\d.]/g, ''))
-    return Number.isFinite(n) ? n.toFixed(2) : null
-  }
 
   return {
     ...(draft.patient.id
@@ -691,10 +663,6 @@ export function toPreviewRequest(draft: RxDraft): Record<string, unknown> {
     ...(draft.investigationIds.length > 0 ? { investigation_ids: draft.investigationIds } : {}),
     procedure: text(draft.procedure),
     consult: text(draft.consult),
-    vitals_bp: text(draft.vitalsBp),
-    vitals_spo2: wholeNumber(draft.vitalsSpo2.value),
-    vitals_pulse_bpm: wholeNumber(draft.vitalsPulse.value),
-    vitals_weight_kg: weightKg(draft.vitalsWeight.value),
     follow_up_date: text(draft.followUpDate),
     /* A row with neither an id nor a typed name is dropped server-side rather
        than printed as an empty line, so unfilled rows cost nothing here. */
@@ -716,28 +684,6 @@ export function toApiRequest(draft: RxDraft, clientRequestId?: string): Record<s
     throw new Error(`Draft is not ready: ${issues.map((i) => i.message).join(', ')}`)
   }
 
-  /* Vitals go to the API as numbers, but the pad holds them as text — a
-     doctor types "98%" or "72 bpm" as readily as a bare figure. Strip anything
-     that is not part of the number, and send `null` rather than a guess when
-     what is left does not parse: a wrong SpO2 on a prescription is worse than
-     an absent one, and the API would reject it anyway (422). `vitals_bp` is
-     the exception and is passed through untouched — "140/90 (right arm)" is
-     legitimate and must survive. */
-  const wholeNumber = (raw: string): number | null => {
-    /* First integer run, NOT "strip every non-digit": stripping turns "98.6"
-       into 986, which the API's 0-100 bound would reject as a 422 round-trip.
-       Matching the run yields 98 and keeps the error client-side. */
-    const digits = raw.match(/\d+/)?.[0]
-    return digits ? Number(digits) : null
-  }
-
-  /* Decimal(5,2) on the wire. Sent as a string so no float rounding can creep
-     into a clinical figure. */
-  const weightKg = (raw: string): string | null => {
-    const n = Number.parseFloat(raw.replace(/[^\d.]/g, ''))
-    return Number.isFinite(n) ? n.toFixed(2) : null
-  }
-
   const text = (field: FieldState<string>): string | null => field.value.trim() || null
 
   return {
@@ -756,10 +702,6 @@ export function toApiRequest(draft: RxDraft, clientRequestId?: string): Record<s
     ...(draft.investigationIds.length > 0 ? { investigation_ids: draft.investigationIds } : {}),
     procedure: text(draft.procedure),
     consult: text(draft.consult),
-    vitals_bp: text(draft.vitalsBp),
-    vitals_spo2: wholeNumber(draft.vitalsSpo2.value),
-    vitals_pulse_bpm: wholeNumber(draft.vitalsPulse.value),
-    vitals_weight_kg: weightKg(draft.vitalsWeight.value),
     follow_up_date: text(draft.followUpDate),
     ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
     items: draft.rows.map(toApiItem),
@@ -782,7 +724,7 @@ const TEMPLATE_TEXT_FIELDS = [
   ['notes', 'notes'],
 ] as const
 
-/** Anything on the pad a template would overwrite. Patient and vitals never count. */
+/** Anything on the pad a template would overwrite. The patient never counts. */
 export function hasTemplateContent(draft: RxDraft): boolean {
   return (
     draft.rows.length > 0 ||
@@ -796,8 +738,8 @@ export function hasTemplateContent(draft: RxDraft): boolean {
  * Lay a saved template over the pad. Everything it fills is `entered` — the
  * doctor chose it, and can edit it like anything they typed. A field the
  * template leaves empty keeps what the pad already has, and so do the
- * medicine rows when the template has none usable. Patient and vitals are
- * never touched.
+ * medicine rows when the template has none usable. The patient is never
+ * touched.
  *
  * `newKey` is called once per row; call this outside a state updater.
  */
@@ -873,7 +815,7 @@ export interface RepeatSource {
  * "Repeat last prescription": lay a past prescription over the pad through
  * `applyTemplate`, then mark all of it `defaulted` — last visit's decision, not
  * one made today, so it stays flagged "carried over" until the doctor touches
- * it. Vitals and patient are never copied (vitals are per-visit).
+ * it. The patient is never copied.
  *
  * Follow-up keeps the interval it had (visit date to follow-up date), counted
  * from today. Medicines go through `rowFromPrevious`, the same path as

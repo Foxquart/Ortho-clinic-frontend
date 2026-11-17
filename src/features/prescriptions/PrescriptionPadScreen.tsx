@@ -21,7 +21,7 @@ import { cn } from '@/lib/cn'
 import { formatDate, todayIso } from '@/lib/format'
 import { isTypingTarget } from '@/app/useGoToShortcuts'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { DateField } from '@/components/ui/DateField'
 import { Kbd } from '@/components/ui/Badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/Surface'
 import { DialogRoot, DrawerContent } from '@/components/ui/Dialog'
@@ -110,53 +110,6 @@ const MAX_ROWS = 50
  *     rather than trusted, and anything the parser could not place stays on
  *     screen instead of disappearing.
  */
-type VitalKey = 'vitalsBp' | 'vitalsSpo2' | 'vitalsPulse' | 'vitalsWeight'
-
-/**
- * The four figures he writes in the top-right corner of the paper pad, in his
- * own order. Free text rather than numbers: a blood pressure is `120/80`, and
- * he may qualify a reading. Parsing could only lose information.
- */
-const VITALS: {
-  key: VitalKey
-  id: string
-  label: string
-  hint: string
-  inputMode: 'text' | 'numeric' | 'decimal'
-  /** Mirrors the API column width, so a long qualifier is stopped here, not by a 422. */
-  maxLength?: number
-}[] = [
-  {
-    key: 'vitalsBp',
-    id: FIELD_IDS.vitalsBp,
-    label: 'BP',
-    hint: 'Blood pressure as you write it, for example 120/80. Qualifiers are fine — "140/90 (right arm)".',
-    inputMode: 'text',
-    maxLength: 32,
-  },
-  {
-    key: 'vitalsSpo2',
-    id: FIELD_IDS.vitalsSpo2,
-    label: 'SpO₂',
-    hint: 'Oxygen saturation, per cent.',
-    inputMode: 'numeric',
-  },
-  {
-    key: 'vitalsPulse',
-    id: FIELD_IDS.vitalsPulse,
-    label: 'HR',
-    hint: 'Heart rate, beats per minute.',
-    inputMode: 'numeric',
-  },
-  {
-    key: 'vitalsWeight',
-    id: FIELD_IDS.vitalsWeight,
-    label: 'Weight',
-    hint: 'Weight in kilograms.',
-    inputMode: 'decimal',
-  },
-]
-
 /**
  * How each built-in layout section is drawn. The label comes from the layout,
  * so nothing here may name a section in its own wording.
@@ -335,8 +288,7 @@ function PrescriptionPad() {
   }, [])
 
   const setField = useCallback(
-    (key: SectionField | VitalKey) => (next: FieldState<string>) =>
-      setDraft((d) => ({ ...d, [key]: next })),
+    (key: SectionField) => (next: FieldState<string>) => setDraft((d) => ({ ...d, [key]: next })),
     [],
   )
 
@@ -886,14 +838,13 @@ function PrescriptionPad() {
             {section.label}
           </FieldLabel>
           <ProvenanceField provenance={draft.followUpDate.provenance}>
-            <Input
+            <DateField
               id={FIELD_IDS.followUp}
-              type="date"
               min={todayIso()}
               value={draft.followUpDate.value}
               invalid={Boolean(serverErrors[FIELD_IDS.followUp])}
               className={cn(TAP_TARGET, provenanceControlClass(draft.followUpDate.provenance))}
-              onChange={(e) => setField('followUpDate')(entered(e.target.value))}
+              onChange={(next) => setField('followUpDate')(entered(next))}
             />
           </ProvenanceField>
         </div>
@@ -1068,36 +1019,6 @@ function PrescriptionPad() {
               )}
 
               {namedPatient && <RxAllergyRecord patient={draft.patient} status={allergyStatus} />}
-
-              {/* Vitals — the top-right corner of the paper pad, kept on the
-                  patient card because that is where he reads them from. */}
-              <div className="border-border grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4">
-                {VITALS.map((vital) => (
-                  <div key={vital.key} className="flex min-w-0 flex-col">
-                    <FieldLabel
-                      htmlFor={vital.id}
-                      provenance={draft[vital.key].provenance}
-                      hint={vital.hint}
-                    >
-                      {vital.label}
-                    </FieldLabel>
-                    <ProvenanceField provenance={draft[vital.key].provenance}>
-                      <Input
-                        id={vital.id}
-                        inputMode={vital.inputMode}
-                        maxLength={vital.maxLength}
-                        placeholder="—"
-                        value={draft[vital.key].value}
-                        className={cn(
-                          TAP_TARGET,
-                          provenanceControlClass(draft[vital.key].provenance),
-                        )}
-                        onChange={(e) => setField(vital.key)(entered(e.target.value))}
-                      />
-                    </ProvenanceField>
-                  </div>
-                ))}
-              </div>
             </CardBody>
           </Card>
 

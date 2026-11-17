@@ -220,11 +220,12 @@ export function SuperadminShell() {
 
   return (
     /* Same one-viewport rule as the clinic shell: the page never scrolls, only
-       `main` does, so the rail and the header stay put. */
-    <div className="bg-bg relative flex h-dvh overflow-hidden">
+       `main` does, so the rail and the header stay put. `vh` first, `dvh` where
+       supported, for the same reason as `AppShell`. */
+    <div className="bg-bg relative flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden">
       <aside
         data-print-hide
-        className="border-border bg-surface sticky top-0 hidden h-dvh w-56 shrink-0 border-r lg:block"
+        className="border-border bg-surface sticky top-0 hidden h-screen w-56 shrink-0 border-r supports-[height:100dvh]:h-dvh lg:block"
       >
         <Sidebar />
       </aside>

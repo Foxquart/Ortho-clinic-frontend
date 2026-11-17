@@ -238,12 +238,18 @@ export function AppShell() {
   return (
     /* Exactly one viewport, never more: the page itself does not scroll. `main`
        below is the scrollport, so the sidebar and the top bar stay put and each
-       screen decides what scrolls inside it. */
-    <div className="relative flex h-dvh overflow-hidden bg-bg">
+       screen decides what scrolls inside it.
+
+       `vh` first, `dvh` only where it is understood. A browser without `dvh`
+       (Chrome before 108, some embedded webviews) would otherwise drop the
+       height entirely, and every `h-full` inside — the prescription preview
+       pane above all — would resolve against an auto height and stop
+       scrolling. */
+    <div className="relative flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden bg-bg">
       {/* Desktop rail */}
       <aside
         data-print-hide
-        className="sticky top-0 hidden h-dvh w-56 shrink-0 border-r border-border bg-surface lg:block"
+        className="sticky top-0 hidden h-screen w-56 shrink-0 border-r border-border bg-surface supports-[height:100dvh]:h-dvh lg:block"
       >
         <Sidebar />
       </aside>

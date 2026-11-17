@@ -1,11 +1,11 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { CalendarOff, UserPlus, X } from 'lucide-react'
+import { UserPlus, X } from 'lucide-react'
 import type {
-  AppointmentDetailResponse,
+  AppointmentVitals,
   PatientSearchResult,
   WeeklyAvailabilityResponse,
 } from '@/api/schema'
@@ -13,20 +13,14 @@ import { toApiError } from '@/api/errors'
 import { Button } from '@/components/ui/Button'
 import { Combobox } from '@/components/ui/Combobox'
 import { Select } from '@/components/ui/Controls'
+import { DateField } from '@/components/ui/DateField'
 import { DialogContent, DialogRoot } from '@/components/ui/Dialog'
 import { Field, Input, Textarea } from '@/components/ui/Input'
-import { Skeleton } from '@/components/ui/Feedback'
 import { cn } from '@/lib/cn'
 import { formatDate, formatTime, fullName, todayIso } from '@/lib/format'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
-import {
-  DAY_PAGE_SIZE,
-  useAppointments,
-  useAvailableSlots,
-  useBookAppointment,
-  usePatientSearch,
-} from './queries'
-import { DAY_LABEL, dayOfWeekFor, hhmm, hoursForDate, occupiesSlot } from './model'
+import { useAvailableSlots, useBookAppointment, usePatientSearch } from './queries'
+import { DAY_LABEL, dayOfWeekFor, hhmm, hoursForDate } from './model'
 import {
   BLANK_NEW_PATIENT,
   newPatientIssues,
@@ -40,6 +34,9 @@ import {
  * first the doctor hears of a problem. The staff route takes exactly one of
  * `patient_id` (someone on file) or an inline `patient` (a new walk-in), so
  * `mode` decides which half of the form is validated.
+ *
+ * Vitals are held as text so a half-typed number never fights the keyboard;
+ * each one is optional, and blank means "not measured", never zero.
  */
 const schema = z
   .object({
@@ -52,7 +49,31 @@ const schema = z
     age_years: z.string(),
     age_months: z.string(),
     appointment_date: z.string().min(1, 'Pick a date'),
-    start_time: z.string().min(1, 'Pick a time'),
+    // Assigned from the clicked slot or the day's first free time; never typed.
+    start_time: z.string(),
+    vitals_bp: z.string().trim().max(32, 'Keep it under 32 characters'),
+    vitals_spo2: z
+      .string()
+      .trim()
+      .refine((v) => v === '' || (/^\d{1,3}$/.test(v) && Number(v) >= 0 && Number(v) <= 100), '0–100'),
+    vitals_pulse_bpm: z
+      .string()
+      .trim()
+      .refine((v) => v === '' || (/^\d{2,3}$/.test(v) && Number(v) >= 20 && Number(v) <= 300), '20–300'),
+    vitals_height_cm: z
+      .string()
+      .trim()
+      .refine(
+        (v) => v === '' || (/^\d{1,3}(\.\d{1,2})?$/.test(v) && Number(v) >= 0 && Number(v) <= 300),
+        '0–300 cm',
+      ),
+    vitals_weight_kg: z
+      .string()
+      .trim()
+      .refine(
+        (v) => v === '' || (/^\d{1,3}(\.\d{1,2})?$/.test(v) && Number(v) >= 0 && Number(v) <= 500),
+        '0–500 kg',
+      ),
     reason: z.string().max(512, 'Keep the reason under 512 characters').optional(),
     notes: z.string().max(1024, 'Keep notes under 1024 characters').optional(),
   })
@@ -72,6 +93,11 @@ const BLANK_FORM = {
   mode: 'existing',
   patient_id: '',
   ...BLANK_NEW_PATIENT,
+  vitals_bp: '',
+  vitals_spo2: '',
+  vitals_pulse_bpm: '',
+  vitals_height_cm: '',
+  vitals_weight_kg: '',
   reason: '',
   notes: '',
 } as const satisfies Partial<FormValues>
@@ -86,8 +112,24 @@ const SERVER_FIELD: Record<string, keyof FormValues> = {
   'patient.date_of_birth': 'age_years',
   appointment_date: 'appointment_date',
   start_time: 'start_time',
+  vitals_bp: 'vitals_bp',
+  vitals_spo2: 'vitals_spo2',
+  vitals_pulse_bpm: 'vitals_pulse_bpm',
+  vitals_height_cm: 'vitals_height_cm',
+  vitals_weight_kg: 'vitals_weight_kg',
   reason: 'reason',
   notes: 'notes',
+}
+
+/** Blank text is "not measured" and is omitted; zero is a real value. */
+function optionalText(value: string): string | undefined {
+  const text = value.trim()
+  return text === '' ? undefined : text
+}
+
+function optionalNumber(value: string): number | undefined {
+  const text = value.trim()
+  return text === '' ? undefined : Number(text)
 }
 
 export interface BookAppointmentDialogProps {
@@ -111,9 +153,9 @@ export function BookAppointmentDialog({
   onOpenHours,
   canManageHours,
 }: BookAppointmentDialogProps) {
-  const slotLabelId = useId()
   const [patient, setPatient] = useState<PatientSearchResult | null>(null)
   const [patientQuery, setPatientQuery] = useState('')
+  const [slotError, setSlotError] = useState<string | null>(null)
   const debouncedQuery = useDebouncedValue(patientQuery, 200)
 
   const {
@@ -170,46 +212,45 @@ export function BookAppointmentDialog({
     reset({ ...BLANK_FORM, appointment_date: initialDate, start_time: initialStartTime ?? '' })
     setPatient(null)
     setPatientQuery('')
+    setSlotError(null)
   }, [open, initialDate, initialStartTime, reset])
 
   const patients = usePatientSearch(open ? debouncedQuery : '')
   const slots = useAvailableSlots(open && date ? date : null)
-  // The slot route returns only free half hours, so the day's own bookings are
-  // what makes "taken" visible at all.
-  const dayBookings = useAppointments(
-    {
-      from_date: date,
-      to_date: date,
-      page: 1,
-      page_size: DAY_PAGE_SIZE,
-      sort_by: 'start_time',
-      sort_order: 'asc',
-    },
-    open && Boolean(date),
-  )
 
   const book = useBookAppointment()
 
   const hours = hoursForDate(availability, date)
   const day = dayOfWeekFor(date)
   const freeSlots = slots.data ?? []
-  const takenSlots = (dayBookings.data?.items ?? []).filter((a) => occupiesSlot(a.status))
-  const slotsPending = slots.isPending || dayBookings.isPending
-
-  const rows = [
-    ...freeSlots.map((slot) => ({
-      time: slot.start_time,
-      taken: false as const,
-      appointment: null as AppointmentDetailResponse | null,
-    })),
-    ...takenSlots.map((appointment) => ({
-      time: appointment.start_time,
-      taken: true as const,
-      appointment,
-    })),
-  ].sort((a, b) => a.time.localeCompare(b.time) || (a.taken === b.taken ? 0 : a.taken ? 1 : -1))
+  const slotsPending = slots.isPending
+  const closed = Boolean(day) && hours.length === 0
+  /**
+   * The time the booking will use: the slot the doctor clicked, or the first
+   * free half hour on the chosen day. The picker is gone, but a time is still
+   * part of the record — and deriving it here means the current API keeps
+   * working while the server gains the option to choose for itself.
+   */
+  const assignedTime = startTime || freeSlots[0]?.start_time || null
 
   const onSubmit = handleSubmit((values) => {
+    if (!assignedTime) {
+      setSlotError('No free time is left on this day. Choose another date.')
+      return
+    }
+
+    const vitals: AppointmentVitals = {}
+    const bp = optionalText(values.vitals_bp)
+    if (bp !== undefined) vitals.vitals_bp = bp
+    const spo2 = optionalNumber(values.vitals_spo2)
+    if (spo2 !== undefined) vitals.vitals_spo2 = spo2
+    const pulse = optionalNumber(values.vitals_pulse_bpm)
+    if (pulse !== undefined) vitals.vitals_pulse_bpm = pulse
+    const height = optionalNumber(values.vitals_height_cm)
+    if (height !== undefined) vitals.vitals_height_cm = height
+    const weight = optionalNumber(values.vitals_weight_kg)
+    if (weight !== undefined) vitals.vitals_weight_kg = weight
+
     book.mutate(
       {
         ...(values.mode === 'new'
@@ -217,7 +258,8 @@ export function BookAppointmentDialog({
           : { patient_id: values.patient_id }),
         appointment_date: values.appointment_date,
         // The API accepts HH:MM and emits HH:MM:SS; send the short form.
-        start_time: hhmm(values.start_time),
+        start_time: hhmm(assignedTime),
+        ...vitals,
         reason: values.reason?.trim() ? values.reason.trim() : undefined,
         notes: values.notes?.trim() ? values.notes.trim() : undefined,
         // `source` defaults to "public" even on the staff route, which would
@@ -247,27 +289,30 @@ export function BookAppointmentDialog({
                 matched = true
               }
             }
+            const timeMessage = e.fieldErrors().start_time
+            if (timeMessage) {
+              matched = true
+              setSlotError(timeMessage)
+            }
             if (!matched) toast.error(e.message)
             return
           }
 
           if (e.isConflict) {
-            // 409 here means the half hour went while this form was open.
+            // 409 here means our chosen half hour went while the form was open.
+            // Refresh the list and let the next press take the new first slot.
             void slots.refetch()
-            void dayBookings.refetch()
             setValue('start_time', '')
-            setError('start_time', {
-              message: 'That slot was taken while this form was open. Pick another time.',
-            })
+            setSlotError(
+              'That time was taken while this form was open. We have refreshed the free times — press Book appointment again.',
+            )
             return
           }
 
           if (e.status === 400 && /availability|clinic/i.test(e.message)) {
-            setError('start_time', {
-              message: `That time is outside the clinic's hours for ${
-                day ? DAY_LABEL[day] : 'this day'
-              }.`,
-            })
+            setSlotError(
+              `That time is outside the clinic's hours for ${day ? DAY_LABEL[day] : 'this day'}. Choose another date.`,
+            )
             return
           }
 
@@ -296,7 +341,9 @@ export function BookAppointmentDialog({
               variant="primary"
               onClick={() => void onSubmit()}
               loading={book.isPending}
-              disabled={rows.every((row) => row.taken)}
+              /* With a date but no free time there is nothing to book; with no
+                 date at all the press is what surfaces "Pick a date". */
+              disabled={Boolean(date) && !assignedTime}
             >
               Book appointment
             </Button>
@@ -373,114 +420,128 @@ export function BookAppointmentDialog({
 
           <Field label="Date" required error={errors.appointment_date?.message}>
             {(a) => (
-              <Input
-                {...a}
-                {...register('appointment_date', {
-                  onChange: () => setValue('start_time', '', { shouldValidate: false }),
-                })}
-                type="date"
+              <DateField
+                id={a.id}
+                aria-describedby={a['aria-describedby']}
+                invalid={Boolean(errors.appointment_date)}
+                value={date}
                 min={todayIso()}
                 className="w-48"
+                onChange={(next) => {
+                  setValue('appointment_date', next, { shouldValidate: true })
+                  setValue('start_time', '', { shouldValidate: false })
+                  setSlotError(null)
+                }}
               />
             )}
           </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <span id={slotLabelId} className="text-label text-text-muted">
-              Time <span aria-hidden className="text-danger">*</span>
-            </span>
-
-            {slotsPending ? (
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-                {Array.from({ length: 8 }, (_, i) => (
-                  <Skeleton key={i} className="h-8 w-full" />
-                ))}
-              </div>
-            ) : hours.length === 0 ? (
-              <EmptySlots
-                title={day ? `The clinic is closed on ${DAY_LABEL[day]}s` : 'No clinic hours'}
-                description="No weekly hours are set for this day, so no slot can be booked."
-                action={
-                  canManageHours && (
+          {/* The time picker is gone, but a time is still on the record. This
+              line says which one, so "9:30" in the day view is never a
+              surprise. */}
+          {date && (
+            <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-bg-sunken/60 px-3 py-2">
+              {slotsPending ? (
+                <p className="text-caption text-text-muted">Finding the next free time…</p>
+              ) : closed ? (
+                <>
+                  <p className="text-caption text-text-muted">
+                    The clinic is closed on {day ? `${DAY_LABEL[day]}s` : 'this day'}. Choose
+                    another date.
+                  </p>
+                  {canManageHours && (
                     <Button variant="secondary" size="sm" onClick={onOpenHours}>
                       Set clinic hours
                     </Button>
-                  )
-                }
-              />
-            ) : freeSlots.length === 0 ? (
-              <EmptySlots
-                title="Every slot is taken"
-                description={`Nothing is free on ${formatDate(date)}. Try another day.`}
-              />
-            ) : (
-              <fieldset className="min-w-0">
-                <legend className="sr-only">
-                  Available times on {formatDate(date)}
-                </legend>
-                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-                  {rows.map((row) => {
-                    const value = row.time
-                    const selected = Boolean(startTime) && hhmm(startTime) === hhmm(value)
-                    const takenBy = row.appointment
-                      ? fullName(
-                          row.appointment.patient.first_name,
-                          row.appointment.patient.last_name,
-                        )
-                      : null
+                  )}
+                </>
+              ) : assignedTime ? (
+                <p className="text-caption text-text-muted">
+                  This will be booked for{' '}
+                  <span className="font-medium text-text">{formatTime(assignedTime)}</span>
+                  {startTime ? ' — the time you picked.' : ' — the next free time that day.'}
+                </p>
+              ) : (
+                <p className="text-caption text-text-muted">
+                  Every time on {formatDate(date)} is taken. Choose another date.
+                </p>
+              )}
 
-                    return (
-                      <label
-                        key={`${row.taken ? 'taken' : 'free'}-${value}`}
-                        className={cn(
-                          'flex h-8 items-center justify-center rounded-md border text-caption',
-                          'transition-[border-color,background-color,color] duration-fast ease-standard',
-                          'has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus',
-                          row.taken
-                            ? 'cursor-not-allowed border-dashed border-border text-text-subtle'
-                            : 'cursor-pointer border-border bg-surface text-text hover:border-border-strong',
-                          !row.taken &&
-                            'has-[:checked]:border-accent has-[:checked]:bg-accent-muted has-[:checked]:text-accent',
-                        )}
-                        title={takenBy ? `Booked — ${takenBy}` : undefined}
-                      >
-                        <input
-                          type="radio"
-                          name="start_time"
-                          className="sr-only"
-                          value={value}
-                          disabled={row.taken}
-                          checked={selected && !row.taken}
-                          onChange={() =>
-                            setValue('start_time', value, { shouldValidate: true })
-                          }
-                          aria-label={
-                            takenBy
-                              ? `${formatTime(value)} — booked for ${takenBy}`
-                              : `${formatTime(value)} — free`
-                          }
-                        />
-                        <span aria-hidden data-numeric>
-                          {formatTime(value)}
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </fieldset>
-            )}
+              {slotError && (
+                <p role="alert" className="text-caption font-medium text-danger">
+                  {slotError}
+                </p>
+              )}
+            </div>
+          )}
 
-            {errors.start_time?.message && (
-              <p role="alert" className="text-caption font-medium text-danger">
-                {errors.start_time.message}
-              </p>
-            )}
-            {!errors.start_time && freeSlots.length > 0 && (
-              <p className="text-caption text-text-subtle">
-                {freeSlots.length} free · dashed times are already booked.
-              </p>
-            )}
-          </div>
+          <fieldset className="rounded-lg border border-border p-3">
+            <legend className="px-1 text-label font-medium text-text">
+              Vitals at booking
+              <span className="ml-1.5 text-caption font-normal text-text-subtle">optional</span>
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="BP" optionalLabel error={errors.vitals_bp?.message}>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_bp')}
+                    placeholder="120/80"
+                    maxLength={32}
+                    autoComplete="off"
+                  />
+                )}
+              </Field>
+              <Field label="SpO₂ (%)" optionalLabel error={errors.vitals_spo2?.message}>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_spo2')}
+                    inputMode="numeric"
+                    placeholder="98"
+                    maxLength={3}
+                    autoComplete="off"
+                  />
+                )}
+              </Field>
+              <Field label="HR (bpm)" optionalLabel error={errors.vitals_pulse_bpm?.message}>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_pulse_bpm')}
+                    inputMode="numeric"
+                    placeholder="76"
+                    maxLength={3}
+                    autoComplete="off"
+                  />
+                )}
+              </Field>
+              <Field label="Height (cm)" optionalLabel error={errors.vitals_height_cm?.message}>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_height_cm')}
+                    inputMode="decimal"
+                    placeholder="170"
+                    maxLength={6}
+                    autoComplete="off"
+                  />
+                )}
+              </Field>
+              <Field label="Weight (kg)" optionalLabel error={errors.vitals_weight_kg?.message}>
+                {(a) => (
+                  <Input
+                    {...a}
+                    {...register('vitals_weight_kg')}
+                    inputMode="decimal"
+                    placeholder="72.5"
+                    maxLength={6}
+                    autoComplete="off"
+                  />
+                )}
+              </Field>
+            </div>
+          </fieldset>
 
           <Field label="Reason" optionalLabel error={errors.reason?.message}>
             {(a) => (
@@ -501,7 +562,7 @@ type FormErrors = ReturnType<typeof useForm<FormValues>>['formState']['errors']
 
 const UNSET = '__unset__'
 
-/** Name, phone, sex and age — everything optional beyond the three the API demands. */
+/** Name, phone, sex and age — the phone is the only one the API used to demand. */
 function NewPatientFields({
   register,
   control,
@@ -520,7 +581,8 @@ function NewPatientFields({
         <p className="min-w-0 flex-1 text-label font-medium text-text">
           New patient
           <span className="ml-2 text-caption font-normal text-text-muted">
-            Created with the booking. Same name and phone as someone on file reuses their record.
+            Created with the booking. A matching phone — or name and date of birth — reuses the
+            record on file.
           </span>
         </p>
         <Button
@@ -541,7 +603,12 @@ function NewPatientFields({
         <Field label="Last name" required error={errors.last_name?.message}>
           {(a) => <Input {...a} {...register('last_name')} maxLength={64} autoComplete="off" />}
         </Field>
-        <Field label="Phone" required error={errors.phone?.message}>
+        <Field
+          label="Phone"
+          optionalLabel
+          hint="Optional. A returning patient can still be found by name."
+          error={errors.phone?.message}
+        >
           {(a) => (
             <Input
               {...a}
@@ -611,21 +678,3 @@ function NewPatientFields({
   )
 }
 
-function EmptySlots({
-  title,
-  description,
-  action,
-}: {
-  title: string
-  description: string
-  action?: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-6 text-center">
-      <CalendarOff aria-hidden className="size-5 text-text-subtle" />
-      <p className="text-body font-medium text-text">{title}</p>
-      <p className="max-w-xs text-caption text-text-muted">{description}</p>
-      {action}
-    </div>
-  )
-}

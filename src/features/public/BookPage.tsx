@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { CalendarDays, CheckCircle2, Phone } from 'lucide-react'
+import { CheckCircle2, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { DateField } from '@/components/ui/DateField'
 import { Field, Input, Textarea } from '@/components/ui/Input'
 import { ApiError } from '@/api/errors'
 import type { AppointmentDetailResponse } from '@/api/schema'
@@ -46,7 +47,7 @@ import { SITE_ROOT } from './routes'
  * a server 422 the form could have caught:
  *   patient_first_name  required, 1..64
  *   patient_last_name   required, 1..64
- *   patient_phone       required, 6..20
+ *   patient_phone       optional; 6..20 when given
  *   reason              optional, <= 512
  * `appointment_date` and `start_time` are chosen with the date and slot
  * pickers rather than typed, so they are validated separately.
@@ -65,8 +66,10 @@ const bookingSchema = z.object({
   patient_phone: z
     .string()
     .trim()
-    .min(6, 'Please enter a phone number of at least 6 characters')
-    .max(20, 'Phone number must be 20 characters or fewer'),
+    .refine(
+      (v) => v === '' || (v.length >= 6 && v.length <= 20),
+      'Phone number must be 6–20 characters',
+    ),
   reason: z.string().trim().max(512, 'Please keep this under 512 characters').optional(),
 })
 
@@ -171,7 +174,8 @@ export function BookPage() {
       const appointment = await booking.mutateAsync({
         patient_first_name: values.patient_first_name,
         patient_last_name: values.patient_last_name,
-        patient_phone: values.patient_phone,
+        // Omitted, not empty: the API validates a present phone's length.
+        ...(values.patient_phone.trim() && { patient_phone: values.patient_phone.trim() }),
         appointment_date: date,
         start_time: slot,
         reason: values.reason ? values.reason : null,
@@ -313,15 +317,13 @@ export function BookPage() {
                   hint="Appointments can be booked up to a year ahead."
                 >
                   {(a) => (
-                    <Input
-                      {...a}
-                      type="date"
-                      inputSize="lg"
-                      min={todayIso()}
+                    <DateField
+                      id={a.id}
+                      aria-describedby={a['aria-describedby']}
                       value={date ?? ''}
-                      onChange={(event) => chooseDate(event.target.value)}
+                      min={todayIso()}
+                      onChange={chooseDate}
                       className="max-w-xs"
-                      iconLeft={<CalendarDays />}
                     />
                   )}
                 </Field>
@@ -399,7 +401,7 @@ export function BookPage() {
             <div className="flex flex-col gap-1">
               <h2 className="text-heading text-text">3. Your details</h2>
               <p className="text-body text-text-muted">
-                We only need a name and a phone number to hold the appointment.
+                We only need a name to hold the appointment; a phone number lets us confirm it.
               </p>
             </div>
 
@@ -438,8 +440,8 @@ export function BookPage() {
 
             <Field
               label="Phone number"
-              required
-              hint="The clinic will call this number to confirm your appointment."
+              optionalLabel
+              hint="Optional. A number lets us confirm the appointment."
               error={form.formState.errors.patient_phone?.message}
             >
               {(a) => (

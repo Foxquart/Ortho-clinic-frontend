@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { applyPrevious, blank, canSubmitDraft, entered, newDraft, type RepeatSource } from './model'
+import { applyPrevious, blank, canSubmitDraft, newDraft, type RepeatSource } from './model'
 
 const rx: RepeatSource = {
   patient_id: 'p1',
@@ -23,17 +23,14 @@ const rx: RepeatSource = {
 }
 
 describe('repeat last prescription', () => {
-  test('carries everything except vitals and patient, all marked carried over', () => {
+  test('carries everything except the patient, all marked carried over', () => {
     const draft = {
       ...newDraft(),
-      vitalsBp: entered('140/90'),
       patient: { ...newDraft().patient, id: 'p1' },
     }
     let n = 0
     const out = applyPrevious(draft, rx, () => `k${++n}`)
     expect(out.patient).toBe(draft.patient)
-    expect(out.vitalsBp).toEqual(entered('140/90'))
-    expect(out.vitalsWeight).toEqual(blank(''))
     expect(out.diagnosis).toEqual({ value: 'Osteoarthritis', provenance: 'defaulted' })
     expect(out.procedure.provenance).toBe('defaulted')
     expect(out.advice).toEqual(blank('')) // source had none: untouched

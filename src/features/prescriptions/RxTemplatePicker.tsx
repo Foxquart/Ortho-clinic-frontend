@@ -111,7 +111,7 @@ export function RxTemplatePicker({
         open={confirming !== null}
         onOpenChange={(open) => !open && setConfirming(null)}
         title={confirming ? `Apply “${confirming.name}”?` : 'Apply template?'}
-        body="What the template fills in replaces what is already on the pad, and its medicines replace the ones listed. The patient and vitals are not touched."
+        body="What the template fills in replaces what is already on the pad, and its medicines replace the ones listed. The patient is not touched."
         confirmLabel="Apply template"
         onConfirm={() => {
           if (confirming) onApply(confirming)
@@ -123,7 +123,7 @@ export function RxTemplatePicker({
         <DialogContent
           size="sm"
           title="Save as template"
-          description="Saves everything on the pad except the patient and vitals."
+          description="Saves everything on the pad except the patient."
           footer={
             <>
               <DialogClose asChild>

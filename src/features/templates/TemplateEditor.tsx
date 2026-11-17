@@ -924,7 +924,11 @@ function SaveBurst() {
 
 /** A centred, scrollable modal on desktop that fills the screen on a phone. */
 const MODAL =
-  'sm:h-[85dvh] max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none ' +
+  /* `vh` first and the `dvh` value inside `supports-`, so a browser that does
+     not know `dvh` still gets a bounded modal whose body scrolls. */
+  'sm:h-[85vh] sm:supports-[height:100dvh]:h-[85dvh] ' +
+  'max-sm:top-0 max-sm:left-0 max-sm:h-screen max-sm:supports-[height:100dvh]:h-dvh ' +
+  'max-sm:max-h-none max-sm:w-full max-sm:max-w-none ' +
   'max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0'
 
 const DISCARD = {
