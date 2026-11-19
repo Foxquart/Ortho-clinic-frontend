@@ -67,6 +67,17 @@ const A4_WIDTH_PX = 794
  */
 const A4_HEIGHT_PX = 1123
 
+/**
+ * Width reserved for the pane's own scrollbar before deciding the page fits.
+ *
+ * At exactly 1:1 the pane scrolls, and the scrollbar it grows takes width the
+ * 794px page still expects — so a pane that "just fits" gains a horizontal
+ * scrollbar the moment it gains a vertical one. Taking the gutter out first
+ * keeps the fit decision and the final layout in agreement. Overlay
+ * scrollbars (macOS) cost nothing here but a couple of percent of width.
+ */
+const SCROLLBAR_GUTTER_PX = 18
+
 const ZOOMS = [
   { value: 'fit', label: 'Fit' },
   { value: 'actual', label: 'Actual size' },
@@ -159,8 +170,10 @@ export function RxLivePreview({
   const [zoom, setZoom] = useState<'fit' | 'actual'>('fit')
 
   /* Never scale UP: on a very wide pane a 794px page blown up would just be
-     blurry. Below A4 width it shrinks to fit. */
-  const fitScale = frame.width > 0 ? Math.min(1, frame.width / A4_WIDTH_PX) : 1
+     blurry. Below A4 width it shrinks to fit, keeping the scrollbar gutter in
+     reserve so 1:1 never inherits a sideways scrollbar. */
+  const usableWidth = Math.max(0, frame.width - SCROLLBAR_GUTTER_PX)
+  const fitScale = frame.width > 0 ? Math.min(1, usableWidth / A4_WIDTH_PX) : 1
   const scale = zoomable && zoom === 'actual' ? 1 : fitScale
   const pending = payload !== settled || preview.isFetching
   const failed = preview.isError && html === null
@@ -232,15 +245,22 @@ export function RxLivePreview({
       ) : (
         <div
           ref={frameRef}
-          /* At 1:1 the page is wider than the pane on purpose, so the pane
-             itself is what scrolls — `overscroll-contain` keeps that gesture
-             from turning into a page-level swipe once it reaches the edge.
-             The overflow is contained here and never reaches the document,
-             which is the difference between "pan the preview" and "the whole
-             screen is 400px too wide". */
+          /* Who scrolls depends on whether the scaled page fits the pane:
+             - `scale < 1`: the iframe is sized to exactly the pane's height, so
+               the document scrolls inside the frame. The wrapper must stay
+               clipped or it grows a second, empty scrollbar.
+             - `scale === 1`: the iframe is a full A4 tall and 794 wide. On a
+               window wide enough for 1:1 that page is taller than the pane, so
+               the wrapper is what scrolls. Keying this off `zoomable` (as it
+               used to) left a side-by-side pane on a large monitor clipped at
+               the fold with no way to reach the bottom — the page was simply
+               cut off.
+             `overscroll-contain` keeps the gesture from turning into a
+             page-level swipe once it reaches the edge, which is the difference
+             between "scroll the preview" and "the whole screen moves". */
           className={cn(
             'min-h-0 flex-1',
-            scale < 1 || !zoomable ? 'overflow-hidden' : 'overflow-auto overscroll-contain',
+            scale < 1 ? 'overflow-hidden' : 'overflow-auto overscroll-contain scrollbar-subtle',
           )}
         >
           <iframe
@@ -251,9 +271,10 @@ export function RxLivePreview({
                paint. */
             sandbox=""
             /* Laid out at true A4 width and scaled to fit, so the page is
-               never cropped. The height is divided by the same factor, so
-               after scaling it fills the pane exactly and long prescriptions
-               scroll inside the frame rather than being cut off. */
+               never cropped. Below 1:1 the height is divided by the same
+               factor, so after scaling it fills the pane exactly and long
+               prescriptions scroll inside the frame rather than being cut off.
+               At 1:1 a full A4 is the floor and the wrapper scrolls to it. */
             style={{
               width: A4_WIDTH_PX,
               height:
@@ -265,7 +286,13 @@ export function RxLivePreview({
               transform: `scale(${scale})`,
               transformOrigin: 'top left',
             }}
-            className="border-0 bg-white"
+            className={cn(
+              'border-0 bg-white',
+              /* At 1:1 on a wide desktop the page is narrower than the pane;
+                 a sheet floating in the middle reads better than one pinned
+                 left with a gutter of empty pane. */
+              scale >= 1 && 'mx-auto',
+            )}
           />
         </div>
       )}

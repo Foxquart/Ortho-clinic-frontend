@@ -51,13 +51,25 @@ a time in the staff booking dialog, and make every date field show and accept
    value is kept under a `supports-[height:100dvh]` variant so older
    Chrome/Edge get a bounded surface that scrolls instead of one taller than
    the screen. This covers the dialog and drawer, the app shells (`AppShell`,
-   `SuperadminShell`), the route error page and `body`'s minimum height.
+   `SuperadminShell`), the template editor sheet, the route error page and
+   `body`'s minimum height.
 
-   The shells matter as much as the dialog: every screen sizes itself from the
-   shell's one-viewport height, so a dropped `h-dvh` leaves the page
-   auto-height and the prescription preview pane — the one thing that must
-   scroll inside a fixed box — measures its own content instead of the
-   viewport and stops scrolling. That is the reported client-PC symptom.
+   This was first written up as the cause of the unscrollable preview on the
+   client PC. It was not: the real cause is below. The fallbacks stay as
+   hardening, because a shell that loses its height breaks every `h-full`
+   inside it, the preview pane included.
+
+7. **The preview pane scrolls at 1:1 too.** `RxLivePreview` has two layouts:
+   below A4 width it scales the page down and lets the sandboxed document
+   scroll inside the iframe; at exactly 794 px or wider it is 1:1, the iframe
+   is a full A4 tall, and the wrapper is what has to scroll. The wrapper's
+   overflow was keyed off `zoomable` rather than off the scale, so the
+   side-by-side desktop pane — the one place `zoomable` is false — was
+   `overflow-hidden` at 1:1: a page taller than the pane was silently clipped
+   with nothing to scroll. That is the "works on my laptop, stuck on the big
+   monitor" symptom: a narrow window fits, so it takes the scaled path. The
+   wrapper now scrolls whenever the page does not fit, with the fit scale
+   reserving the scrollbar gutter so 1:1 cannot inherit a sideways scrollbar.
 
 ## Backend contract (summary; full guide in `docs/BACKEND_BOOKING_VITALS.md`)
 
